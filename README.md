@@ -9,8 +9,6 @@ VIB/UGent center for plant systems biology
 
 ## Introduction
 
-Whole-genome multiplications (WGMs),often colloquially referred to as whole-genome duplications (we also use `WGD` hereafter for conciseness), is a long-standing black box fascinating evolutionary biologist for decades. The scarce in the number of well-recorded established ancient 
-
 Whole genome duplication (WGD), a long-known important evolutionary force for eukaryotes, leaves its unique footprints on genome in various aspects, including the explosion of massive gene duplicates, the preservation of syntenic blocks, the burst of reconciled duplication events on certain branches in the concerned phylogenetic tree, the increase of chromosome numbers and et al. `wgd` is the program enabling users to recover such imprinting by means of deciphering the Ks distribution and synteny. We provide an exemplified workflow practice of how to detect such “WGD signature” from a given genomic dataset. We divide the practice into four steps: Step1 Installation, Step2 Data Collection and Preparation, Step3 Construction of Ks Distribution and Step 4 Synteny Analysis.   
 
 ## Step 1 Installation
