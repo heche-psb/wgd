@@ -79,8 +79,8 @@ The Ks distribution of *V. vinifera* shows a considerable enrichment of gene dup
 The multiplication of the entire genome is supposed to instantaneously generate an additional copy of each chromosome, retaining both the gene order and gene content of the original copy. Despite chromosomal rearrangements and rampant gene loss following WGD, gene order and gene content are expected to be more or less retained on at least some chromosomes in reasonable time frames. Such chromosomal region is named *Syntenic Region*, which is assumed to be originated from the duplication of a common ancestral genomic region and considered as strong evidence for WGD once detected. A straightforward way to depict the synteny relationship within a genome is to draw a `whole-genome dotplot`, where both the x-axis and y-axis represent the same genome, and each square represents a single chromosome-to-chromosome comparison. Homologs are shown as dots while anchor pairs, defined as homologous pairs on syntenic regions, are marked in a distinct color. To delineate the synteny relationship, we use [I-ADHoRe 3.0](https://github.com/VIB-PSB/i-ADHoRe) to obtain such dotplots using the following command. 
 
 ```
-wgd syn -f mRNA data/Vvi_wgd_dmd/Vvi.cds.tsv data/Vvi.gff3 -o data/Vvi_wgd_syn
-wgd syn -f mRNA data/Atr_wgd_dmd/Atr.cds.tsv data/Atr.gff3 -o data/Atr_wgd_syn
+wgd syn -f mRNA data/Vvi_wgd_dmd/Vvi.cds.tsv data/Vvi.gff3 -ks data/Vvi_wgd_ksd/Vvi.cds.tsv.ks.tsv -o data/Vvi_wgd_syn
+wgd syn -f mRNA data/Atr_wgd_dmd/Atr.cds.tsv data/Atr.gff3 -ks data/Atr_wgd_ksd/Atr.cds.tsv.ks.tsv -o data/Atr_wgd_syn
 ```
 
 ![](data/Vvi_wgd_syn/Vvi.cds-vs-Vvi.cds.dot.svg)
@@ -103,6 +103,11 @@ Note that [dupliStacks.pl](https://github.com/VIB-PSB/i-ADHoRe/blob/master/post_
 ![](data/Vvi_wgd_syn/duplication-level.svg)
 
 The duplication level plot further shows that most syntenic regions consist of three homologous segments, which again is suggestive of *V. vitifera*’s ancestral hexaploidy. 
+
+We can also find evidence for this putative WGD event from the correspondence of peak in Ks distributions for anchor pairs and whole-paranome.
+
+![](data/Vvi_wgd_syn/Vvi.cds.tsv.ksd.svg)
+![](data/Atr_wgd_syn/Atr.cds.tsv.ksd.svg)
 
 ### Intergenomic Synteny
 
