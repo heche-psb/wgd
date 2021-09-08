@@ -179,7 +179,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     help="keyword for parsing the genes from the GFF file (column 3)")
 @click.option('--attribute', '-a', default='ID', show_default=True,
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
-@click.option('--minlen', '-ml', default=-1, show_default=True,
+@click.option('--minlen', '-ml', default=250, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
 @click.option('--maxsize', '-ms', default=25, show_default=True,
     help="maximum family size to include in analysis.")
@@ -260,6 +260,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         anchor_ks.to_csv(os.path.join(outdir, "{}.anchors.ks.csv".format(prefix)))
         a = apply_filters(ksd,       [("dS", 1e-4, 5.), ("S", 10, 1e6)])
         b = apply_filters(anchor_ks, [("dS", 1e-4, 5.), ("S", 10, 1e6)])
+        logging.info("Generating anchor Ks distribution")
         fig = default_plot(a, b, title=prefix, rwidth=0.8, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -276,7 +277,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
                 max_ks=ks_range[1], output_file=dotplot_out,
                 min_length=minlen
         )
-        
+    logging.info("Done")    
 
 # MIXTURE MODELING
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
