@@ -201,7 +201,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile
-    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots
+    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, syntenic_dotplot_ks_colored
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -263,6 +263,20 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         fig = default_plot(a, b, title=prefix, rwidth=0.8, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
+        # Ks colored dotplot
+        logging.info("Generating Ks colored (median Ks) dotplot")
+        multiplicons = pd.read_csv(os.path.join(
+            outdir, 'iadhore-out', 'multiplicons.txt'), sep='\t')
+        anchor_points = pd.read_csv(os.path.join(
+            outdir, 'iadhore-out', 'anchorpoints.txt'), sep='\t')
+        dotplot_out = os.path.join(outdir, '{}.dotplot.ks.svg'.format(
+                os.path.basename(families)))
+        syntenic_dotplot_ks_colored(
+                multiplicons, anchor_points, anchor_ks, min_ks=ks_range[0],
+                max_ks=ks_range[1], output_file=dotplot_out,
+                min_length=minlen
+        )
+        
 
 # MIXTURE MODELING
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
