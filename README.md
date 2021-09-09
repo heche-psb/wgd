@@ -123,7 +123,7 @@ The result file [Orthogroups.tsv](https://github.com/heche-psb/wgd/tree/dev/data
 wgd syn -f mRNA data/Orthogroups.tsv data/Atr.gff3 data/Vvi.gff3 -o data/Vvi_Atr_wgd_syn
 ```
 
-![](data/Vvi_Atr_wgd_syn/Interspecific_dotplot.jpg)
+![](data/Vvi_Atr_wgd_syn/A.trichopoda-vs-V.vinifera.dot.png)
 ![](data/Vvi_Atr_wgd_syn/Orthogroups.tsv.syndepth.svg) 
 
 We modfiy the interspecific dotplot manually to highlight the syntenic regions which is 3:1 ratio. The synteny depth bar plot shows that except for an obvious 1:1 ratio, mainly a ratio of 2:1 and 3:1 is uncovered. Combined with the results of the intragenomic comparisons, we can rather confidently conclude that *V. vinifera* experienced a paleo-hexaploidization event after its divergence of *A. trichopoda*.
