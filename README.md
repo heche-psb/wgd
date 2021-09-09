@@ -83,8 +83,8 @@ wgd syn -f mRNA data/Vvi_wgd_dmd/Vvi.cds.tsv data/Vvi.gff3 -ks data/Vvi_wgd_ksd/
 wgd syn -f mRNA data/Atr_wgd_dmd/Atr.cds.tsv data/Atr.gff3 -ks data/Atr_wgd_ksd/Atr.cds.tsv.ks.tsv -o data/Atr_wgd_syn
 ```
 
-![](data/Vvi_wgd_syn/Vvi.cds-vs-Vvi.cds.dot.svg)
-![](data/Atr_wgd_syn/Atr.cds-vs-Atr.cds.dot.svg)
+![](data/Vvi_wgd_syn/Vvi.cds-vs-Vvi.cds.dot.png)
+![](data/Atr_wgd_syn/Atr.cds-vs-Atr.cds.dot.png)
 
 When multiple anchors are located adjacently, a red diagonal line, reflecting a syntenic block, can be observed. We can find quite some syntenic blocks in the intragenomic dotplot of *V. vinifera* and a close examination reveals that for many chromosomal regions, we find two copies showing conserved gene order on other chromosomes, suggesting an ancestral genome triplication (hexaploidization). While for *A. trichopoda*, the anchors are negligible, implying no recent WGD.
 
