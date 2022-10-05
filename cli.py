@@ -46,6 +46,8 @@ def cli(verbosity):
     help="don't translate through STOP codons")
 @click.option('--cds', is_flag=True,
     help="enforce proper CDS sequences")
+@click.option('--focus', default=None,
+    help="Species whose WGD is to be dated")
 def dmd(**kwargs):
     """
     All-vs.-all diamond blastp + MCL clustering.
@@ -68,7 +70,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds):
+def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
     from wgd.core import SequenceData
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds) for s in sequences]
@@ -80,13 +82,42 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds):
         logging.info("One CDS file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
         s[0].write_paranome()
-    else:
+    if focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs")
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
                 s[i].get_rbh_orthologs(s[j], eval=eval)
                 s[i].write_rbh_orthologs(s[j])
+    if not focus is None:
+        logging.info("Multiple CDS files: will compute RBH orthologs between focus species and remaining species")
+        x = 0
+        table = pd.DataFrame()
+        focusname = os.path.join(outdir, 'merge_focus.tsv')
+        for i in range(len(s)-1):
+            if s[i].prefix == focus is True:
+                x = i
+        if x == 0:
+            for j in range(1, len(s)):
+                logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
+                s[0].get_rbh_orthologs(s[j], eval=eval)
+                table_tmp = s[0].write_rbh_orthologs(s[j],singletons=False)
+                if table.empty:
+                    table = table_tmp
+                table = table.merge(table_tmp)
+                table = table.drop_duplicates([focus])
+            #_merge_focus(focus)
+            table.to_csv(focusname, sep="\t",index=False)
+        else:
+            for k in range(0,x):
+                logging.info("{} vs. {}".format(s[x].prefix, s[k].prefix))
+                s[x].get_rbh_orthologs(s[k], eval=eval)
+                s[x].write_rbh_orthologs(s[k])
+            if not len(s) == 2 and x+1 == len(s):
+                for l in range(x,len(s)):
+                    logging.info("{} vs. {}".format(s[x].prefix, s[l].prefix))
+                    s[x].get_rbh_orthologs(s[l], eval=eval)
+                    s[x].write_rbh_orthologs(s[l])
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
     return s

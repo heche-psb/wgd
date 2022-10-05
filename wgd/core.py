@@ -209,7 +209,16 @@ class SequenceData:
             df = pd.concat([df, self.add_singletons_rbh(seqs)]) 
         _label_families(df)
         df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t")
+        return df.loc[:,[seqs.prefix, self.prefix]]
 
+    def _merge_focus(self, focus=None):
+        merge_focus = pd.DataFrame()
+        fname = os.path.join(self.out_path, 'merge_focus.tsv')
+        if not focus is None:
+            for table in self.rbh:
+                merge_focus = merge_focus.merge(table)
+            merge_focus.to_csv(fname, sep="\t")
+                
     def add_singletons_rbh(self, seqs):
         # note this is implemented to work before the rbh table is modified
         gs1 = set(self.cds_seqs.keys())  # all genes species 1
