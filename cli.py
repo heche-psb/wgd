@@ -94,9 +94,13 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
         x = 0
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
-        for i in range(len(s)-1):
-            if s[i].prefix == focus is True:
-                x = i
+        #print(x)
+        #print(focus)
+        for i in range(len(s)):
+            #print(s[i].prefix)
+            if s[i].prefix == focus:
+                x = x+i
+                #print(x)
         if x == 0:
             for j in range(1, len(s)):
                 logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
@@ -105,19 +109,25 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                 if table.empty:
                     table = table_tmp
                 table = table.merge(table_tmp)
-                table = table.drop_duplicates([focus])
             #_merge_focus(focus)
+            table = table.drop_duplicates([focus])
             table.to_csv(focusname, sep="\t",index=False)
         else:
             for k in range(0,x):
                 logging.info("{} vs. {}".format(s[x].prefix, s[k].prefix))
                 s[x].get_rbh_orthologs(s[k], eval=eval)
-                s[x].write_rbh_orthologs(s[k])
-            if not len(s) == 2 and x+1 == len(s):
+                table_tmp = s[x].write_rbh_orthologs(s[k],singletons=False)
+                if table.empty:
+                    table = table_tmp
+                table = table.merge(table_tmp)
+            if not len(s) == 2 and not x+1 == len(s):
                 for l in range(x,len(s)):
                     logging.info("{} vs. {}".format(s[x].prefix, s[l].prefix))
                     s[x].get_rbh_orthologs(s[l], eval=eval)
-                    s[x].write_rbh_orthologs(s[l])
+                    table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
+                    table = table.merge(table_tmp)
+            table = table.drop_duplicates([focus])
+            table.to_csv(focusname, sep="\t",index=False)
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
     return s
