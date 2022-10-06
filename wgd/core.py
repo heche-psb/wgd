@@ -99,6 +99,8 @@ class SequenceData:
         self.dmd_hits  = {}
         self.rbh       = {}
         self.mcl       = {}
+        self.cds_sequence  = {}
+        self.pro_sequence  = {}
         self.idmap     = {}  # map from the new safe id to the input seq id
         self.read_cds(to_stop=to_stop, cds=cds)
         _write_fasta(self.pro_fasta, self.pro_seqs)
@@ -109,18 +111,22 @@ class SequenceData:
         keep the full records in a dict with these IDs. We use the newly assigned
         IDs in further analyses, but can reconvert at any time.
         """
-        for i, seq in enumerate(SeqIO.parse(self.cds_fasta, 'fasta')):
+        for i, record in enumerate(SeqIO.parse(self.cds_fasta, 'fasta')):
             gid = "{0}_{1:0>5}".format(self.prefix, i)
             try:
-                aa_seq = seq.translate(to_stop=to_stop, cds=cds, id=seq.id,
+                aa_seq = record.translate(to_stop=to_stop, cds=cds, id=record.id,
                                        stop_symbol="")
+                aa_sequence = aa_seq.seq
+                na_sequence = record.seq
             except TranslationError as e:
                 logging.warning("Translation error ({}) in seq {}".format(
-                    e, seq.id))
+                    e, record.id))
                 continue
-            self.cds_seqs[gid] = seq
+            self.cds_seqs[gid] = record
             self.pro_seqs[gid] = aa_seq
-            self.idmap[seq.id] = gid
+            self.cds_sequence[gid] = na_sequence
+            self.pro_sequence[gid] = aa_sequence
+            self.idmap[record.id] = gid
         return
 
     def merge(self, other):
@@ -207,18 +213,33 @@ class SequenceData:
         df[self.prefix] = df[1].apply(lambda x: self.cds_seqs[x].id)
         if singletons:  # this must be here, cannot be before renaming, not after labeling fams
             df = pd.concat([df, self.add_singletons_rbh(seqs)]) 
-        _label_families(df)
-        df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t")
+        #_label_families(df)
+        df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t",index=False)
         return df.loc[:,[seqs.prefix, self.prefix]]
 
-    def _merge_focus(self, focus=None):
-        merge_focus = pd.DataFrame()
-        fname = os.path.join(self.out_path, 'merge_focus.tsv')
-        if not focus is None:
-            for table in self.rbh:
-                merge_focus = merge_focus.merge(table)
-            merge_focus.to_csv(fname, sep="\t")
-                
+    def get_seq(self):
+        focusname = os.path.join(self.out_path, 'merge_focus.tsv')
+        fastaname = os.path.join(self.out_path, 'merge_focus_fasta.tsv')
+        #rbhgfdirname = self.out_path + '/' + 'RBH_GF_FASTA' + '/'
+        #os.mkdir(rbhgfdirname)
+        seqid_table = []
+        with open (focusname,'r') as orthotable:
+            next(orthotable)
+            for row in orthotable:
+               seqid = [s.strip('\n') for s in row.split('\t')]
+               seqid_table.append(seqid)
+               #print(seqid)
+            #print(seqid_table)
+        #for fam in seqid_table:
+            #for generealid in fam:
+                #print(generealid)
+                #safeid = self.idmap.get(generealid)
+                #print(safeid)
+           # lines = orthotable.readlines()[1:]
+           # for line in lines:
+           #     print(line)
+        return seqid_table
+
     def add_singletons_rbh(self, seqs):
         # note this is implemented to work before the rbh table is modified
         gs1 = set(self.cds_seqs.keys())  # all genes species 1

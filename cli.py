@@ -128,6 +128,34 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                     table = table.merge(table_tmp)
             table = table.drop_duplicates([focus])
             table.to_csv(focusname, sep="\t",index=False)
+            #only the object of s has all the function therein SequenceData
+        idmap = {}
+        for i in range(len(s)):
+            idmap.update(s[i].idmap)
+        #print(idmap)
+        seqid_table = s[0].get_seq()
+        for fam in seqid_table:
+            for seq in fam:
+                safeid = idmap.get(seq)
+        seq_cds = {}
+        seq_pro = {}
+        for i in range(len(s)):
+            seq_cds.update(s[i].cds_sequence)
+            seq_pro.update(s[i].pro_sequence)
+        #print(seq_cds)
+        rbhgfdirname = outdir + '/' + 'RBH_GF_FASTA' + '/'
+        os.mkdir(rbhgfdirname)
+        for i, fam in enumerate(seqid_table):
+            for seqs in fam:
+                fname = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".pep")
+                with open(fname,'a') as f:
+                    Record = seq_pro.get(idmap.get(seqs))
+                    f.write(">{}\n{}\n".format(seqs, Record))
+                fname2 = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".cds")
+                with open(fname2,'a') as f:
+                    Record = seq_cds.get(idmap.get(seqs))
+                    f.write(">{}\n{}\n".format(seqs, Record))
+
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
     return s
