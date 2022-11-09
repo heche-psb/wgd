@@ -302,12 +302,32 @@ def read_gene_families(fname):
         df[col] = df[col].apply(lambda x: x.split(", "))
     return df
 
+def read_MultiRBH_gene_families(fname):
+    """
+    Read gene families from dmd -focus, in the format that each column contains seqid of each species and header of column is cds filename of each species
+    """
+    seqid_table = []
+    with open (fname,'r') as orthotable:
+        next(orthotable)
+        for row in orthotable:
+            seqid = [s.strip('\n') for s in row.split('\t')]
+            seqid_table.append(seqid)
+    return seqid_table
+
 def merge_seqs(seqs):
     if type(seqs) == list:
         if len(seqs) > 2:
             raise ValueError("More than two sequence data objects?")
         if len(seqs) == 2:
             seqs[0].merge(seqs[1])
+        seqs = seqs[0]
+    return seqs
+
+def mergeMultiRBH_seqs(seqs):
+    if type(seqs) == list:
+        for i in range(len(seqs)):
+            if not i==0:
+                seqs[0].merge(seqs[i])
         seqs = seqs[0]
     return seqs
 
@@ -340,6 +360,85 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
         else:
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
+
+def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=True, **kwargs):
+    MRBH_gene_families = []
+    seqid_table = families
+    cds = {}
+    pro = []
+    idmap = {}
+    seq_cds = {}
+    seq_pro = {}
+    for i in range(len(seqs)):
+        seq_cds.update(seqs[i].cds_sequence)
+        seq_pro.update(seqs[i].pro_sequence)
+    for i in range(len(seqs)):
+        idmap.update(seqs[i].idmap)
+    for i, fam in enumerate(seqid_table):
+        family = []
+        for seqid in fam:
+            safeid = idmap.get(seqid)
+            family.append(safeid)
+            fnamep =os.path.join(outdir, 'GF_' + str(i+1) + ".pep")
+            fnamec =os.path.join(outdir, 'GF_' + str(i+1) + ".cds")
+            with open(fnamep,'a') as f:
+                f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+            with open(fnamec,'a') as f:
+                f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
+        cmd = ["mafft"] + option.split() + ["--amino", fnamep]
+        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        fnamepaln =os.path.join(outdir, 'GF_' + str(i+1) + ".paln")
+        with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
+        _log_process(out, program="mafft")
+        pro_aln = AlignIO.read(fnamepaln, "fasta")
+        fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
+        #cmd = ["trimal"] + ["-in", fnamepaln, "-backtrans", fnamec, "-out", fnamecaln, "-automated1"]
+        #print(cmd)
+        #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        #p = sp.Popen(cmd)
+        #print(p.stdout)
+        #fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
+        #with open(fnamecaln, 'w') as f: f.write(p.stdout.decode('utf-8'))
+        #_log_process(out, program="trimal")
+
+
+        aln = {}
+        for i, s in enumerate(pro_aln):
+            cds_aln = ""
+            safeid = idmap.get(s.id)
+            cds_seq = seq_cds.get(safeid)
+            k = 0
+            for j in range(pro_aln.get_alignment_length()):
+                if pro_aln[i,j] == "-":
+                    cds_aln += "---"
+                elif pro_aln[i,j] == "X":
+                    cds_aln += "???"
+                else:
+                    cds_aln += cds_seq[k:k+3]
+                    k = k + 3
+            aln[s.id] = cds_aln
+        #fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
+        with open(fnamecaln, 'a') as f:
+            for k, v in aln.items():
+                f.write(">{}\n{}\n".format(k, v))
+        #MultipleSeqAlignment([SeqRecord(v, id=k) for k, v in aln.items()])
+            #print(safeid)
+        #print(family)
+        #for x in family:
+            #Recordpro = seq_pro.get(x)
+            #cds.update(seq_cds[x])
+            #pro.append(Recordpro)
+            #Recordcds = seq_cds.get(x)
+            #cds.append(Recordpro)
+
+            #cds = {sid: seqs[0].cds_seqs[sid] for sid in safeid}
+            #for j in cds:
+                #print(j)
+            #pro.update(sid: seqs[0].pro_seqs[sid] for sid in safeid)
+
+
+
+
 
 
 # NOTE: It would be nice to implement an option to do a complete approach
@@ -521,4 +620,9 @@ def add_original_ids(df, seqs):
     df["gene2"] = _rename(df["g2"], revmap)
     df["pair"] = df[["gene1","gene2"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1) 
     return df.set_index("pair")
+
+#class focusRBHTreeDating:
+    #def __init__(self, seqid_table, seq, aligner="mafft", tree_method="fasttree", min_length=3, aln_options="--auto", n_threads=4):
+        #self.cds_seqs = s
+
 

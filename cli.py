@@ -100,7 +100,7 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
             #print(s[i].prefix)
             if s[i].prefix == focus:
                 x = x+i
-                #print(x)
+                print(x)
         if x == 0:
             for j in range(1, len(s)):
                 logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
@@ -121,7 +121,7 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                     table = table_tmp
                 table = table.merge(table_tmp)
             if not len(s) == 2 and not x+1 == len(s):
-                for l in range(x,len(s)):
+                for l in range(x+1,len(s)):
                     logging.info("{} vs. {}".format(s[x].prefix, s[l].prefix))
                     s[x].get_rbh_orthologs(s[l], eval=eval)
                     table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
@@ -160,13 +160,53 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
         [x.remove_tmp(prompt=False) for x in s]
     return s
 
+#MSA and ML tree inference for given sets of orthologous gene familes for species tree inference and WGD timing
+
+@cli.command(context_settings={'help_option_names': ['-h', '--help']})
+@click.argument('families', type=click.Path(exists=True))
+@click.argument('sequences', nargs=-1, type=click.Path(exists=True))
+@click.option('--outdir', '-o', default="wgd_focus_post", show_default=True,help='output directory')
+@click.option('--tmpdir', '-t', default=None, show_default=True,help='tmp directory')
+@click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
+@click.option('--to_stop', is_flag=True,help="don't translate through STOP codons")
+@click.option('--cds', is_flag=True,help="enforce proper CDS sequences")
+@click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
+@click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
+@click.option('--tree_method', '-tree',type=click.Choice(['cluster','fasttree', 'iqtree']),default='cluster',show_default=True,help="Tree inference method")
+def focus(**kwargs):
+    """
+    Multiply species RBH orthologous family's gene tree inference and absolute dating pipeline.
+
+    Example:
+
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta
+
+    If you want to keep intermediate (temporary) files, please provide a directory
+    name for the `--tmpdir` option.
+    """
+    _focus(**kwargs)
+
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method):
+    from wgd.core import SequenceData
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families
+    if len(sequences) < 2:
+        logging.error("Please provide at least three sequence files for construction trees")
+        exit(0)
+    seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds) for s in sequences]
+    #s = mergeMultiRBH_seqs(seqs)
+    logging.info("tmpdir = {}".format(seqs[0].tmp_path))
+    #fams = read_gene_families(families)
+    fams = read_MultiRBH_gene_families(families)
+    get_MultipRBH_gene_families(seqs,fams,outdir)  
+
+
 
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))
 @click.argument('sequences', nargs=-1, type=click.Path(exists=True))
 @click.option('--outdir', '-o', default="wgd_ksd", show_default=True,
-    help='tmp directory')
+    help='output directory')
 @click.option('--tmpdir', '-t', default=None, show_default=True,
     help='tmp directory')
 @click.option('--nthreads', '-n', default=4, show_default=True,
