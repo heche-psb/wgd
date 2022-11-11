@@ -172,7 +172,9 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
 @click.option('--cds', is_flag=True,help="enforce proper CDS sequences")
 @click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
 @click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
-@click.option('--tree_method', '-tree',type=click.Choice(['cluster','fasttree', 'iqtree']),default='cluster',show_default=True,help="Tree inference method")
+@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree']),default='fasttree',show_default=True,help="Tree inference method")
+@click.option('--concatenation', is_flag=True,help="Species tree inference using concatenation method")
+@click.option('--coalescence', is_flag=True,help="Species tree inference using multispecies coalescence method")
 def focus(**kwargs):
     """
     Multiply species RBH orthologous family's gene tree inference and absolute dating pipeline.
@@ -186,9 +188,9 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, concatenation, coalescence):
     from wgd.core import SequenceData
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale
     if len(sequences) < 2:
         logging.error("Please provide at least three sequence files for construction trees")
         exit(0)
@@ -197,7 +199,16 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     logging.info("tmpdir = {}".format(seqs[0].tmp_path))
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
-    get_MultipRBH_gene_families(seqs,fams,outdir)  
+    cds_alns, pro_alns, tree_famsf = get_MultipRBH_gene_families(seqs,fams,tree_method,outdir)
+    if concatenation:
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf = Concat(cds_alns, pro_alns, families, tree_method, outdir)
+        Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
+    if coalescence:
+         coalescence_ctree = Coale(tree_famsf, families, outdir)
+    if tmpdir is None:
+        [x.remove_tmp(prompt=False) for x in seqs]
+
+
 
 
 

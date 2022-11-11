@@ -28,9 +28,10 @@ def _write_fasta(fname, seq_dict):
     return fname
 
 def _mkdir(dirname):
-    if os.path.isdir(dirname):
-        logging.warning("dir {} exists!".format(dirname))
-    else:
+    #if os.path.isdir(dirname) :
+    #    logging.warning("dir {} exists!".format(dirname))
+    #else:
+    if not os.path.isdir(dirname) :
         os.mkdir(dirname)
     return dirname
 
@@ -361,7 +362,7 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
-def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=True, **kwargs):
+def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--auto", rename=True, **kwargs):
     MRBH_gene_families = []
     seqid_table = families
     cds = {}
@@ -369,6 +370,10 @@ def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=
     idmap = {}
     seq_cds = {}
     seq_pro = {}
+    tree_fams = {}
+    tree_famsf = []
+    cds_alns = {}
+    pro_alns = {}
     for i in range(len(seqs)):
         seq_cds.update(seqs[i].cds_sequence)
         seq_pro.update(seqs[i].pro_sequence)
@@ -376,22 +381,24 @@ def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=
         idmap.update(seqs[i].idmap)
     for i, fam in enumerate(seqid_table):
         family = []
+        famid = 'GF_' + str(i+1)
         for seqid in fam:
             safeid = idmap.get(seqid)
             family.append(safeid)
-            fnamep =os.path.join(outdir, 'GF_' + str(i+1) + ".pep")
-            fnamec =os.path.join(outdir, 'GF_' + str(i+1) + ".cds")
+            fnamep =os.path.join(outdir, famid + ".pep")
+            fnamec =os.path.join(outdir, famid + ".cds")
             with open(fnamep,'a') as f:
                 f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
             with open(fnamec,'a') as f:
                 f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
         cmd = ["mafft"] + option.split() + ["--amino", fnamep]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        fnamepaln =os.path.join(outdir, 'GF_' + str(i+1) + ".paln")
+        fnamepaln =os.path.join(outdir, famid + ".paln")
         with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
         _log_process(out, program="mafft")
         pro_aln = AlignIO.read(fnamepaln, "fasta")
-        fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
+        pro_alns[famid] = pro_aln
+        fnamecaln =os.path.join(outdir, famid + ".caln")
         #cmd = ["trimal"] + ["-in", fnamepaln, "-backtrans", fnamec, "-out", fnamecaln, "-automated1"]
         #print(cmd)
         #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
@@ -400,8 +407,6 @@ def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=
         #fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
         #with open(fnamecaln, 'w') as f: f.write(p.stdout.decode('utf-8'))
         #_log_process(out, program="trimal")
-
-
         aln = {}
         for i, s in enumerate(pro_aln):
             cds_aln = ""
@@ -421,25 +426,170 @@ def get_MultipRBH_gene_families(seqs, families, outdir, option="--auto", rename=
         with open(fnamecaln, 'a') as f:
             for k, v in aln.items():
                 f.write(">{}\n{}\n".format(k, v))
+        #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
+        #iq_tree = os.path.join(outdir, 'GF_' + str(i+1) + ".caln.treefile")
+        cds_aln = AlignIO.read(fnamecaln, "fasta")
+        cds_alns[famid] = cds_aln
+        if tree_method == "iqtree":
+            iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
+            iq_out = sp.run(iq_cmd, stdout=sp.PIPE)
+            tree_pth = fnamecaln + ".treefile"
+            tree = Phylo.read(tree_pth,'newick')
+            tree_fams[famid] = tree
+            tree_famsf.append(tree_pth)
+        if tree_method == "fasttree":
+            tree_pth = fnamecaln + ".fasttree"
+            ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+            ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+            tree = Phylo.read(tree_pth,'newick')
+            tree_fams[famid] = tree
+            tree_famsf.append(tree_pth)
+    return cds_alns, pro_alns, tree_famsf
+        #iq_out2 = sp.Popen(iq_cmd,shell=True)
+        #with open(iq_tree, 'a') as f:
+        #    f.write(iq_out.stdout.decode('utf-8'))
+        #_log_process(iq_out, program="iqtree")
+        #return _process_unrooted_tree(fnamecaln + ".treefile")
         #MultipleSeqAlignment([SeqRecord(v, id=k) for k, v in aln.items()])
             #print(safeid)
         #print(family)
-        #for x in family:
             #Recordpro = seq_pro.get(x)
             #cds.update(seq_cds[x])
             #pro.append(Recordpro)
             #Recordcds = seq_cds.get(x)
             #cds.append(Recordpro)
-
             #cds = {sid: seqs[0].cds_seqs[sid] for sid in safeid}
             #for j in cds:
                 #print(j)
             #pro.update(sid: seqs[0].pro_seqs[sid] for sid in safeid)
+# Concatenate all MRBH family align in fasta format and feed into iqtree for species tree inference
+def GetG2SMap(families, outdir):
+    df = pd.read_csv(families,header=0,index_col=False,sep='\t')
+    G2SMap = os.path.join(outdir, "G2S.Map")
+    Slist = []
+    for i in df.columns:
+        Slist.append(i)
+        for j in df[i]:
+            j = j.strip(" ").strip("\n").strip("\t")
+            with open(G2SMap, "a") as f:
+                f.write(j + " "+ i + "\n")
+    return G2SMap, Slist
 
+def Concat(cds_alns, pro_alns, families, tree_method, outdir):
+    gsmap, slist = GetG2SMap(families, outdir)
+    famnum = len(pro_alns)
+    cds_alns_rn = {}
+    pro_alns_rn = {}
+    Concat_calnf = os.path.join(outdir, "Concatenated.caln")
+    Concat_palnf = os.path.join(outdir, "Concatenated.paln")
+    cdsseq = {}
+    proseq = {}
+    for i in range(famnum):
+        famid = 'GF_' + str(i+1)
+        cds_aln = cds_alns[famid]
+        pro_aln = pro_alns[famid]
+        for j in range(len(pro_aln)):
+            with open(gsmap,"r") as f:
+                lines = f.readlines()
+                for k in lines:
+                    k = k.strip('\n').strip(' ').split(' ')
+                    if k[0] == cds_aln[j].id:
+                        spn = k[1]
+                        cds_aln[j].id = spn
+                        sequence = cds_aln[j].seq
+                        if cdsseq.get(spn) is None:
+                            cdsseq[spn] = str(sequence)
+                        else:
+                            cdsseq[spn] = cdsseq[spn] + str(sequence)
+                    if k[0] == pro_aln[j].id:
+                        spn = k[1]
+                        pro_aln[j].id = spn
+                        sequence = pro_aln[j].seq
+                        if proseq.get(spn) is None:
+                            proseq[spn] = str(sequence)
+                        else:
+                            proseq[spn] = proseq[spn] + str(sequence)
+        cds_alns_rn[famid] = cds_aln
+        pro_alns_rn[famid] = pro_aln
+    for spname in range(len(slist)):
+        spn = slist[spname]
+        with open(Concat_palnf,"a") as f:
+            sequence = proseq[spn]
+            f.write(">{}\n{}\n".format(spn, sequence))
+        with open(Concat_calnf,"a") as f:
+            sequence = cdsseq[spn]
+            f.write(">{}\n{}\n".format(spn, sequence))
+    Concat_caln = AlignIO.read(Concat_calnf, "fasta")
+    Concat_paln = AlignIO.read(Concat_palnf, "fasta")
+    if tree_method == "iqtree":
+        iq_cmd = ["iqtree", "-s", Concat_calnf] + ["-st","CODON"] + ["-fast"]
+        iq_cout = sp.run(iq_cmd, stdout=sp.PIPE)
+        iq_cmd = ["iqtree", "-s", Concat_palnf] + ["-fast"]
+        iq_pout = sp.run(iq_cmd, stdout=sp.PIPE)
+        Concat_ptree = Phylo.read(Concat_palnf + ".treefile", 'newick')
+        Concat_ctree = Phylo.read(Concat_calnf + ".treefile", 'newick')
+    if tree_method == "fasttree":
+        ctree_pth = Concat_calnf + ".fasttree"
+        ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
+        ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        ptree_pth = Concat_palnf + ".fasttree"
+        ft_cmd = ["FastTree", '-out', ptree_pth, Concat_palnf]
+        ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        Concat_ctree = Phylo.read(ctree_pth,'newick')
+        Concat_ptree = Phylo.read(ptree_pth,'newick')
+    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf
 
+def _Codon2partition_(Concat_calnf, outdir):
+    Concatpos_1 = os.path.join(outdir, "Concatenated.caln.pos1")
+    Concatpos_2 = os.path.join(outdir, "Concatenated.caln.pos2")
+    Concatpos_3 = os.path.join(outdir, "Concatenated.caln.pos3")
+    with open(Concat_calnf,"r") as f:
+        lines = f.readlines()
+        for line in lines:
+            if line.startswith('>'):
+                with open(Concatpos_1,"a") as f1:
+                    f1.write(line)
+                with open(Concatpos_2,"a") as f2:
+                    f2.write(line)
+                with open(Concatpos_3,"a") as f3:
+                    f3.write(line)
+            else:
+                Seq = line
+                Seq = Seq.strip('\n')
+                Seq_1 = Seq[0:-1:3]
+                Seq_2 = Seq[1:-1:3]
+                Seq_3 = Seq[2:-1:3]
+                Seq_3 = Seq_3 + Seq[-1]
+                with open(Concatpos_1,"a") as f1:
+                    f1.write(Seq_1+'\n')
+                with open(Concatpos_2,"a") as f2:
+                    f2.write(Seq_2+'\n')
+                with open(Concatpos_3,"a") as f3:
+                    f3.write(Seq_3+'\n')
+    Concatpos_1_aln = AlignIO.read(Concatpos_1, "fasta")
+    Concatpos_2_aln = AlignIO.read(Concatpos_2, "fasta")
+    Concatpos_3_aln = AlignIO.read(Concatpos_3, "fasta")
+    return Concatpos_1_aln, Concatpos_2_aln, Concatpos_3_aln
 
-
-
+def Coale(tree_famsf, families, outdir):
+    whole_tree = ""
+    whole_treef = os.path.join(outdir, "Whole.ctree")
+    coalescence_treef = os.path.join(outdir, "Coalescence.ctree")
+    for tree in tree_famsf:
+        with open(tree,"r") as f:
+            tree_content = f.readlines()
+            for i in tree_content:
+                whole_tree = whole_tree + i
+    with open(whole_treef,"w") as f:
+        f.write(whole_tree)
+    if not os.path.isfile("G2S.Map"):
+        gsmap, slist = GetG2SMap(families, outdir)
+    else:
+        gsmap = os.path.join(outdir, "G2S.Map")
+    ASTER_cmd = ["astral-pro", "-i", whole_treef, "-a", gsmap, "-o", coalescence_treef]
+    ASTER_cout = sp.run(ASTER_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    coalescence_ctree = Phylo.read(coalescence_treef,'newick')
+    return coalescence_ctree
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
