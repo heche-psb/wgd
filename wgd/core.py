@@ -17,7 +17,7 @@ from Bio import Phylo
 from joblib import Parallel, delayed
 from wgd.codeml import Codeml
 from wgd.cluster import cluster_ks
-
+from wgd.mcmctree import mcmctree
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
@@ -374,6 +374,8 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
     tree_famsf = []
     cds_alns = {}
     pro_alns = {}
+    calnfs = []
+    palnfs = []
     for i in range(len(seqs)):
         seq_cds.update(seqs[i].cds_sequence)
         seq_pro.update(seqs[i].pro_sequence)
@@ -394,11 +396,13 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
         cmd = ["mafft"] + option.split() + ["--amino", fnamep]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         fnamepaln =os.path.join(outdir, famid + ".paln")
+        palnfs.append(fnamepaln)
         with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
         _log_process(out, program="mafft")
         pro_aln = AlignIO.read(fnamepaln, "fasta")
         pro_alns[famid] = pro_aln
         fnamecaln =os.path.join(outdir, famid + ".caln")
+        calnfs.append(fnamecaln)
         #cmd = ["trimal"] + ["-in", fnamepaln, "-backtrans", fnamec, "-out", fnamecaln, "-automated1"]
         #print(cmd)
         #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
@@ -444,7 +448,7 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
             tree = Phylo.read(tree_pth,'newick')
             tree_fams[famid] = tree
             tree_famsf.append(tree_pth)
-    return cds_alns, pro_alns, tree_famsf
+    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs
         #iq_out2 = sp.Popen(iq_cmd,shell=True)
         #with open(iq_tree, 'a') as f:
         #    f.write(iq_out.stdout.decode('utf-8'))
@@ -474,6 +478,62 @@ def GetG2SMap(families, outdir):
             with open(G2SMap, "a") as f:
                 f.write(j + " "+ i + "\n")
     return G2SMap, Slist
+
+def FileRn(cds_alns, pro_alns, tree_famsf, families, outdir):
+    gsmap, slist = GetG2SMap(families, outdir)
+    famnum = len(pro_alns)
+    cds_alns_rn = {}
+    pro_alns_rn = {}
+    tree_rns = {}
+    tree_rn_fs = []
+    calnfs_rn = []
+    palnfs_rn = []
+    for i in range(famnum):
+        famid = 'GF_' + str(i+1)
+        cds_aln = cds_alns[famid]
+        pro_aln = pro_alns[famid]
+        calnpath = os.path.join(outdir, famid + ".caln.rename")
+        palnpath = os.path.join(outdir, famid + ".paln.rename")
+        for j in range(len(pro_aln)):
+            with open(gsmap,"r") as f:
+                lines = f.readlines()
+                for k in lines:
+                    k = k.strip('\n').strip(' ').split(' ')
+                    if k[0] == cds_aln[j].id:
+                        spn = k[1]
+                        cds_aln[j].id = spn
+                        with open(calnpath, "a") as f:
+                            f.write(">{}\n{}\n".format(spn,cds_aln[j].seq))
+                    if k[0] == pro_aln[j].id:
+                        spn = k[1]
+                        pro_aln[j].id = spn
+                        with open(palnpath, "a") as f:
+                            f.write(">{}\n{}\n".format(spn,pro_aln[j].seq))
+        cds_alns_rn[famid] = cds_aln
+        pro_alns_rn[famid] = pro_aln
+        #calnf = AlignIO.write(cds_aln, calnpath, "fasta")
+        #palnf = AlignIO.write(pro_aln, palnpath, "fasta")
+        calnfs_rn.append(calnpath)
+        palnfs_rn.append(palnpath)
+        treef = tree_famsf[i]
+        treecontent = ""
+        treef_rn_f = os.path.join(outdir, famid + ".tree.rename")
+        with open(treef,"r") as f:
+            lines = f.readlines()
+            for line in lines:
+                treecontent = line
+        with open(gsmap,"r") as f:
+            lines = f.readlines()
+            for k in lines:
+                k = k.strip('\n').strip(' ').split(' ')
+                if k[0] in treecontent:
+                    treecontent = treecontent.replace(k[0],k[1])
+        with open(treef_rn_f,"w") as f:
+            f.write(treecontent)
+        tree_rn = Phylo.read(treef_rn_f,'newick')
+        tree_rns[famid] = tree_rn
+        tree_rn_fs.append(treef_rn_f)
+    return cds_alns_rn, pro_alns_rn, calnfs_rn, palnfs_rn, tree_rns, tree_rn_fs
 
 def Concat(cds_alns, pro_alns, families, tree_method, outdir):
     gsmap, slist = GetG2SMap(families, outdir)
@@ -590,6 +650,17 @@ def Coale(tree_famsf, families, outdir):
     ASTER_cout = sp.run(ASTER_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     coalescence_ctree = Phylo.read(coalescence_treef,'newick')
     return coalescence_ctree
+
+# Run MCMCtree
+def Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree):
+    famnum = len(calnfs)
+    cds_alns_rn, pro_alns_rn, calnfs_rn, palnfs_rn, tree_rns, tree_rn_fs = FileRn(cds_alns, pro_alns, tree_famsf, families, outdir)
+    for fam in range(famnum):
+        calnf = calnfs_rn[fam]
+        palnf = palnfs_rn[fam]
+        treef = tree_rn_fs[fam]
+        McMctree = mcmctree(calnf, palnf, treef, tmpdir, outdir, speciestree)
+        McMctree.run_mcmctree()
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
