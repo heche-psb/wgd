@@ -48,6 +48,8 @@ def cli(verbosity):
     help="enforce proper CDS sequences")
 @click.option('--focus', default=None,
     help="Species whose WGD is to be dated")
+@click.option('--anchorpoints', '-ap', default=None, show_default=True,
+    help='anchorpoints.txt file from i-adhore')
 def dmd(**kwargs):
     """
     All-vs.-all diamond blastp + MCL clustering.
@@ -67,10 +69,15 @@ def dmd(**kwargs):
     Example 3 - one vs. one ortholog delineation for multiple pairs:
 
         wgd dmd ath.fasta vvi.fasta egr.fasta
+
+    Example 4 - one vs. one ortholog delineation for multiple pairs with focus species:
+
+        wgd dmd ath.fasta vvi.fasta egr.fasta --focus ath.fasta (--anchorpoints anchorpoints.txt)
+
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
+def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus, anchorpoints):
     from wgd.core import SequenceData
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds) for s in sequences]
@@ -94,13 +101,11 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
         x = 0
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
-        #print(x)
-        #print(focus)
         for i in range(len(s)):
             #print(s[i].prefix)
             if s[i].prefix == focus:
                 x = x+i
-                print(x)
+                #print(x)
         if x == 0:
             for j in range(1, len(s)):
                 logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
@@ -111,6 +116,7 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                 table = table.merge(table_tmp)
             #_merge_focus(focus)
             table = table.drop_duplicates([focus])
+            table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
         else:
             for k in range(0,x):
@@ -127,8 +133,20 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                     table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
                     table = table.merge(table_tmp)
             table = table.drop_duplicates([focus])
+            table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
+        if not anchorpoints is None:
+            ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
+            ap = ap.loc[:,'gene_x':'gene_y']
+            focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
+            table_ap = table.merge(ap,left_on = focus,right_on = 'gene_x')
+            table_ap.drop('gene_x', inplace=True, axis=1)
+            table_ap.insert(1, 'gene_y', table_ap.pop('gene_y'))
+            #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
+            #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
+            table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
+            table_ap.to_csv(focusapname, sep="\t",index=False)
         idmap = {}
         for i in range(len(s)):
             idmap.update(s[i].idmap)
@@ -143,7 +161,7 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
             seq_cds.update(s[i].cds_sequence)
             seq_pro.update(s[i].pro_sequence)
         #print(seq_cds)
-        rbhgfdirname = outdir + '/' + 'RBH_GF_FASTA' + '/'
+        rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
         os.mkdir(rbhgfdirname)
         for i, fam in enumerate(seqid_table):
             for seqs in fam:
@@ -155,7 +173,20 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus):
                 with open(fname2,'a') as f:
                     Record = seq_cds.get(idmap.get(seqs))
                     f.write(">{}\n{}\n".format(seqs, Record))
-
+        if not anchorpoints is None:
+            seqid_table = s[0].get_seq_ap()
+            rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
+            os.mkdir(rbhgfapdirname)
+            for i, fam in enumerate(seqid_table):
+                for seqs in fam:
+                    fname = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".pep")
+                    with open(fname,'a') as f:
+                        Record = seq_pro.get(idmap.get(seqs))
+                        f.write(">{}\n{}\n".format(seqs, Record))
+                    fname2 = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".cds")
+                    with open(fname2,'a') as f:
+                        Record = seq_cds.get(idmap.get(seqs))
+                        f.write(">{}\n{}\n".format(seqs, Record))
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
     return s
@@ -181,9 +212,13 @@ def focus(**kwargs):
     """
     Multiply species RBH orthologous family's gene tree inference and absolute dating pipeline.
 
-    Example:
+    Example 1 - Dating MRBH containing anchor pairs with a user-defined species tree:
 
-        wgd focus families cds1.fasta cds2.fasta cds3.fasta
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating --speciestree sp.newick
+
+    Example 2 - Species tree inference under both concatenation and coalescence method:
+
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta --concatenation --coalescence
 
     If you want to keep intermediate (temporary) files, please provide a directory
     name for the `--tmpdir` option.
@@ -194,7 +229,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE
     if len(sequences) < 2:
-        logging.error("Please provide at least three sequence files for construction trees")
+        logging.error("Please provide at least three sequence files for constructing trees")
         exit(0)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds) for s in sequences]
     #s = mergeMultiRBH_seqs(seqs)

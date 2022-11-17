@@ -221,24 +221,21 @@ class SequenceData:
     def get_seq(self):
         focusname = os.path.join(self.out_path, 'merge_focus.tsv')
         fastaname = os.path.join(self.out_path, 'merge_focus_fasta.tsv')
-        #rbhgfdirname = self.out_path + '/' + 'RBH_GF_FASTA' + '/'
-        #os.mkdir(rbhgfdirname)
         seqid_table = []
         with open (focusname,'r') as orthotable:
             next(orthotable)
             for row in orthotable:
                seqid = [s.strip('\n') for s in row.split('\t')]
                seqid_table.append(seqid)
-               #print(seqid)
-            #print(seqid_table)
-        #for fam in seqid_table:
-            #for generealid in fam:
-                #print(generealid)
-                #safeid = self.idmap.get(generealid)
-                #print(safeid)
-           # lines = orthotable.readlines()[1:]
-           # for line in lines:
-           #     print(line)
+        return seqid_table
+    def get_seq_ap(self):
+        focusapname = os.path.join(self.out_path, 'merge_focus_ap.tsv')
+        seqid_table = []
+        with open (focusapname,'r') as orthotable:
+            next(orthotable)
+            for row in orthotable:
+                seqid = [s.strip('\n') for s in row.split('\t')]
+                seqid_table.append(seqid)
         return seqid_table
 
     def add_singletons_rbh(self, seqs):
@@ -362,8 +359,7 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
-def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--auto", rename=True, **kwargs):
-    MRBH_gene_families = []
+def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--auto", **kwargs):
     seqid_table = families
     cds = {}
     pro = []
