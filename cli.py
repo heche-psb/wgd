@@ -38,6 +38,8 @@ def cli(verbosity):
     help='output directory')
 @click.option('--tmpdir', '-t', default=None, show_default=True,
     help='tmp directory')
+@click.option('--cscore', '-c', default=None, show_default=True,
+    help='c-score to delineate homologs')
 @click.option('--inflation', '-I', default=2.0,
     help="inflation factor for MCL")
 @click.option('--eval', '-e', default=1e-10,
@@ -77,10 +79,10 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus, anchorpoints):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints):
     from wgd.core import SequenceData
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
-        to_stop=to_stop, cds=cds) for s in sequences]
+        to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
     if len(s) == 0:
         logging.error("No sequences provided!")
         return
@@ -94,7 +96,7 @@ def _dmd(sequences, outdir, tmpdir, inflation, eval, to_stop, cds, focus, anchor
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
-                s[i].get_rbh_orthologs(s[j], eval=eval)
+                s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
                 s[i].write_rbh_orthologs(s[j])
     if not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs between focus species and remaining species")

@@ -86,7 +86,7 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True):
+            to_stop=True, cds=True, cscore=None):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
         self.tmp_path  = _mkdir(tmp_path)
@@ -159,13 +159,29 @@ class SequenceData:
         self.dmd_hits[seqs.prefix] = df = df.loc[df[10] <= eval]
         return df
 
-    def get_rbh_orthologs(self, seqs, eval=1e-10):
+    def get_rbh_orthologs(self, seqs, cscore, eval=1e-10):
         if self == seqs:
             raise ValueError("RBH orthologs only defined for distinct species")
         df = self.run_diamond(seqs, eval=eval)
-        df1 = df.sort_values(10).drop_duplicates([0])
-        df2 = df.sort_values(10).drop_duplicates([1])
-        self.rbh[seqs.prefix] = df1.merge(df2)
+        if cscore == None:
+            df1 = df.sort_values(10).drop_duplicates([0])
+            df2 = df.sort_values(10).drop_duplicates([1])
+            self.rbh[seqs.prefix] = df1.merge(df2)
+        else:
+            cscore = float(cscore)
+            df_species1_best=df.sort_values(10).drop_duplicates([0])
+            df_species2_best=df.sort_values(10).drop_duplicates([1])
+            df_Tomerge_species1=df_species1_best[[0,11]]
+            df_Tomerge_species2=df_species2_best[[1,11]]
+            df_Tomerge_species1_rn = df_Tomerge_species1.rename(columns={11: 'species1_best'})
+            df_Tomerge_species2_rn = df_Tomerge_species2.rename(columns={11: 'species2_best'})
+            df_with_best=df.merge(df_Tomerge_species1_rn,on=0).merge(df_Tomerge_species2_rn,on=1)
+            df_with_best_c=df_with_best.loc[(df_with_best[11]  >= cscore*df_with_best['species2_best']) & (df_with_best[11]  >= cscore*df_with_best['species1_best'])]
+            df_c_score=df_with_best_c.iloc[:,0:12]
+            self.rbh[seqs.prefix] = df_c_score
+
+
+
         # self.rbh[seqs.prefix] = seqs.rbh[self.prefix] = df1.merge(df2)
         # write to file using original ids for next steps
 
