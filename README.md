@@ -18,7 +18,7 @@ To install `wgd` in a virtual environment, the following command lines could be 
 ```
 git clone <wgd repo>
 cd wgd
-virtualenv -p=python3 ENV
+virtualenv -p=python3 ENV (or python3 -m venv ENV)
 source ENV/bin/activate
 pip install requirements.txt
 pip install .

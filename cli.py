@@ -74,7 +74,7 @@ def dmd(**kwargs):
 
     Example 4 - one vs. one ortholog delineation for multiple pairs with focus species:
 
-        wgd dmd ath.fasta vvi.fasta egr.fasta --focus ath.fasta (--anchorpoints anchorpoints.txt)
+        wgd dmd ath.fasta vvi.fasta egr.fasta --focus ath.fasta (--anchorpoints anchorpoints.txt --cscore 0.7)
 
     """
     _dmd(**kwargs)
@@ -99,7 +99,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                 s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
                 s[i].write_rbh_orthologs(s[j])
     if not focus is None:
-        logging.info("Multiple CDS files: will compute RBH orthologs between focus species and remaining species")
+        logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
         x = 0
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
@@ -111,19 +111,19 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         if x == 0:
             for j in range(1, len(s)):
                 logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
-                s[0].get_rbh_orthologs(s[j], eval=eval)
+                s[0].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
                 table_tmp = s[0].write_rbh_orthologs(s[j],singletons=False)
                 if table.empty:
                     table = table_tmp
                 table = table.merge(table_tmp)
             #_merge_focus(focus)
-            table = table.drop_duplicates([focus])
+            #table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
         else:
             for k in range(0,x):
                 logging.info("{} vs. {}".format(s[x].prefix, s[k].prefix))
-                s[x].get_rbh_orthologs(s[k], eval=eval)
+                s[x].get_rbh_orthologs(s[k], cscore=cscore, eval=eval)
                 table_tmp = s[x].write_rbh_orthologs(s[k],singletons=False)
                 if table.empty:
                     table = table_tmp
@@ -131,10 +131,10 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             if not len(s) == 2 and not x+1 == len(s):
                 for l in range(x+1,len(s)):
                     logging.info("{} vs. {}".format(s[x].prefix, s[l].prefix))
-                    s[x].get_rbh_orthologs(s[l], eval=eval)
+                    s[x].get_rbh_orthologs(s[l], cscore=cscore, eval=eval)
                     table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
                     table = table.merge(table_tmp)
-            table = table.drop_duplicates([focus])
+            #table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
