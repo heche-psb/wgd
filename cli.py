@@ -48,10 +48,12 @@ def cli(verbosity):
     help="don't translate through STOP codons")
 @click.option('--cds', is_flag=True,
     help="enforce proper CDS sequences")
-@click.option('--focus', default=None,
+@click.option('--focus','-f', default=None,
     help="Species whose WGD is to be dated")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True,
     help='anchorpoints.txt file from i-adhore')
+@click.option('--keepfasta','-k', is_flag=True,
+    help="keep the fasta file of homologs family")
 def dmd(**kwargs):
     """
     All-vs.-all diamond blastp + MCL clustering.
@@ -79,7 +81,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta):
     from wgd.core import SequenceData
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
@@ -149,46 +151,47 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
             table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
             table_ap.to_csv(focusapname, sep="\t",index=False)
-        idmap = {}
-        for i in range(len(s)):
-            idmap.update(s[i].idmap)
+        if keepfasta is True:
+            idmap = {}
+            for i in range(len(s)):
+                idmap.update(s[i].idmap)
         #print(idmap)
-        seqid_table = s[0].get_seq()
-        for fam in seqid_table:
-            for seq in fam:
-                safeid = idmap.get(seq)
-        seq_cds = {}
-        seq_pro = {}
-        for i in range(len(s)):
-            seq_cds.update(s[i].cds_sequence)
-            seq_pro.update(s[i].pro_sequence)
+            seqid_table = s[0].get_seq()
+            for fam in seqid_table:
+                for seq in fam:
+                    safeid = idmap.get(seq)
+            seq_cds = {}
+            seq_pro = {}
+            for i in range(len(s)):
+                seq_cds.update(s[i].cds_sequence)
+                seq_pro.update(s[i].pro_sequence)
         #print(seq_cds)
-        rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
-        os.mkdir(rbhgfdirname)
-        for i, fam in enumerate(seqid_table):
-            for seqs in fam:
-                fname = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".pep")
-                with open(fname,'a') as f:
-                    Record = seq_pro.get(idmap.get(seqs))
-                    f.write(">{}\n{}\n".format(seqs, Record))
-                fname2 = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".cds")
-                with open(fname2,'a') as f:
-                    Record = seq_cds.get(idmap.get(seqs))
-                    f.write(">{}\n{}\n".format(seqs, Record))
-        if not anchorpoints is None:
-            seqid_table = s[0].get_seq_ap()
-            rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
-            os.mkdir(rbhgfapdirname)
+            rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
+            os.mkdir(rbhgfdirname)
             for i, fam in enumerate(seqid_table):
                 for seqs in fam:
-                    fname = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".pep")
+                    fname = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".pep")
                     with open(fname,'a') as f:
                         Record = seq_pro.get(idmap.get(seqs))
                         f.write(">{}\n{}\n".format(seqs, Record))
-                    fname2 = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".cds")
+                    fname2 = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".cds")
                     with open(fname2,'a') as f:
                         Record = seq_cds.get(idmap.get(seqs))
                         f.write(">{}\n{}\n".format(seqs, Record))
+            if not anchorpoints is None:
+                seqid_table = s[0].get_seq_ap()
+                rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
+                os.mkdir(rbhgfapdirname)
+                for i, fam in enumerate(seqid_table):
+                    for seqs in fam:
+                        fname = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".pep")
+                        with open(fname,'a') as f:
+                            Record = seq_pro.get(idmap.get(seqs))
+                            f.write(">{}\n{}\n".format(seqs, Record))
+                        fname2 = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".cds")
+                        with open(fname2,'a') as f:
+                            Record = seq_cds.get(idmap.get(seqs))
+                            f.write(">{}\n{}\n".format(seqs, Record))
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
     return s
