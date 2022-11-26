@@ -52,8 +52,10 @@ def cli(verbosity):
     help="Species whose WGD is to be dated")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True,
     help='anchorpoints.txt file from i-adhore')
-@click.option('--keepfasta','-k', is_flag=True,
+@click.option('--keepfasta','-kf', is_flag=True,
     help="keep the fasta file of homologs family")
+@click.option('--keepduplicates','-kd', is_flag=True,
+    help="Keep ID duplicates of focus species")
 def dmd(**kwargs):
     """
     All-vs.-all diamond blastp + MCL clustering.
@@ -81,7 +83,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates):
     from wgd.core import SequenceData
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
@@ -119,7 +121,9 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                     table = table_tmp
                 table = table.merge(table_tmp)
             #_merge_focus(focus)
-            table = table.drop_duplicates([focus])
+            #TO DO add an option so user could decide whether to keep ID duplicates of focus species
+            if not keepduplicates:
+                table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
         else:
@@ -136,7 +140,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                     s[x].get_rbh_orthologs(s[l], cscore=cscore, eval=eval)
                     table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
                     table = table.merge(table_tmp)
-            table = table.drop_duplicates([focus])
+            if not keepduplicates:
+                table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
