@@ -20,7 +20,7 @@ git clone <wgd repo>
 cd wgd
 virtualenv -p=python3 ENV (or python3 -m venv ENV)
 source ENV/bin/activate
-pip install requirements.txt
+pip install -r requirements.txt
 pip install .
 ```
 

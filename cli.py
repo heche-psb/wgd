@@ -99,7 +99,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
                 s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
-                s[i].write_rbh_orthologs(s[j])
+                s[i].write_rbh_orthologs(s[j],singletons=False)
     if not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
         x = 0
@@ -119,7 +119,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                     table = table_tmp
                 table = table.merge(table_tmp)
             #_merge_focus(focus)
-            #table = table.drop_duplicates([focus])
+            table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
         else:
@@ -136,7 +136,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                     s[x].get_rbh_orthologs(s[l], cscore=cscore, eval=eval)
                     table_tmp = s[x].write_rbh_orthologs(s[l],singletons=False)
                     table = table.merge(table_tmp)
-            #table = table.drop_duplicates([focus])
+            table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
             table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
