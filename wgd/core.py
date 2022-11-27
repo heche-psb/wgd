@@ -389,6 +389,7 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
     pro_alns = {}
     calnfs = []
     palnfs = []
+    calnfs_length = []
     for i in range(len(seqs)):
         seq_cds.update(seqs[i].cds_sequence)
         seq_pro.update(seqs[i].pro_sequence)
@@ -446,6 +447,7 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
         #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
         #iq_tree = os.path.join(outdir, 'GF_' + str(i+1) + ".caln.treefile")
         cds_aln = AlignIO.read(fnamecaln, "fasta")
+        calnfs_length.append(cds_aln.get_alignment_length())
         cds_alns[famid] = cds_aln
         if tree_method == "mrbayes":
             fnamepalnnexus =os.path.join(outdir, famid + ".paln.nexus")
@@ -487,7 +489,7 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
             tree = Phylo.read(tree_pth,'newick')
             tree_fams[famid] = tree
             tree_famsf.append(tree_pth)
-    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs
+    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length
         #iq_out2 = sp.Popen(iq_cmd,shell=True)
         #with open(iq_tree, 'a') as f:
         #    f.write(iq_out.stdout.decode('utf-8'))
@@ -583,6 +585,7 @@ def Concat(cds_alns, pro_alns, families, tree_method, outdir):
     Concat_palnf = os.path.join(outdir, "Concatenated.paln")
     cdsseq = {}
     proseq = {}
+    ctree_length = 0
     for i in range(famnum):
         famid = 'GF_' + str(i+1)
         cds_aln = cds_alns[famid]
@@ -619,14 +622,17 @@ def Concat(cds_alns, pro_alns, families, tree_method, outdir):
             sequence = cdsseq[spn]
             f.write(">{}\n{}\n".format(spn, sequence))
     Concat_caln = AlignIO.read(Concat_calnf, "fasta")
+    ctree_length = Concat_caln.get_alignment_length()
     Concat_paln = AlignIO.read(Concat_palnf, "fasta")
     if tree_method == "iqtree":
+        ctree_pth = Concat_calnf + ".treefile"
+        ptree_pth = Concat_palnf + ".treefile"
         iq_cmd = ["iqtree", "-s", Concat_calnf] + ["-st","CODON"] + ["-fast"]
         iq_cout = sp.run(iq_cmd, stdout=sp.PIPE)
         iq_cmd = ["iqtree", "-s", Concat_palnf] + ["-fast"]
         iq_pout = sp.run(iq_cmd, stdout=sp.PIPE)
-        Concat_ptree = Phylo.read(Concat_palnf + ".treefile", 'newick')
-        Concat_ctree = Phylo.read(Concat_calnf + ".treefile", 'newick')
+        Concat_ptree = Phylo.read(ptree_pth, 'newick')
+        Concat_ctree = Phylo.read(ctree_pth, 'newick')
     if tree_method == "fasttree":
         ctree_pth = Concat_calnf + ".fasttree"
         ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
@@ -636,7 +642,7 @@ def Concat(cds_alns, pro_alns, families, tree_method, outdir):
         ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         Concat_ctree = Phylo.read(ctree_pth,'newick')
         Concat_ptree = Phylo.read(ptree_pth,'newick')
-    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf
+    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length
 
 def _Codon2partition_(Concat_calnf, outdir):
     Concatpos_1 = os.path.join(outdir, "Concatenated.caln.pos1")
@@ -688,7 +694,7 @@ def Coale(tree_famsf, families, outdir):
     ASTER_cmd = ["astral-pro", "-i", whole_treef, "-a", gsmap, "-o", coalescence_treef]
     ASTER_cout = sp.run(ASTER_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     coalescence_ctree = Phylo.read(coalescence_treef,'newick')
-    return coalescence_ctree
+    return coalescence_ctree, coalescence_treef
 
 # Run MCMCtree
 def Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree):
@@ -700,6 +706,23 @@ def Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdi
         treef = tree_rn_fs[fam]
         McMctree = mcmctree(calnf, palnf, treef, tmpdir, outdir, speciestree)
         McMctree.run_mcmctree()
+#Run r8s
+def Run_r8s(inputtree, nsites, outdir, setting):
+    prefix = os.path.basename(inputtree)
+    r8s_inf = os.path.join(outdir, prefix + "_r8s_in.txt")
+    treecontent = ""
+    with open(inputtree,"r") as f:
+        lines = f.readlines()
+        for line in lines:
+            treecontent = line.strip('\n').strip('\t').strip(' ')
+    config = {'#nexus':'','begin trees;':'','tree inputtree = ':'{}'.format(treecontent),'end;':'','begin r8s;':'','blformat lengths=persite nsites={} ultrametric=no;'.format(nsites):'','set smoothing=':'100;', 'divtime method=':'pl;', 'end;':''}
+    configcontent = ['{0}{1}'.format(k, v) for (k,v) in config.items()]
+    configcontent = "\n".join(configcontent)
+    with open(r8s_inf,"w") as f:
+        f.write(configcontent)
+        f.write('\nend;')
+
+
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
