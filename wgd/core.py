@@ -12,6 +12,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_dna
 from Bio.Align import MultipleSeqAlignment
+from Bio.Alphabet import IUPAC
 from Bio.Data.CodonTable import TranslationError
 from Bio import Phylo
 from joblib import Parallel, delayed
@@ -446,6 +447,32 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
         #iq_tree = os.path.join(outdir, 'GF_' + str(i+1) + ".caln.treefile")
         cds_aln = AlignIO.read(fnamecaln, "fasta")
         cds_alns[famid] = cds_aln
+        if tree_method == "mrbayes":
+            fnamepalnnexus =os.path.join(outdir, famid + ".paln.nexus")
+            AlignIO.convert(fnamepaln, 'fasta', fnamepalnnexus, 'nexus', IUPAC.extended_protein)
+            cwd = os.getcwd()
+            tmppath = os.path.join(cwd, outdir)
+            os.chdir(tmppath)
+            conf = os.path.join(cwd, outdir, famid + ".config.mb")
+            logf = os.path.join(cwd, outdir, famid + ".mb.log")
+            bashf = os.path.join(cwd, outdir, famid + ".bash.mb")
+            config = {'set':'autoclose=yes nowarn=yes','execute':'./{}'.format(os.path.basename(fnamepalnnexus)),'prset':'aamodelpr=fixed(lg)','lset':'rates=gamma','mcmcp':['diagnfreq=100','samplefreq=10'],'mcmc':'ngen=1100 savebrlens=yes nchains=1','sumt':'','sump':'','quit':''}
+            with open(conf,"w") as f:
+                para = []
+                for (k,v) in config.items():
+                    if isinstance(v, list):
+                        para.append('{0} {1}'.format(k, v[0]))
+                        para.append('{0} {1}'.format(k, v[1]))
+                    else:
+                        para.append('{0} {1}'.format(k, v))
+                #para = ['{0} {1}'.format(k, v) for (k,v) in config.items()]
+                para = "\n".join(para)
+                f.write(para)
+            with open(bashf,"w") as f:
+                f.write('mb <{0}> {1}'.format(os.path.basename(conf),os.path.basename(logf)))
+            mb_cmd = ["sh", "{}".format(os.path.basename(bashf))]
+            sp.run(mb_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+            os.chdir(cwd)
         if tree_method == "iqtree":
             iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
             iq_out = sp.run(iq_cmd, stdout=sp.PIPE)

@@ -156,7 +156,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
             table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
             table_ap.to_csv(focusapname, sep="\t",index=False)
-        if keepfasta is True:
+        if keepfasta:
             idmap = {}
             for i in range(len(s)):
                 idmap.update(s[i].idmap)
@@ -208,23 +208,23 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.argument('sequences', nargs=-1, type=click.Path(exists=True))
 @click.option('--outdir', '-o', default="wgd_focus_post", show_default=True,help='output directory')
 @click.option('--tmpdir', '-t', default=None, show_default=True,help='tmp directory')
-@click.option('--speciestree', '-st', default=None, show_default=True,help='species tree for mcmctree')
+@click.option('--speciestree', '-st', default=None, show_default=True,help='species tree for dating')
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
 @click.option('--to_stop', is_flag=True,help="don't translate through STOP codons")
 @click.option('--cds', is_flag=True,help="enforce proper CDS sequences")
 @click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
 @click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
-@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree']),default='fasttree',show_default=True,help="Tree inference method")
+@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="Tree inference method")
 @click.option('--concatenation', is_flag=True,help="Species tree inference using concatenation method")
 @click.option('--coalescence', is_flag=True,help="Species tree inference using multispecies coalescence method")
-@click.option('--dating', is_flag=True,help="Dating each MRBH family using mcmctree")
+@click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="Dating orthologous families")
 def focus(**kwargs):
     """
-    Multiply species RBH orthologous family's gene tree inference and absolute dating pipeline.
+    Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
 
-    Example 1 - Dating MRBH containing anchor pairs with a user-defined species tree:
+    Example 1 - Dating orthologous families containing anchor pairs with a required user-defined species tree:
 
-        wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating --speciestree sp.newick
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating mcmctree --speciestree sp.newick
 
     Example 2 - Species tree inference under both concatenation and coalescence method:
 
@@ -252,7 +252,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
     if coalescence:
         coalescence_ctree = Coale(tree_famsf, families, outdir)
-    if dating:
+    if dating=='mcmctree':
         Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree)
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
