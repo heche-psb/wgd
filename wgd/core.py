@@ -376,7 +376,7 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
-def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--auto", **kwargs):
+def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, option="--auto", **kwargs):
     seqid_table = families
     cds = {}
     pro = []
@@ -476,7 +476,19 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
             sp.run(mb_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             os.chdir(cwd)
         if tree_method == "iqtree":
-            iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
+            if not treeset is None:
+                treesetfull = []
+                iq_cmd = ["iqtree", "-s", fnamecaln]
+                for i in treeset:
+                    i = i.strip(" ").split(" ")
+                    if type(i) == list:
+                        treesetfull = treesetfull + i
+                    else:
+                        treesetfull.append(i)
+                iq_cmd = iq_cmd + treesetfull
+                print(iq_cmd)
+            else:
+                iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
             iq_out = sp.run(iq_cmd, stdout=sp.PIPE)
             tree_pth = fnamecaln + ".treefile"
             tree = Phylo.read(tree_pth,'newick')
@@ -484,7 +496,18 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, outdir, option="--a
             tree_famsf.append(tree_pth)
         if tree_method == "fasttree":
             tree_pth = fnamecaln + ".fasttree"
-            ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+            if not treeset is None:
+                treesetfull = []
+                ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+                for i in treeset:
+                    i = i.strip(" ").split(" ")
+                    if type(i) == list:
+                        treesetfull = treesetfull + i
+                    else:
+                        treesetfull.append(i)
+                ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
+            else:
+                ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
             ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             tree = Phylo.read(tree_pth,'newick')
             tree_fams[famid] = tree

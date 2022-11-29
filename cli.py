@@ -214,11 +214,12 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
 @click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="Tree inference method")
+@click.option('--treeset', '-ts',multiple=True, default=None, show_default=True,help='Parameters setting for gene tree inference')
 @click.option('--concatenation', is_flag=True,help="Species tree inference using concatenation method")
 @click.option('--coalescence', is_flag=True,help="Species tree inference using multispecies coalescence method")
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree for dating')
 @click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="Dating orthologous families")
-@click.option('--setting', '-st', default=None, show_default=True,help='Parameters setting for dating')
+@click.option('--datingset', '-ds', default=None, show_default=True,help='Parameters setting for dating')
 @click.option('--nsites', '-ns', default=None, show_default=True,help='nsites information for r8s dating')
 def focus(**kwargs):
     """
@@ -232,12 +233,16 @@ def focus(**kwargs):
 
         wgd focus families cds1.fasta cds2.fasta cds3.fasta --concatenation --coalescence
 
+    Example 3 - How to specify user's parameters for fasttree and iqtree
+
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta -ts '-boot 100' -ts -fastest
+
     If you want to keep intermediate (temporary) files, please provide a directory
     name for the `--tmpdir` option.
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, concatenation, coalescence, speciestree, dating, setting, nsites):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites):
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s
     if not speciestree is None and nsites is None:
@@ -251,9 +256,9 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     logging.info("tmpdir = {}".format(seqs[0].tmp_path))
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
-    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,outdir)
+    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
     if concatenation or dating=='r8s':
-        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length= Concat(cds_alns, pro_alns, families, tree_method, outdir)
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length= Concat(cds_alns, pro_alns, families, tree_method,treeset, outdir)
         Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
@@ -261,11 +266,11 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree)
     if dating=='r8s':
         if speciestree is None:
-            Run_r8s(ctree_pth, ctree_length, outdir, setting)
+            Run_r8s(ctree_pth, ctree_length, outdir, datingset)
             #for i in range(len(tree_famsf)):
             #    Run_r8s(tree_famsf[i], calnfs_length[i], outdir, setting)
         else:
-            Run_r8s(speciestree, nsites, outdir, setting)
+            Run_r8s(speciestree, nsites, outdir, datingset)
         #Run_r8s(tree_famsf, ctree_pth, coalescence_treef, speciestree, setting)
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
