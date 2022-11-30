@@ -581,61 +581,60 @@ def GetG2SMap(families, outdir):
                 f.write(j + " "+ i + "\n")
     return G2SMap, Slist
 
-def FileRn(cds_alns, pro_alns, tree_famsf, families, outdir):
-    gsmap, slist = GetG2SMap(families, outdir)
-    famnum = len(pro_alns)
-    cds_alns_rn = {}
-    pro_alns_rn = {}
-    tree_rns = {}
-    tree_rn_fs = []
-    calnfs_rn = []
-    palnfs_rn = []
+def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap):
+    #gsmap, slist = GetG2SMap(families, outdir)
+    famnum = len(pro_alns_rn)
+    #cds_alns_rn = {}
+    #pro_alns_rn = {}
+    #tree_rns = {}
+    #tree_rn_fs = []
+    calnfs_rn = [i + ".rename" for i in calnfs]
+    palnfs_rn = [i + ".rename" for i in palnfs]
     for i in range(famnum):
         famid = 'GF_' + str(i+1)
-        cds_aln = cds_alns[famid]
-        pro_aln = pro_alns[famid]
-        calnpath = os.path.join(outdir, famid + ".caln.rename")
-        palnpath = os.path.join(outdir, famid + ".paln.rename")
-        for j in range(len(pro_aln)):
-            with open(gsmap,"r") as f:
-                lines = f.readlines()
-                for k in lines:
-                    k = k.strip('\n').strip(' ').split(' ')
-                    if k[0] == cds_aln[j].id:
-                        spn = k[1]
-                        cds_aln[j].id = spn
-                        with open(calnpath, "a") as f:
-                            f.write(">{}\n{}\n".format(spn,cds_aln[j].seq))
-                    if k[0] == pro_aln[j].id:
-                        spn = k[1]
-                        pro_aln[j].id = spn
-                        with open(palnpath, "a") as f:
-                            f.write(">{}\n{}\n".format(spn,pro_aln[j].seq))
-        cds_alns_rn[famid] = cds_aln
-        pro_alns_rn[famid] = pro_aln
+        cds_aln_rn = cds_alns_rn[famid]
+        pro_aln_rn = pro_alns_rn[famid]
+        #calnpath = os.path.join(outdir, famid + ".caln.rename")
+        #palnpath = os.path.join(outdir, famid + ".paln.rename")
+        for j in range(len(pro_aln_rn)):
+            #with open(gsmap,"r") as f:
+                #lines = f.readlines()
+                #for k in lines:
+                    #k = k.strip('\n').strip('\t').strip(' ').split(' ')
+                    #if k[0] == cds_aln[j].id:
+                        #print(k[0]+k[1])
+                        #cds_aln[j].id = k[1]
+            with open(calnfs_rn[i], "a") as f:
+                f.write(">{}\n{}\n".format(cds_aln_rn[j].id,cds_aln_rn[j].seq))
+                    #if k[0] == pro_aln[j].id:
+                        #pro_aln[j].id = k[1]
+            with open(palnfs_rn[i], "a") as f:
+                f.write(">{}\n{}\n".format(pro_aln_rn[j].id,pro_aln_rn[j].seq))
+        #cds_alns_rn[famid] = cds_aln
+        #pro_alns_rn[famid] = pro_aln
         #calnf = AlignIO.write(cds_aln, calnpath, "fasta")
         #palnf = AlignIO.write(pro_aln, palnpath, "fasta")
-        calnfs_rn.append(calnpath)
-        palnfs_rn.append(palnpath)
-        treef = tree_famsf[i]
-        treecontent = ""
-        treef_rn_f = os.path.join(outdir, famid + ".tree.rename")
-        with open(treef,"r") as f:
-            lines = f.readlines()
-            for line in lines:
-                treecontent = line
-        with open(gsmap,"r") as f:
-            lines = f.readlines()
-            for k in lines:
-                k = k.strip('\n').strip(' ').split(' ')
-                if k[0] in treecontent:
-                    treecontent = treecontent.replace(k[0],k[1])
-        with open(treef_rn_f,"w") as f:
-            f.write(treecontent)
-        tree_rn = Phylo.read(treef_rn_f,'newick')
-        tree_rns[famid] = tree_rn
-        tree_rn_fs.append(treef_rn_f)
-    return cds_alns_rn, pro_alns_rn, calnfs_rn, palnfs_rn, tree_rns, tree_rn_fs
+        #calnfs_rn.append(calnpath)
+        #palnfs_rn.append(palnpath)
+        #treef = tree_famsf[i]
+        #treecontent = ""
+        #treef_rn_f = os.path.join(outdir, famid + ".tree.rename")
+        #with open(treef,"r") as f:
+        #    lines = f.readlines()
+        #    for line in lines:
+        #        treecontent = line.strip('\t').strip('\n').strip(' ')
+        #with open(gsmap,"r") as f:
+        #    lines = f.readlines()
+        #    for k in lines:
+        #        k = k.strip('\n').strip(' ').split(' ')
+        #        if k[0] in treecontent:
+        #            treecontent = treecontent.replace(k[0],k[1])
+        #with open(treef_rn_f,"w") as f:
+        #    f.write(treecontent)
+        #tree_rn = Phylo.read(treef_rn_f,'newick')
+        #tree_rns[famid] = tree_rn
+        #tree_rn_fs.append(treef_rn_f)
+    return calnfs_rn, palnfs_rn
 
 def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     gsmap, slist = GetG2SMap(families, outdir)
@@ -728,7 +727,7 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
         ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         Concat_ctree = Phylo.read(ctree_pth,'newick')
         Concat_ptree = Phylo.read(ptree_pth,'newick')
-    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length
+    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length, gsmap
 
 def _Codon2partition_(Concat_calnf, outdir):
     Concatpos_1 = os.path.join(outdir, "Concatenated.caln.pos1")
@@ -783,14 +782,13 @@ def Coale(tree_famsf, families, outdir):
     return coalescence_ctree, coalescence_treef
 
 # Run MCMCtree
-def Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree):
+def Run_MCMCTREE(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset):
     famnum = len(calnfs)
-    cds_alns_rn, pro_alns_rn, calnfs_rn, palnfs_rn, tree_rns, tree_rn_fs = FileRn(cds_alns, pro_alns, tree_famsf, families, outdir)
+    calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap)
     for fam in range(famnum):
-        calnf = calnfs_rn[fam]
-        palnf = palnfs_rn[fam]
-        treef = tree_rn_fs[fam]
-        McMctree = mcmctree(calnf, palnf, treef, tmpdir, outdir, speciestree)
+        calnf_rn = calnfs_rn[fam]
+        palnf_rn = palnfs_rn[fam]
+        McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset)
         McMctree.run_mcmctree()
 #Run r8s
 def Reroot(inputtree,outgroup):

@@ -11,16 +11,16 @@ def _mkdir(dirname):
         os.mkdir(dirname)
     return dirname
 
-def _mv2tmp(calnf, palnf, treef, tmpcdir, tmppdir):
+def _mv2tmp(calnf_rn, palnf_rn, tree, tmpcdir, tmppdir):
     """
     mv the caln and paln to mcmctree_tmp file
     """
     if not os.path.isdir(tmpcdir) or not os.path.isdir(tmppdir) :
         logging.error("tmpdir not existing!")
-    cmdc = ["cp", calnf, tmpcdir]
-    cmdp = ["cp", palnf, tmppdir]
-    cmdtc = ["cp", treef, tmpcdir]
-    cmdtp = ["cp", treef, tmppdir]
+    cmdc = ["mv", calnf_rn, tmpcdir]
+    cmdp = ["mv", palnf_rn, tmppdir]
+    cmdtc = ["cp", tree, tmpcdir]
+    cmdtp = ["cp", tree, tmppdir]
     sp.run(cmdc, stdout=sp.PIPE, stderr=sp.PIPE)
     sp.run(cmdp, stdout=sp.PIPE, stderr=sp.PIPE)
     sp.run(cmdtc, stdout=sp.PIPE, stderr=sp.PIPE)
@@ -31,14 +31,13 @@ def _mv2tmp(calnf, palnf, treef, tmpcdir, tmppdir):
     #    gfloc = _mkdir(gfpath)
     #    gfsloc.append(gfloc)
 def _mv_(fname, dirname):
-    cmd = ["cp", fname, dirname]
+    cmd = ["mv", fname, dirname]
     sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
 def _run_mcmctree(control_file):
     """
     Run mcmctree assuming all necessary files are written and we are in the
-    directory with those files. Set `preserve` to true to keep intermediary
-    files.
+    directory with those files.
     """
     sp.run(['mcmctree', control_file], stdout=sp.PIPE)
     #if not os.path.isfile(out_file):
@@ -53,34 +52,29 @@ def _run_mcmctree(control_file):
 
 class mcmctree:
     """
-    #Implementation of mcmctree provided a MRBH family for phylogenetic dating
+    Implementation of mcmctree provided a MRBH family for phylogenetic dating
     """
-    def __init__(self, calnf, palnf, treef, tmpdir, outdir, speciestree):
-        if speciestree == None:
-            self.treef = treef
-        else:
-            self.treef = speciestree
+    def __init__(self, calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset):
+        self.tree = speciestree
         if tmpdir == None:
-            tmp_path = os.path.join(outdir, "mcmctree", os.path.basename(calnf).strip('.caln.rename'))
+            tmp_path = os.path.join(outdir, "mcmctree", os.path.basename(calnf_rn).strip('.caln.rename'))
         else:
-            tmp_path = os.path.join(os.getcwd(), tmpdir, "mcmctree", os.path.basename(calnf).strip('.caln.rename'))
+            tmp_path = os.path.join(tmpdir, "mcmctree", os.path.basename(calnf_rn).strip('.caln.rename'))
         _mkdir(os.path.join(outdir, "mcmctree"))
         self.tmp_path = _mkdir(tmp_path)
         tmpc_path = os.path.join(tmp_path, "cds")
         tmpp_path = os.path.join(tmp_path, "pep")
         self.tmpc_path = _mkdir(tmpc_path)
         self.tmpp_path = _mkdir(tmpp_path)
-        self.calnf = calnf
-        self.palnf = palnf
-        _mv2tmp(self.calnf, self.palnf, self.treef, self.tmpc_path, self.tmpp_path)
+        self.calnf_rn = calnf_rn
+        self.palnf_rn = palnf_rn
+        _mv2tmp(self.calnf_rn, self.palnf_rn, self.tree, self.tmpc_path, self.tmpp_path)
         self.controlcf = os.path.join(tmpc_path, 'mcmctree.ctrl')
         self.controlpf = os.path.join(tmpp_path, 'mcmctree.ctrl')
-        self.cout_tmp = os.path.join(tmpc_path, 'mcmctree.out')
-        self.pout_tmp = os.path.join(tmpp_path, 'mcmctree.out')
         self.controlc = {
-            'seqfile': os.path.basename(self.calnf),
-            'treefile':os.path.basename(self.treef),
-            'outfile': os.path.basename(self.cout_tmp),
+            'seqfile': os.path.basename(self.calnf_rn),
+            'treefile':self.tree,
+            'outfile': 'mcmctree.out',
             'ndata':1,
             'seqtype':0,
             'usedata':1,
@@ -101,9 +95,9 @@ class mcmctree:
             'sampfreq': 1,
             'nsample': 10,}
         self.controlp = {
-            'seqfile': os.path.basename(self.palnf),
-            'treefile':os.path.basename(self.treef),
-            'outfile': os.path.basename(self.pout_tmp),
+            'seqfile': os.path.basename(self.palnf_rn),
+            'treefile':self.tree,
+            'outfile': 'mcmctree.out',
             'ndata':1,
             'seqtype':2,
             'usedata':1,
@@ -123,6 +117,13 @@ class mcmctree:
             'burnin': 1,
             'sampfreq': 1,
             'nsample': 10,}
+        if not datingset is None:
+            for i in datingset:
+                i.strip('\t').strip('\n').strip(' ')
+                for key in self.controlc.keys():
+                    if key in i:
+                        self.controlc[key] = i.replace(key,'').replace('=','').strip(' ')
+                        self.controlp[key] = i.replace(key,'').replace('=','').strip(' ')
         #for x in kwargs.keys():
         #    if x not in self.control:
         #        raise KeyError("{} is not a valid codeml param.".format(x))

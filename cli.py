@@ -252,10 +252,10 @@ def focus(**kwargs):
 def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup):
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
-    if not speciestree is None and nsites is None:
+    if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
-    if speciestree is None and outgroup is None:
+    if dating=='r8s' and speciestree is None and outgroup is None:
         logging.error("Please provide outgroup species for r8s dating")
         exit(0)
     if len(sequences) < 2:
@@ -267,13 +267,16 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
-    if concatenation or speciestree is None:
-        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length= Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
+    if concatenation or dating == 'mcmctree':
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length, gsmap = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
         Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
     if dating=='mcmctree':
-        Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree)
+        if speciestree is None:
+            logging.error("Please provide species tree for mcmctree dating")
+            exit(0)
+        Run_MCMCTREE(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")
