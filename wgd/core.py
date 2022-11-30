@@ -459,6 +459,21 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
             logf = os.path.join(cwd, outdir, famid + ".mb.log")
             bashf = os.path.join(cwd, outdir, famid + ".bash.mb")
             config = {'set':'autoclose=yes nowarn=yes','execute':'./{}'.format(os.path.basename(fnamepalnnexus)),'prset':'aamodelpr=fixed(lg)','lset':'rates=gamma','mcmcp':['diagnfreq=100','samplefreq=10'],'mcmc':'ngen=1100 savebrlens=yes nchains=1','sumt':'','sump':'','quit':''}
+            if not treeset is None:
+                diasam = [100,10]
+                ngnc = [1100,1]
+                for i in treeset:
+                    i = i.strip('\t').strip(' ')
+                    if 'diagnfreq' in i:
+                        diasam[0] = i[10:]
+                    if 'samplefreq' in i:
+                        diasam[1] = i[11:]
+                    if 'ngen' in i:
+                        ngnc[0] = i[5:]
+                    if 'nchains' in i:
+                        ngnc[1] = i[8:]
+                config['mcmcp'] = ['diagnfreq={}'.format(diasam[0]),'samplefreq={}'.format(diasam[1])]
+                config['mcmc'] = 'ngen={0} savebrlens=yes nchains={1}'.format(ngnc[0],ngnc[1])
             with open(conf,"w") as f:
                 para = []
                 for (k,v) in config.items():
@@ -474,6 +489,30 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
                 f.write('mb <{0}> {1}'.format(os.path.basename(conf),os.path.basename(logf)))
             mb_cmd = ["sh", "{}".format(os.path.basename(bashf))]
             sp.run(mb_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+            genenumber = len(pro_aln)
+            linenumber = genenumber + 3
+            mb_out = famid + ".paln.nexus" + ".con.tre"
+            mb_out_content = []
+            with open(mb_out,"r") as f:
+                lines = f.readlines()
+                for line in lines:
+                    mb_out_content.append(line.strip(' ').strip('\t').strip('\n').strip(','))
+            mb_useful = mb_out_content[-linenumber:-1]
+            mb_id = mb_useful[:-2]
+            mb_tree = mb_useful[-1]
+            mb_id_dict = {}
+            mb_treef = famid + ".paln.nexus" + ".con.tre.backname"
+            for i in mb_id:
+                i = i.split("\t")
+                mb_id_dict[i[0]]=i[1]
+            with open(mb_treef,'w') as f:
+                for (k,v) in mb_id_dict.items():
+                    mb_tree = mb_tree.replace('{}[&prob='.format(k),'{}[&prob='.format(v))
+                f.write(mb_tree[27:])
+            tree = Phylo.read(mb_treef,'newick')
+            tree_fams[famid] = tree
+            mb_treef = os.path.join(outdir, mb_treef)
+            tree_famsf.append(mb_treef)
             os.chdir(cwd)
         if tree_method == "iqtree":
             if not treeset is None:
@@ -486,7 +525,6 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
                     else:
                         treesetfull.append(i)
                 iq_cmd = iq_cmd + treesetfull
-                print(iq_cmd)
             else:
                 iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
             iq_out = sp.run(iq_cmd, stdout=sp.PIPE)
@@ -599,7 +637,7 @@ def FileRn(cds_alns, pro_alns, tree_famsf, families, outdir):
         tree_rn_fs.append(treef_rn_f)
     return cds_alns_rn, pro_alns_rn, calnfs_rn, palnfs_rn, tree_rns, tree_rn_fs
 
-def Concat(cds_alns, pro_alns, families, tree_method, outdir):
+def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     gsmap, slist = GetG2SMap(families, outdir)
     famnum = len(pro_alns)
     cds_alns_rn = {}
@@ -650,15 +688,40 @@ def Concat(cds_alns, pro_alns, families, tree_method, outdir):
     if tree_method == "iqtree":
         ctree_pth = Concat_calnf + ".treefile"
         ptree_pth = Concat_palnf + ".treefile"
-        iq_cmd = ["iqtree", "-s", Concat_calnf] + ["-st","CODON"] + ["-fast"]
-        iq_cout = sp.run(iq_cmd, stdout=sp.PIPE)
-        iq_cmd = ["iqtree", "-s", Concat_palnf] + ["-fast"]
-        iq_pout = sp.run(iq_cmd, stdout=sp.PIPE)
+        if not treeset is None:
+            treesetfull = []
+            iq_ccmd = ["iqtree", "-s", Concat_calnf]
+            iq_pcmd = ["iqtree", "-s", Concat_palnf]
+            for i in treeset:
+                i = i.strip(" ").split(" ")
+                if type(i) == list:
+                    treesetfull = treesetfull + i
+                else:
+                    treesetfull.append(i)
+            iq_ccmd = iq_ccmd + treesetfull
+            iq_pcmd = iq_pcmd + treesetfull
+        else:
+            iq_ccmd = ["iqtree", "-s", Concat_calnf] + ["-st","CODON"] + ["-fast"]
+            iq_pcmd = ["iqtree", "-s", Concat_palnf] + ["-fast"]
+        print(iq_ccmd+iq_pcmd)
+        iq_cout = sp.run(iq_ccmd, stdout=sp.PIPE)
+        iq_pout = sp.run(iq_pcmd, stdout=sp.PIPE)
         Concat_ptree = Phylo.read(ptree_pth, 'newick')
         Concat_ctree = Phylo.read(ctree_pth, 'newick')
     if tree_method == "fasttree":
         ctree_pth = Concat_calnf + ".fasttree"
-        ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
+        if not treeset is None:
+            treesetfull = []
+            ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
+            for i in treeset:
+                i = i.strip(" ").split(" ")
+                if type(i) == list:
+                    treesetfull = treesetfull + i
+                else:
+                    treesetfull.append(i)
+            ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
+        else:
+            ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
         ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         ptree_pth = Concat_palnf + ".fasttree"
         ft_cmd = ["FastTree", '-out', ptree_pth, Concat_palnf]
@@ -730,20 +793,61 @@ def Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdi
         McMctree = mcmctree(calnf, palnf, treef, tmpdir, outdir, speciestree)
         McMctree.run_mcmctree()
 #Run r8s
-def Run_r8s(inputtree, nsites, outdir, setting):
-    prefix = os.path.basename(inputtree)
-    r8s_inf = os.path.join(outdir, prefix + "_r8s_in.txt")
+def Reroot(inputtree,outgroup):
+    spt = inputtree + '.reroot'
+    rr_cmd = ['nw_reroot', inputtree, outgroup]
+    rr_out = sp.run(rr_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    logging.info("Rerooting the species tree with outgroup {}".format(outgroup))
+    with open (spt,"w") as f: f.write(rr_out.stdout.decode('utf-8'))
+    return spt
+
+def Run_r8s(spt, nsites, outdir, datingset):
     treecontent = ""
-    with open(inputtree,"r") as f:
+    with open(spt,"r") as f:
         lines = f.readlines()
         for line in lines:
             treecontent = line.strip('\n').strip('\t').strip(' ')
-    config = {'#nexus':'','begin trees;':'','tree inputtree = ':'{}'.format(treecontent),'end;':'','begin r8s;':'','blformat lengths=persite nsites={} ultrametric=no;'.format(nsites):'','set smoothing=':'100;', 'divtime method=':'pl;', 'end;':''}
-    configcontent = ['{0}{1}'.format(k, v) for (k,v) in config.items()]
-    configcontent = "\n".join(configcontent)
+    prefix = os.path.basename(spt)
+    r8s_inf = os.path.join(outdir, prefix + "_r8s_in.txt")
+    config = {'#nexus':'','begin trees;':'','tree inputtree = ':'{}'.format(treecontent),'end;':'','begin r8s;':'','blformat ':'lengths=persite nsites={} ultrametric=no round =yes;'.format(nsites),'MRCA':[],'fixage':[],'constrain':[],'set smoothing=':'100;', 'divtime':' method=PL crossv=yes cvstart=0 cvinc=1 cvnum=4;', 'divtime ':'method=PL algorithm=TN;', 'showage;':'', 'describe ':'plot=cladogram;', 'describe':' plot=chrono_description;', 'end;':''}
+    for i in datingset:
+        i.strip('\t').strip('\n').strip(' ')
+        if 'MRCA' in i:
+            i = i.strip('MRCA')
+            config['MRCA'].append(i)
+        if 'fixage' in i:
+            i = i.strip('fixage')
+            config['fixage'].append(i)
+        if 'constrain' in i:
+            i = i.strip('constrain')
+            config['constrain'].append(i)
+        if 'smoothing' in i:
+            i = i.replace('set','').replace('smoothing=','').replace(' ','')
+            config['set smoothing='] = i
+        if 'divtime' in i:
+            i = i.strip('divtime').strip(' ')
+            config['divtime '] = i
+    if len(config['MRCA']) == 0 or len(config['fixage']) + len(config['constrain']) ==0:
+        logging.error("Please provide at lease one fixage or constrain information for an interal node in r8s dating")
+        exit(0)
     with open(r8s_inf,"w") as f:
-        f.write(configcontent)
-        f.write('\nend;')
+        for (k,v) in config.items():
+            if type(v) == list:
+                if len(v):
+                    for i in range(len(v)):
+                        f.write('{}'.format(k))
+                        f.write('{}'.format(v[i]))
+                        f.write('\n')
+            else:
+                f.write('{0}{1}\n'.format(k,v))
+        f.write('end;')
+    r8s_outf = os.path.join(outdir, prefix + "_r8s_out.txt")
+    #r8s_cmd = ['r8s', '-b', '-f {}'.format(r8s_inf), '> {}'.format(r8s_outf)]
+    r8s_bashf = os.path.join(outdir, prefix + "_r8s_bash.txt")
+    with open (r8s_bashf,"w") as f: f.write('r8s -b -f {0} > {1}'.format(r8s_inf,r8s_outf))
+    r8s_cmd = ['sh', '{}'.format(r8s_bashf)]
+    r8s_out = sp.run(r8s_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    #with open (r8s_outf,"w") as f: f.write(r8s_out.stdout.decode('utf-8'))
 
 
 

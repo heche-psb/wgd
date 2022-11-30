@@ -214,13 +214,14 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
 @click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="Tree inference method")
-@click.option('--treeset', '-ts',multiple=True, default=None, show_default=True,help='Parameters setting for gene tree inference')
+@click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='Parameters setting for gene tree inference')
 @click.option('--concatenation', is_flag=True,help="Species tree inference using concatenation method")
 @click.option('--coalescence', is_flag=True,help="Species tree inference using multispecies coalescence method")
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree for dating')
 @click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="Dating orthologous families")
-@click.option('--datingset', '-ds', default=None, show_default=True,help='Parameters setting for dating')
+@click.option('--datingset', '-ds', multiple=True, default=None, show_default=True,help='Parameters setting for dating')
 @click.option('--nsites', '-ns', default=None, show_default=True,help='nsites information for r8s dating')
+@click.option('--outgroup', '-ot', default=None, show_default=True,help='outgroup species for r8s dating')
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -229,11 +230,17 @@ def focus(**kwargs):
 
         wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating mcmctree --speciestree sp.newick
 
-    Example 2 - Species tree inference under both concatenation and coalescence method:
+    Example 2 - Dating orthologous families containing anchor pairs with or without a user-defined species tree in r8s:
+
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta -d r8s -sp sp.newick -ns 1000 -ds 'MRCA **;' -ds 'constrain **;' 
+    
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta -d r8s -ds 'MRCA **;' -ds 'constrain **;' -ot outgroup
+
+    Example 3 - Species tree inference under both concatenation and coalescence method:
 
         wgd focus families cds1.fasta cds2.fasta cds3.fasta --concatenation --coalescence
 
-    Example 3 - How to specify user's parameters for fasttree and iqtree
+    Example 4 - How to specify user's parameters for fasttree and iqtree
 
         wgd focus families cds1.fasta cds2.fasta cds3.fasta -ts '-boot 100' -ts -fastest
 
@@ -242,11 +249,14 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup):
     from wgd.core import SequenceData
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
     if not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
+        exit(0)
+    if speciestree is None and outgroup is None:
+        logging.error("Please provide outgroup species for r8s dating")
         exit(0)
     if len(sequences) < 2:
         logging.error("Please provide at least three sequence files for constructing trees")
@@ -257,16 +267,21 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
-    if concatenation or dating=='r8s':
-        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length= Concat(cds_alns, pro_alns, families, tree_method,treeset, outdir)
+    if concatenation or speciestree is None:
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length= Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
         Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
     if dating=='mcmctree':
         Run_MCMCTREE(cds_alns, pro_alns, calnfs, palnfs, tree_famsf, families, tmpdir, outdir, speciestree)
     if dating=='r8s':
+        if datingset is None:
+            logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")
+            exit(0)
         if speciestree is None:
-            Run_r8s(ctree_pth, ctree_length, outdir, datingset)
+            logging.info("Using concatenation-inferred species tree as input for r8s")
+            spt = Reroot(ctree_pth,outgroup)
+            Run_r8s(spt, ctree_length, outdir, datingset)
             #for i in range(len(tree_famsf)):
             #    Run_r8s(tree_famsf[i], calnfs_length[i], outdir, setting)
         else:
