@@ -748,16 +748,24 @@ def Getpartitionedpaml(alnf,outdir):
     return alnfpartitioned_paml
 
 # Run MCMCtree
-def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, partition):
+def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition):
     Concat_calnf_paml = fasta2paml(Concat_caln,Concat_calnf)
     Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
     if partition:
         logging.info("Running mcmctree on concatenated alignment with partition")
         Concatpospartitioned_paml = Getpartitionedpaml(Concat_calnf, outdir)
-        McMctree = mcmctree(Concatpospartitioned_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, partition)
+        McMctree = mcmctree(Concatpospartitioned_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition)
         McMctree.run_mcmctree()
     logging.info("Running mcmctree on concatenated alignment without partition")
-    McMctree = mcmctree(Concat_calnf_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, partition=False)
+    if aamodel == 'wag':
+        logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
+    if aamodel == 'lg':
+        logging.info('Running mcmctree using Hessian matrix of LG+Gamma for protein model')
+    if aamodel == 'dayhoff':
+        logging.info('Running mcmctree using Hessian matrix of Dayhoff-DCMut for protein model')
+    else:
+        logging.info('Running mcmctree using Poisson without gamma rates for protein model')
+    McMctree = mcmctree(Concat_calnf_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
     McMctree.run_mcmctree()
     famnum = len(calnfs)
     calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap)
@@ -767,10 +775,10 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         if partition:
             logging.info("Running mcmctree on {} alignment with partition".format('GF_' + str(fam+1)))
             calnfpartitioned_paml = Getpartitionedpaml(calnf_rn, outdir)
-            McMctree = mcmctree(calnfpartitioned_paml, palnf_rn, tmpdir, outdir, speciestree, datingset, partition)
+            McMctree = mcmctree(calnfpartitioned_paml, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition)
             McMctree.run_mcmctree()
         logging.info("Running mcmctree on {} alignment without partition".format('GF_' + str(fam+1)))
-        McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, partition=False)
+        McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
         McMctree.run_mcmctree()
 #Run r8s
 def Reroot(inputtree,outgroup):
