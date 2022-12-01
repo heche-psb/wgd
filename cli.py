@@ -222,13 +222,14 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--datingset', '-ds', multiple=True, default=None, show_default=True,help='Parameters setting for dating')
 @click.option('--nsites', '-ns', default=None, show_default=True,help='nsites information for r8s dating')
 @click.option('--outgroup', '-ot', default=None, show_default=True,help='outgroup species for r8s dating')
+@click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
 
     Example 1 - Dating orthologous families containing anchor pairs with a required user-defined species tree:
 
-        wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating mcmctree --speciestree sp.newick
+        wgd focus families cds1.fasta cds2.fasta cds3.fasta --dating mcmctree --speciestree sp.newick -ds 'burnin = 2000' -ds 'sigma2_gamma = 1 10 1'
 
     Example 2 - Dating orthologous families containing anchor pairs with or without a user-defined species tree in r8s:
 
@@ -249,7 +250,7 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition):
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -268,15 +269,15 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
     if concatenation or dating == 'mcmctree':
-        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length, gsmap = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
-        Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
+        #Concatpos_1, Concatpos_2, Concatpos_3, Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
     if dating=='mcmctree':
         if speciestree is None:
             logging.error("Please provide species tree for mcmctree dating")
             exit(0)
-        Run_MCMCTREE(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset)
+        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, partition)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")
@@ -285,11 +286,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
             logging.info("Using concatenation-inferred species tree as input for r8s")
             spt = Reroot(ctree_pth,outgroup)
             Run_r8s(spt, ctree_length, outdir, datingset)
-            #for i in range(len(tree_famsf)):
-            #    Run_r8s(tree_famsf[i], calnfs_length[i], outdir, setting)
         else:
             Run_r8s(speciestree, nsites, outdir, datingset)
-        #Run_r8s(tree_famsf, ctree_pth, coalescence_treef, speciestree, setting)
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
 

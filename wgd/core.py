@@ -440,12 +440,10 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
                     cds_aln += cds_seq[k:k+3]
                     k = k + 3
             aln[s.id] = cds_aln
-        #fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
         with open(fnamecaln, 'a') as f:
             for k, v in aln.items():
                 f.write(">{}\n{}\n".format(k, v))
         #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
-        #iq_tree = os.path.join(outdir, 'GF_' + str(i+1) + ".caln.treefile")
         cds_aln = AlignIO.read(fnamecaln, "fasta")
         calnfs_length.append(cds_aln.get_alignment_length())
         cds_alns[famid] = cds_aln
@@ -482,7 +480,6 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
                         para.append('{0} {1}'.format(k, v[1]))
                     else:
                         para.append('{0} {1}'.format(k, v))
-                #para = ['{0} {1}'.format(k, v) for (k,v) in config.items()]
                 para = "\n".join(para)
                 f.write(para)
             with open(bashf,"w") as f:
@@ -551,23 +548,7 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
             tree_fams[famid] = tree
             tree_famsf.append(tree_pth)
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length
-        #iq_out2 = sp.Popen(iq_cmd,shell=True)
-        #with open(iq_tree, 'a') as f:
-        #    f.write(iq_out.stdout.decode('utf-8'))
-        #_log_process(iq_out, program="iqtree")
-        #return _process_unrooted_tree(fnamecaln + ".treefile")
-        #MultipleSeqAlignment([SeqRecord(v, id=k) for k, v in aln.items()])
-            #print(safeid)
-        #print(family)
-            #Recordpro = seq_pro.get(x)
-            #cds.update(seq_cds[x])
-            #pro.append(Recordpro)
-            #Recordcds = seq_cds.get(x)
-            #cds.append(Recordpro)
-            #cds = {sid: seqs[0].cds_seqs[sid] for sid in safeid}
-            #for j in cds:
-                #print(j)
-            #pro.update(sid: seqs[0].pro_seqs[sid] for sid in safeid)
+
 # Concatenate all MRBH family align in fasta format and feed into iqtree for species tree inference
 def GetG2SMap(families, outdir):
     df = pd.read_csv(families,header=0,index_col=False,sep='\t')
@@ -582,58 +563,20 @@ def GetG2SMap(families, outdir):
     return G2SMap, Slist
 
 def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap):
-    #gsmap, slist = GetG2SMap(families, outdir)
     famnum = len(pro_alns_rn)
-    #cds_alns_rn = {}
-    #pro_alns_rn = {}
-    #tree_rns = {}
-    #tree_rn_fs = []
     calnfs_rn = [i + ".rename" for i in calnfs]
     palnfs_rn = [i + ".rename" for i in palnfs]
     for i in range(famnum):
         famid = 'GF_' + str(i+1)
         cds_aln_rn = cds_alns_rn[famid]
         pro_aln_rn = pro_alns_rn[famid]
-        #calnpath = os.path.join(outdir, famid + ".caln.rename")
-        #palnpath = os.path.join(outdir, famid + ".paln.rename")
         for j in range(len(pro_aln_rn)):
-            #with open(gsmap,"r") as f:
-                #lines = f.readlines()
-                #for k in lines:
-                    #k = k.strip('\n').strip('\t').strip(' ').split(' ')
-                    #if k[0] == cds_aln[j].id:
-                        #print(k[0]+k[1])
-                        #cds_aln[j].id = k[1]
             with open(calnfs_rn[i], "a") as f:
                 f.write(">{}\n{}\n".format(cds_aln_rn[j].id,cds_aln_rn[j].seq))
                     #if k[0] == pro_aln[j].id:
                         #pro_aln[j].id = k[1]
             with open(palnfs_rn[i], "a") as f:
                 f.write(">{}\n{}\n".format(pro_aln_rn[j].id,pro_aln_rn[j].seq))
-        #cds_alns_rn[famid] = cds_aln
-        #pro_alns_rn[famid] = pro_aln
-        #calnf = AlignIO.write(cds_aln, calnpath, "fasta")
-        #palnf = AlignIO.write(pro_aln, palnpath, "fasta")
-        #calnfs_rn.append(calnpath)
-        #palnfs_rn.append(palnpath)
-        #treef = tree_famsf[i]
-        #treecontent = ""
-        #treef_rn_f = os.path.join(outdir, famid + ".tree.rename")
-        #with open(treef,"r") as f:
-        #    lines = f.readlines()
-        #    for line in lines:
-        #        treecontent = line.strip('\t').strip('\n').strip(' ')
-        #with open(gsmap,"r") as f:
-        #    lines = f.readlines()
-        #    for k in lines:
-        #        k = k.strip('\n').strip(' ').split(' ')
-        #        if k[0] in treecontent:
-        #            treecontent = treecontent.replace(k[0],k[1])
-        #with open(treef_rn_f,"w") as f:
-        #    f.write(treecontent)
-        #tree_rn = Phylo.read(treef_rn_f,'newick')
-        #tree_rns[famid] = tree_rn
-        #tree_rn_fs.append(treef_rn_f)
     return calnfs_rn, palnfs_rn
 
 def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
@@ -727,39 +670,38 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
         ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         Concat_ctree = Phylo.read(ctree_pth,'newick')
         Concat_ptree = Phylo.read(ptree_pth,'newick')
-    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, ctree_pth, ctree_length, gsmap
+    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln
 
-def _Codon2partition_(Concat_calnf, outdir):
-    Concatpos_1 = os.path.join(outdir, "Concatenated.caln.pos1")
-    Concatpos_2 = os.path.join(outdir, "Concatenated.caln.pos2")
-    Concatpos_3 = os.path.join(outdir, "Concatenated.caln.pos3")
-    with open(Concat_calnf,"r") as f:
+def _Codon2partition_(alnf, outdir):
+    pos_1 = alnf + ".pos1"
+    pos_2 = alnf + ".pos2"
+    pos_3 = alnf + ".pos3"
+    with open(alnf,"r") as f:
         lines = f.readlines()
         for line in lines:
             if line.startswith('>'):
-                with open(Concatpos_1,"a") as f1:
+                with open(pos_1,"a") as f1:
                     f1.write(line)
-                with open(Concatpos_2,"a") as f2:
+                with open(pos_2,"a") as f2:
                     f2.write(line)
-                with open(Concatpos_3,"a") as f3:
+                with open(pos_3,"a") as f3:
                     f3.write(line)
             else:
-                Seq = line
-                Seq = Seq.strip('\n')
+                Seq = line.strip('\n')
                 Seq_1 = Seq[0:-1:3]
                 Seq_2 = Seq[1:-1:3]
                 Seq_3 = Seq[2:-1:3]
                 Seq_3 = Seq_3 + Seq[-1]
-                with open(Concatpos_1,"a") as f1:
+                with open(pos_1,"a") as f1:
                     f1.write(Seq_1+'\n')
-                with open(Concatpos_2,"a") as f2:
+                with open(pos_2,"a") as f2:
                     f2.write(Seq_2+'\n')
-                with open(Concatpos_3,"a") as f3:
+                with open(pos_3,"a") as f3:
                     f3.write(Seq_3+'\n')
-    Concatpos_1_aln = AlignIO.read(Concatpos_1, "fasta")
-    Concatpos_2_aln = AlignIO.read(Concatpos_2, "fasta")
-    Concatpos_3_aln = AlignIO.read(Concatpos_3, "fasta")
-    return Concatpos_1_aln, Concatpos_2_aln, Concatpos_3_aln
+    pos_1_aln = AlignIO.read(pos_1, "fasta")
+    pos_2_aln = AlignIO.read(pos_2, "fasta")
+    pos_3_aln = AlignIO.read(pos_3, "fasta")
+    return pos_1_aln, pos_2_aln, pos_3_aln, pos_1, pos_2, pos_3
 
 def Coale(tree_famsf, families, outdir):
     whole_tree = ""
@@ -781,14 +723,54 @@ def Coale(tree_famsf, families, outdir):
     coalescence_ctree = Phylo.read(coalescence_treef,'newick')
     return coalescence_ctree, coalescence_treef
 
+def fasta2paml(aln,alnf):
+    alnf_paml = alnf + '.paml'
+    with open (alnf_paml,'w') as f:
+        f.write(' {0} {1}\n'.format(len(aln),aln.get_alignment_length()))
+        for i in aln:
+            f.write('{0}          {1}\n'.format(i.id,i.seq))
+    return alnf_paml
+
+def Getpartitionedpaml(alnf,outdir):
+    aln_1, aln_2, aln_3, alnf_1, alnf_2, alnf_3 = _Codon2partition_(alnf,outdir)
+    aln_1_paml = fasta2paml(aln_1,alnf_1)
+    aln_2_paml = fasta2paml(aln_2,alnf_2)
+    aln_3_paml = fasta2paml(aln_3,alnf_3)
+    alnfpartitioned_paml = alnf + '.partitioned.paml'
+    with open(alnfpartitioned_paml,'w') as f:
+        with open(aln_1_paml,'r') as f1:
+            data1  = f1.read()
+        with open(aln_2_paml,'r') as f2:
+            data2  = f2.read()
+        with open(aln_3_paml,'r') as f3:
+            data3  = f3.read()
+        f.write(data1+'\n'+data2+'\n'+data3)
+    return alnfpartitioned_paml
+
 # Run MCMCtree
-def Run_MCMCTREE(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset):
+def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, partition):
+    Concat_calnf_paml = fasta2paml(Concat_caln,Concat_calnf)
+    Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
+    if partition:
+        logging.info("Running mcmctree on concatenated alignment with partition")
+        Concatpospartitioned_paml = Getpartitionedpaml(Concat_calnf, outdir)
+        McMctree = mcmctree(Concatpospartitioned_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, partition)
+        McMctree.run_mcmctree()
+    logging.info("Running mcmctree on concatenated alignment without partition")
+    McMctree = mcmctree(Concat_calnf_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, partition=False)
+    McMctree.run_mcmctree()
     famnum = len(calnfs)
     calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap)
     for fam in range(famnum):
         calnf_rn = calnfs_rn[fam]
         palnf_rn = palnfs_rn[fam]
-        McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset)
+        if partition:
+            logging.info("Running mcmctree on {} alignment with partition".format('GF_' + str(fam+1)))
+            calnfpartitioned_paml = Getpartitionedpaml(calnf_rn, outdir)
+            McMctree = mcmctree(calnfpartitioned_paml, palnf_rn, tmpdir, outdir, speciestree, datingset, partition)
+            McMctree.run_mcmctree()
+        logging.info("Running mcmctree on {} alignment without partition".format('GF_' + str(fam+1)))
+        McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, partition=False)
         McMctree.run_mcmctree()
 #Run r8s
 def Reroot(inputtree,outgroup):
