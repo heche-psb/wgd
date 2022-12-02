@@ -140,12 +140,12 @@ class SequenceData:
         self.idmap.update(other.idmap)
 
     def make_diamond_db(self):
-        cmd = ["diamond", "makedb", "--in",
-               self.pro_fasta, "-d", self.pro_db]
-        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        logging.debug(out.stderr.decode())
-        if out.returncode == 1:
-            logging.error(out.stderr.decode())
+        if not os.path.isfile(self.pro_db + '.dmnd'):
+            cmd = ["diamond", "makedb", "--in", self.pro_fasta, "-d", self.pro_db]
+            out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+            logging.debug(out.stderr.decode())
+            if out.returncode == 1:
+                logging.error(out.stderr.decode())
 
     def run_diamond(self, seqs, eval=1e-10):
         self.make_diamond_db()
@@ -1018,9 +1018,4 @@ def add_original_ids(df, seqs):
     df["gene2"] = _rename(df["g2"], revmap)
     df["pair"] = df[["gene1","gene2"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1) 
     return df.set_index("pair")
-
-#class focusRBHTreeDating:
-    #def __init__(self, seqid_table, seq, aligner="mafft", tree_method="fasttree", min_length=3, aln_options="--auto", n_threads=4):
-        #self.cds_seqs = s
-
 

@@ -108,10 +108,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
         for i in range(len(s)):
-            #print(s[i].prefix)
             if s[i].prefix == focus:
                 x = x+i
-                #print(x)
         if x == 0:
             for j in range(1, len(s)):
                 logging.info("{} vs. {}".format(s[0].prefix, s[j].prefix))
@@ -119,9 +117,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                 table_tmp = s[0].write_rbh_orthologs(s[j],singletons=False)
                 if table.empty:
                     table = table_tmp
-                table = table.merge(table_tmp)
-            #_merge_focus(focus)
-            #TO DO add an option so user could decide whether to keep ID duplicates of focus species
+                else:
+                    table = table.merge(table_tmp)
             if not keepduplicates:
                 table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
@@ -133,7 +130,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                 table_tmp = s[x].write_rbh_orthologs(s[k],singletons=False)
                 if table.empty:
                     table = table_tmp
-                table = table.merge(table_tmp)
+                else:
+                    table = table.merge(table_tmp)
             if not len(s) == 2 and not x+1 == len(s):
                 for l in range(x+1,len(s)):
                     logging.info("{} vs. {}".format(s[x].prefix, s[l].prefix))
@@ -213,17 +211,17 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--cds', is_flag=True,help="enforce proper CDS sequences")
 @click.option('--strip_gaps', is_flag=True,help="remove all gap-containing columns in the alignment")
 @click.option('--aligner', '-a', default="mafft", show_default=True,type=click.Choice(['muscle', 'prank', 'mafft']), help='aligner program to use')
-@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="Tree inference method")
-@click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='Parameters setting for gene tree inference')
-@click.option('--concatenation', is_flag=True,help="Species tree inference using concatenation method")
-@click.option('--coalescence', is_flag=True,help="Species tree inference using multispecies coalescence method")
+@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
+@click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
+@click.option('--concatenation', is_flag=True,help="species tree inference using concatenation method")
+@click.option('--coalescence', is_flag=True,help="species tree inference using multispecies coalescence method")
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree for dating')
-@click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="Dating orthologous families")
-@click.option('--datingset', '-ds', multiple=True, default=None, show_default=True,help='Parameters setting for dating')
+@click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="dating orthologous families")
+@click.option('--datingset', '-ds', multiple=True, default=None, show_default=True,help='parameters setting for dating')
 @click.option('--nsites', '-ns', default=None, show_default=True,help='nsites information for r8s dating')
 @click.option('--outgroup', '-ot', default=None, show_default=True,help='outgroup species for r8s dating')
 @click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
-@click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="Protein model to be used in mcmctree")
+@click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -265,7 +263,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         exit(0)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds) for s in sequences]
     #s = mergeMultiRBH_seqs(seqs)
-    logging.info("tmpdir = {}".format(seqs[0].tmp_path))
+    for s in range(len(seqs)):
+        logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
@@ -292,9 +291,25 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
 
+# Get peak and confidence interval of Ks distribution
+@cli.command(context_settings={'help_option_names': ['-h', '--help']})
+@click.argument('ks_distribution', type=click.Path(exists=True))
+@click.option('--anchorks', '-a', default=None, show_default=True,
+    help='anchor Ks distribution if available')
+@click.option('--outdir', '-o', default='wgd_peak', show_default=True,
+    help='output directory')
+@click.option('--alignfilter', '-f', nargs=3, type=float, default= (0.,300,0.), show_default=True,
+    help='filter alignment identity, length and coverage')
+@click.option('--ksrange', '-r', nargs=2, type=float, default=(0.005, 3), show_default=True,
+    help='range of Ks to be analyzed')
+@click.option('--bins', '-b',type=int, default=50, show_default=True,
+    help='number of histogram bins')
 
-
-
+def peak(**kwargs):
+    """
+    Infer peak and CI of Ks distribution.
+    """
+    ksdf = pd.read_csv(ks_distribution,header=0,index_col=False,sep='\t')
 
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
