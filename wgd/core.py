@@ -235,26 +235,6 @@ class SequenceData:
         df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t",index=False)
         return df.loc[:,[seqs.prefix, self.prefix]]
 
-    def get_seq(self):
-        focusname = os.path.join(self.out_path, 'merge_focus.tsv')
-        fastaname = os.path.join(self.out_path, 'merge_focus_fasta.tsv')
-        seqid_table = []
-        with open (focusname,'r') as orthotable:
-            next(orthotable)
-            for row in orthotable:
-               seqid = [s.strip('\n') for s in row.split('\t')]
-               seqid_table.append(seqid)
-        return seqid_table
-    def get_seq_ap(self):
-        focusapname = os.path.join(self.out_path, 'merge_focus_ap.tsv')
-        seqid_table = []
-        with open (focusapname,'r') as orthotable:
-            next(orthotable)
-            for row in orthotable:
-                seqid = [s.strip('\n') for s in row.split('\t')]
-                seqid_table.append(seqid)
-        return seqid_table
-
     def add_singletons_rbh(self, seqs):
         # note this is implemented to work before the rbh table is modified
         gs1 = set(self.cds_seqs.keys())  # all genes species 1
@@ -326,7 +306,7 @@ def read_MultiRBH_gene_families(fname):
         next(orthotable)
         for row in orthotable:
             seqid = [s.strip('\n') for s in row.split('\t')]
-            seqid_table.append(seqid)
+            seqid_table.append(seqid[1:])
     return seqid_table
 
 def merge_seqs(seqs):
@@ -376,8 +356,8 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
-def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, option="--auto", **kwargs):
-    seqid_table = families
+def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option="--auto", **kwargs):
+    seqid_table = fams
     cds = {}
     pro = []
     idmap = {}
@@ -417,14 +397,6 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
         pro_alns[famid] = pro_aln
         fnamecaln =os.path.join(outdir, famid + ".caln")
         calnfs.append(fnamecaln)
-        #cmd = ["trimal"] + ["-in", fnamepaln, "-backtrans", fnamec, "-out", fnamecaln, "-automated1"]
-        #print(cmd)
-        #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        #p = sp.Popen(cmd)
-        #print(p.stdout)
-        #fnamecaln =os.path.join(outdir, 'GF_' + str(i+1) + ".caln")
-        #with open(fnamecaln, 'w') as f: f.write(p.stdout.decode('utf-8'))
-        #_log_process(out, program="trimal")
         aln = {}
         for i, s in enumerate(pro_aln):
             cds_aln = ""
@@ -549,9 +521,9 @@ def get_MultipRBH_gene_families(seqs, families, tree_method, treeset, outdir, op
             tree_famsf.append(tree_pth)
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length
 
-# Concatenate all MRBH family align in fasta format and feed into iqtree for species tree inference
 def GetG2SMap(families, outdir):
     df = pd.read_csv(families,header=0,index_col=False,sep='\t')
+    df.drop('OG', axis=1, inplace=True)
     G2SMap = os.path.join(outdir, "G2S.Map")
     Slist = []
     for i in df.columns:
@@ -562,7 +534,7 @@ def GetG2SMap(families, outdir):
                 f.write(j + " "+ i + "\n")
     return G2SMap, Slist
 
-def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap):
+def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap):
     famnum = len(pro_alns_rn)
     calnfs_rn = [i + ".rename" for i in calnfs]
     palnfs_rn = [i + ".rename" for i in palnfs]
@@ -714,10 +686,9 @@ def Coale(tree_famsf, families, outdir):
                 whole_tree = whole_tree + i
     with open(whole_treef,"w") as f:
         f.write(whole_tree)
-    if not os.path.isfile("G2S.Map"):
+    gsmap = os.path.join(outdir, "G2S.Map")
+    if not os.path.isfile(gsmap):
         gsmap, slist = GetG2SMap(families, outdir)
-    else:
-        gsmap = os.path.join(outdir, "G2S.Map")
     ASTER_cmd = ["astral-pro", "-i", whole_treef, "-a", gsmap, "-o", coalescence_treef]
     ASTER_cout = sp.run(ASTER_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     coalescence_ctree = Phylo.read(coalescence_treef,'newick')
@@ -744,11 +715,11 @@ def Getpartitionedpaml(alnf,outdir):
             data2  = f2.read()
         with open(aln_3_paml,'r') as f3:
             data3  = f3.read()
-        f.write(data1+'\n'+data2+'\n'+data3)
+        f.write(data1+data2+data3)
     return alnfpartitioned_paml
 
 # Run MCMCtree
-def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition):
+def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition):
     Concat_calnf_paml = fasta2paml(Concat_caln,Concat_calnf)
     Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
     if partition:
@@ -759,16 +730,16 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
     logging.info("Running mcmctree on concatenated alignment without partition")
     if aamodel == 'wag':
         logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
-    if aamodel == 'lg':
+    elif aamodel == 'lg':
         logging.info('Running mcmctree using Hessian matrix of LG+Gamma for protein model')
-    if aamodel == 'dayhoff':
+    elif aamodel == 'dayhoff':
         logging.info('Running mcmctree using Hessian matrix of Dayhoff-DCMut for protein model')
     else:
         logging.info('Running mcmctree using Poisson without gamma rates for protein model')
     McMctree = mcmctree(Concat_calnf_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
     McMctree.run_mcmctree()
     famnum = len(calnfs)
-    calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, outdir, gsmap)
+    calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap)
     for fam in range(famnum):
         calnf_rn = calnfs_rn[fam]
         palnf_rn = palnfs_rn[fam]

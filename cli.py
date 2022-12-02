@@ -84,7 +84,7 @@ def dmd(**kwargs):
     _dmd(**kwargs)
 
 def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates):
-    from wgd.core import SequenceData
+    from wgd.core import SequenceData, read_MultiRBH_gene_families
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
     if len(s) == 0:
@@ -122,7 +122,6 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             if not keepduplicates:
                 table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
-            table.to_csv(focusname, sep="\t",index=False)
         else:
             for k in range(0,x):
                 logging.info("{} vs. {}".format(s[x].prefix, s[k].prefix))
@@ -141,7 +140,9 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             if not keepduplicates:
                 table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
-            table.to_csv(focusname, sep="\t",index=False)
+        gfid = ['GF_{}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'OG', gfid)
+        table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
         if not anchorpoints is None:
             ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
@@ -149,7 +150,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
             table_ap = table.merge(ap,left_on = focus,right_on = 'gene_x')
             table_ap.drop('gene_x', inplace=True, axis=1)
-            table_ap.insert(1, 'gene_y', table_ap.pop('gene_y'))
+            table_ap.insert(2, 'gene_y', table_ap.pop('gene_y'))
             #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
             #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
             table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
@@ -158,8 +159,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             idmap = {}
             for i in range(len(s)):
                 idmap.update(s[i].idmap)
-        #print(idmap)
-            seqid_table = s[0].get_seq()
+            seqid_table = read_MultiRBH_gene_families(focusname)
             for fam in seqid_table:
                 for seq in fam:
                     safeid = idmap.get(seq)
@@ -168,7 +168,6 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             for i in range(len(s)):
                 seq_cds.update(s[i].cds_sequence)
                 seq_pro.update(s[i].pro_sequence)
-        #print(seq_cds)
             rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
             os.mkdir(rbhgfdirname)
             for i, fam in enumerate(seqid_table):
@@ -182,7 +181,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                         Record = seq_cds.get(idmap.get(seqs))
                         f.write(">{}\n{}\n".format(seqs, Record))
             if not anchorpoints is None:
-                seqid_table = s[0].get_seq_ap()
+                seqid_table = read_MultiRBH_gene_families(focusapname)
                 rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
                 os.mkdir(rbhgfapdirname)
                 for i, fam in enumerate(seqid_table):
@@ -222,6 +221,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--outgroup', '-ot', default=None, show_default=True,help='outgroup species for r8s dating')
 @click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
 @click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
+@click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -249,7 +249,7 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks):
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -268,6 +268,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
+    if ks:
+        print('running Ks analysis')
     if concatenation or dating == 'mcmctree':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
         #Concatpos_1, Concatpos_2, Concatpos_3, Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
@@ -277,7 +279,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         if speciestree is None:
             logging.error("Please provide species tree for mcmctree dating")
             exit(0)
-        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, families, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition)
+        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")

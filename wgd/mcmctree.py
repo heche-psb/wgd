@@ -168,7 +168,9 @@ class mcmctree:
             'burnin': 1,
             'sampfreq': 1,
             'nsample': 10,}
-        if not self.partition:
+        if self.partition:
+            self.controlc['ndata'] = 3
+        else:
             tmpp_path = os.path.join(tmp_path, "pep")
             self.tmpp_path = _mkdir(tmpp_path)
             self.palnf_rn = palnf_rn
