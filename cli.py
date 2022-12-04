@@ -95,7 +95,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         logging.info("One CDS file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
         s[0].write_paranome()
-    if focus is None:
+    if focus is None and len(s) != 1:
         logging.info("Multiple CDS files: will compute RBH orthologs")
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
@@ -222,6 +222,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
 @click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
 @click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
+@click.option('--annotation','-at', is_flag=True,help="Functional annotation for orthologous families")
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -249,7 +250,7 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation):
     from wgd.core import SequenceData
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -271,15 +272,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     if ks:
         print('running Ks analysis')
     if concatenation or dating == 'mcmctree':
-        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
-        #Concatpos_1, Concatpos_2, Concatpos_3, Concatpos_1, Concatpos_2, Concatpos_3 = _Codon2partition_(Concat_calnf, outdir)
+        cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
     if dating=='mcmctree':
         if speciestree is None:
             logging.error("Please provide species tree for mcmctree dating")
             exit(0)
-        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition)
+        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")

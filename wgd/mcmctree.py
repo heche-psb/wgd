@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from Bio.Align import MultipleSeqAlignment
+from Bio import Phylo
 
 def _mkdir(dirname):
     if not os.path.isdir(dirname) :
@@ -134,10 +135,11 @@ class mcmctree:
         self.tree = speciestree
         self.partition = partition
         self.aamodel = aamodel
+        self.prefix = os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
         if tmpdir == None:
-            tmp_path = os.path.join(outdir, "mcmctree", os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml',''))
+            tmp_path = os.path.join(outdir, "mcmctree", self.prefix)
         else:
-            tmp_path = os.path.join(tmpdir, "mcmctree", os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml',''))
+            tmp_path = os.path.join(tmpdir, "mcmctree", self.prefix)
         _mkdir(os.path.join(outdir, "mcmctree"))
         self.tmp_path = _mkdir(tmp_path)
         tmpc_path = os.path.join(tmp_path, "cds")
@@ -222,7 +224,7 @@ class mcmctree:
             p = "\n".join(p)
             with open(self.controlpf, "w") as f:
                 f.write(p)
-    def run_mcmctree(self):
+    def run_mcmctree(self,CI_table,PM_table,wgd_mrca):
         """
         Run mcmctree on the codon and peptide alignment.
         """
@@ -230,6 +232,9 @@ class mcmctree:
         parentdir = os.getcwd()  # where we are currently
         os.chdir(self.tmpc_path)  # go to tmpdir
         _run_mcmctree('mcmctree.ctrl')
+        self.CI, self.PM = self.get_dates(CI_table,PM_table,wgd_mrca,cds=True)
+        CI_table[self.prefix] = [[float(i) for i in self.CI]]
+        PM_table[self.prefix] = [self.PM]
         os.chdir(parentdir)
         if not self.partition:
             os.chdir(self.tmpp_path)
@@ -258,5 +263,26 @@ class mcmctree:
             cmd = ['sed','-i','s/{}/{}/g'.format('usedata = 3','usedata = 2'),'mcmctree.ctrl']
             sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             _run_mcmctree('mcmctree.ctrl')
+            self.CI, self.PM = self.get_dates(CI_table,PM_table,wgd_mrca,cds=False)
+            CI_table[self.prefix].append([float(i) for i in self.CI])
+            PM_table[self.prefix].append(self.PM)
             os.chdir(parentdir)
         #return results, []
+    def get_dates(self,CI_table,PM_table,wgd_mrca,cds=True):
+        Figtree = Phylo.read('FigTree.tre','nexus')
+        wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
+        self.CI = wgd_node.comment.strip('[&95%={').strip('}]').split(', ')
+        self.PM = wgd_node.clades[0].branch_length
+        #if not CI_table.get(self.prefix):
+        #    CI_table[self.prefix] = self.CI
+        #else:
+        #    CI_table[self.prefix].append(self.CI)
+        #if not PM_table.get(self.prefix):
+        #    PM_table[self.prefix] = self.PM
+        #else:
+        #    PM_table[self.prefix] = self.PM
+        if cds:
+            logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))
+        else:
+            logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} peptide alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))
+        return self.CI, self.PM
