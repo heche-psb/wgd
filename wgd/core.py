@@ -356,6 +356,13 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
+def Aligninfo(aln):
+    aln_strip = _strip_gaps(aln)
+    aln_length = aln.get_alignment_length()
+    aln_strip_length = aln_strip.get_alignment_length()
+    Coverage = float(aln_strip_length/aln_length)
+    info={'AlignmentCoverage':Coverage,'AlignmentIdentity':,''}
+
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option="--auto", **kwargs):
     cds = {}
     pro = []

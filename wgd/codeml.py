@@ -59,7 +59,7 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
     """
     Run codeml assuming all necessary files are written and we are in the
     directory with those files. Set `preserve` to true to keep intermediary
-    files. When `times > 1`, codeml ill be run `times` times and the best
+    files. When `times > 1`, codeml will be run `times` times and the best
     result (highest likelihood) will be returned.
     """
     logging.debug("Performing codeml {} times".format(times))
@@ -78,7 +78,7 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
             max_likelihood = likelihood
             max_results = results
     logging.debug('Best MLE: ln(L) = {}'.format(max_likelihood))
-    os.remove(control_file)
+    #os.remove(control_file)
     if not preserve:
         os.remove(out_file)
     return max_results

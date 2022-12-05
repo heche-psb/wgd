@@ -422,7 +422,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile
-    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, syntenic_dotplot_ks_colored
+    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, Ks_dotplots, syntenic_dotplot_ks_colored
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -498,6 +498,11 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
                 max_ks=ks_range[1], output_file=dotplot_out,
                 min_length=minlen
         )
+        figs2=Ks_dotplots(multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen)
+        for k, v in figs2.items():
+            v.savefig(os.path.join(outdir, "{}.ks.dot.svg".format(k)))
+            v.savefig(os.path.join(outdir, "{}.ks.dot.pdf".format(k)))
+            v.savefig(os.path.join(outdir, "{}.ks.dot.png".format(k)))
     logging.info("Done")    
 
 # MIXTURE MODELING

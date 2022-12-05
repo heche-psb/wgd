@@ -68,14 +68,14 @@ def default_plot(
             x = f(dist[k])
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            ax.hist(y, weights=w, color=c, alpha=a, **kwargs)
+            ax.hist(y, weights=w, color=c, alpha=a,**kwargs)
             xlabel = _labels[k]
             if f == np.log10:
                 xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
             ax.set_xlabel(xlabel)
     axs[0,0].set_ylabel(ylabel)
     axs[1,0].set_ylabel(ylabel)
-
+    axs[0,0].set_xticks([0,1,2,3,4,5])
     # finalize plot
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
@@ -161,6 +161,95 @@ def all_dotplots(df, anchors=None, **kwargs):
             figs[spx + "-vs-" + spy] = fig
     return figs
 
+def Ks_dotplots(dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25):
+    """
+    Generate Ks colored dot plots for all pairs of species in `df`.
+    """
+    cmap = plt.get_cmap(color_map)
+
+    if len(an["gene_x"]) == 0:
+        logging.warning("No multiplicons found!")
+        return
+    an["pair"] = an.apply(lambda x: '__'.join(
+            sorted([x["gene_x"], x["gene_y"]])), axis=1)
+    genomic_elements_ = {
+        x: 0 for x in list(set(dff['list_x']) | set(dff['list_y']))
+        if type(x) == str
+    }
+
+    ks_multiplicons = {}
+    all_ks = []
+    for i in range(len(dff)):
+        row = dff.iloc[i]
+        pairs = an[an['multiplicon'] == row['id']]['pair']
+        med_ks = np.median(ks.loc[ks.index.intersection(pairs)]['dS'])
+        ks_multiplicons[row['id']] = med_ks
+        all_ks.append(med_ks)
+
+    z = [[0, 0], [0, 0]]
+    levels = range(0, 101, 1)
+    tmp = plt.contourf(z, levels, cmap=cmap)
+    plt.clf()
+    
+    for key in sorted(genomic_elements_.keys()):
+        length = max(list(dff[dff['list_x'] == key]['end_x']) + list(
+                dff[dff['list_y'] == key]['end_y']))
+        if length >= minlen:
+            genomic_elements_[key] = length
+
+    previous = 0
+    genomic_elements = {}
+    sorted_ge = sorted(genomic_elements_.items(), key=lambda x: x[1],
+                       reverse=True)
+    labels = [kv[0] for kv in sorted_ge if kv[1] >= minlen]
+
+    for kv in sorted_ge:
+        genomic_elements[kv[0]] = previous
+        previous += kv[1]
+
+    gdf = list(df.groupby("species"))
+    n = len(gdf)
+    figs = {}
+    for i in range(n):
+        for j in range(i, n):
+            fig, ax = plt.subplots(1, 1, figsize=(10,10))
+            spx, dfx = gdf[i]
+            spy, dfy = gdf[j]
+            logging.info("{} vs. {}".format(spx, spy))
+            df, xs, ys = get_dots(dfx, dfy, minlen, maxsize)
+            if df is None:  # HACK, in case we're dealing with RBH orthologs...
+                continue
+            ax.scatter(df.x, df.y, s=0.1, color="k", alpha=0.5)
+            if not (anchors is None):
+                andf = df.join(anchors, how="inner")
+                for k in range(len(dff)):
+                    row = dff.iloc[k]
+                    list_x, list_y = row['list_x'], row['list_y']
+                    if type(list_x) != float:
+                        curr_list_x = list_x
+                    x = [genomic_elements[curr_list_x] + x for x in [row['begin_x'], row['end_x']]]
+                    y = [genomic_elements[list_y] + x for x in [row['begin_y'], row['end_y']]]                     
+                    med_ks = ks_multiplicons[row['id']]
+                    if min_ks < med_ks <= max_ks:
+                        ax.scatter(andf.x, andf.y, s=0.2, color=cmap(ks_multiplicons[row['id']] / 5), alpha=0.9)
+            ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.1, color="k")
+            ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.1, color="k")
+            ax.set_xlim(0, xs[-1])
+            ax.set_ylim(0, ys[-1])
+            ax.set_xlabel("${}$ (Mb)".format(spx))
+            ax.set_ylabel("${}$ (Mb)".format(spy))
+            ax.xaxis.label.set_fontsize(18)
+            ax.yaxis.label.set_fontsize(18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.set_xticklabels(ax.get_xticks() / 1e6)  # in Mb
+            ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
+            figs[spx + "-vs-" + spy] = fig
+
+    # colorbar
+    cbar = plt.colorbar(tmp, fraction=0.02, pad=0.01)
+    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5, 11)])
+
+    return figs
 
 def get_dots(dfx, dfy, minlen=-1, maxsize=50):
     dfx = filter_data_dotplot(dfx, minlen)
@@ -202,7 +291,7 @@ def filter_data_dotplot(df, minlen):
     noriginal = len(df.index)
     df = df.loc[df.len > minlen]
     logging.info("Dropped {} genes because they are on scaffolds shorter "
-            "then {}".format(noriginal - len(df.index), minlen))
+            "than {}".format(noriginal - len(df.index), minlen))
     df["x"] = df["scaffstart"] + df["start"]
     return df
 
@@ -305,10 +394,10 @@ def syntenic_dotplot_ks_colored(
              [row['begin_y'], row['end_y']]]
         med_ks = ks_multiplicons[row['id']]
         if min_ks < med_ks <= max_ks:
-            ax.plot(x, y, alpha=0.9, linewidth=3,
+            ax.plot(x, y, alpha=0.9, linewidth=1.5,
                     color=cmap(ks_multiplicons[row['id']] / 5)),
             # path_effects=[pe.Stroke(linewidth=4, foreground='k'), pe.Normal()])
-            ax.plot(y, x, alpha=0.9, linewidth=3,
+            ax.plot(y, x, alpha=0.9, linewidth=1.5,
                     color=cmap(ks_multiplicons[row['id']] / 5))
             # path_effects=[pe.Stroke(linewidth=4, foreground='k'),
             # pe.Normal()])

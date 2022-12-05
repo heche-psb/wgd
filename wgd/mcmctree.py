@@ -273,14 +273,6 @@ class mcmctree:
         wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
         self.CI = wgd_node.comment.strip('[&95%={').strip('}]').split(', ')
         self.PM = wgd_node.clades[0].branch_length
-        #if not CI_table.get(self.prefix):
-        #    CI_table[self.prefix] = self.CI
-        #else:
-        #    CI_table[self.prefix].append(self.CI)
-        #if not PM_table.get(self.prefix):
-        #    PM_table[self.prefix] = self.PM
-        #else:
-        #    PM_table[self.prefix] = self.PM
         if cds:
             logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))
         else:
