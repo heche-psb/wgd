@@ -56,6 +56,8 @@ def cli(verbosity):
     help="keep the fasta file of homologs family")
 @click.option('--keepduplicates','-kd', is_flag=True,
     help="Keep ID duplicates of focus species")
+@click.option('--globalmrbh','-gm', is_flag=True,
+    help="global MRBH regardless of focus species")
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -83,7 +85,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh):
     from wgd.core import SequenceData, read_MultiRBH_gene_families
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
         to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
@@ -95,14 +97,33 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         logging.info("One CDS file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
         s[0].write_paranome()
-    if focus is None and len(s) != 1:
+    if focus is None and len(s) != 1 and not globalmrbh:
         logging.info("Multiple CDS files: will compute RBH orthologs")
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
                 s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
                 s[i].write_rbh_orthologs(s[j],singletons=False)
-    if not focus is None:
+    if globalmrbh:
+        logging.info("Multiple CDS files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
+        table = pd.DataFrame()
+        gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
+        for i in range(len(s)-1):
+            for j in range(i+1,len(s)):
+                logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
+                s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
+                table_tmp = s[i].write_rbh_orthologs(s[j],singletons=False)
+                if table.empty:
+                    table = table_tmp
+                else:
+                    table = table.merge(table_tmp)
+        gfid = ['GF_{}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'OG', gfid)
+        if not keepduplicates:
+            for i in table.columns:
+                table.drop_duplicates(subset=[i],inplace=True)
+        table.to_csv(gmrbhf, sep="\t",index=False)
+    elif not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
         x = 0
         table = pd.DataFrame()
@@ -155,11 +176,15 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
             table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
             table_ap.to_csv(focusapname, sep="\t",index=False)
+    if globalmrbh or not focus is None:
         if keepfasta:
             idmap = {}
             for i in range(len(s)):
                 idmap.update(s[i].idmap)
-            seqid_table = read_MultiRBH_gene_families(focusname)
+            if globalmrbh:
+                seqid_table = read_MultiRBH_gene_families(gmrbhf)
+            else:
+                seqid_table = read_MultiRBH_gene_families(focusapname)
             for fam in seqid_table:
                 for seq in fam:
                     safeid = idmap.get(seq)
