@@ -356,12 +356,37 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
+def identity_ratio(aln):
+    identity = [i for i in range(aln.get_alignment_length()) if len(set(aln[:,i]))==1]
+    ratio = len(identity)/aln.get_alignment_length()
+    return ratio
+
 def Aligninfo(aln):
     aln_strip = _strip_gaps(aln)
     aln_length = aln.get_alignment_length()
     aln_strip_length = aln_strip.get_alignment_length()
     Coverage = float(aln_strip_length/aln_length)
-    info={'AlignmentCoverage':Coverage,'AlignmentIdentity':,''}
+    info={'alignmentcoverage':Coverage,'alignmentidentity':identity_ratio(aln_strip),'alignmentlength':aln_length,'strippedalignmentlength':aln_strip_length}
+    return info
+
+def Global2Pair(info):
+    info['PairAlignmentCoverage'] = info.pop('AlignmentCoverage')
+    info['PairAlignmentIdentity'] = info.pop('AlignmentIdentity')
+    info['PairStrippedAlignmentLength'] = info.pop('StrippedAlignmentLength')
+    info.pop(AlignmentLength)
+    return info
+
+def Pairaligninfo(aln):
+    num = len(aln)
+    pairs_info = []
+    for i in range(num-1):
+        for j in range(i+1,num):
+            pair_aln = MultipleSeqAlignment([aln[i], aln[j]])
+            pair_info = Aligninfo(pair_aln)
+            pair_id = "__".join(sorted[aln[i].id, aln[j].id])
+            pairinfo.append({'pair':pair_id}.update(Global2Pair(pair_info)))
+    df_pairs_info = pd.DataFrame.from_dict(pairs_info).set_index("pair")
+    return df_pairs_info
 
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option="--auto", **kwargs):
     cds = {}
@@ -963,8 +988,9 @@ class GeneFamily:
                 gj = l[j].name
                 pair = "__".join(sorted([gi, gj]))
                 node = self.tree.common_ancestor(l[i], l[j])
-                length = self.cds_aln.get_alignment_length()
-                d[pair] = {"node": node.name, "family": self.id, "alnlen": length}
+                info = Aligninfo(self.cds_aln)
+                d[pair] = {"node": node.name, "family": self.id}
+                d[pair].update(info)
         df = pd.DataFrame.from_dict(d, orient="index")
         self.codeml_results = self.codeml_results.join(df)
 

@@ -58,7 +58,7 @@ def cli(verbosity):
     help="Keep ID duplicates of focus species")
 def dmd(**kwargs):
     """
-    All-vs.-all diamond blastp + MCL clustering.
+    All-vs-all diamond blastp + MCL clustering.
 
     Requires diamond and mcl. Note the two key  parameters, being the e-value
     cut-off and inflation factor. It is advised to explore the effects of these
