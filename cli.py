@@ -329,14 +329,41 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     help='filter alignment identity, length and coverage')
 @click.option('--ksrange', '-r', nargs=2, type=float, default=(0.005, 3), show_default=True,
     help='range of Ks to be analyzed')
-@click.option('--bins', '-b',type=int, default=50, show_default=True,
-    help='number of histogram bins')
-
+@click.option('--bin_width', '-bw',type=float, default=0.1, show_default=True,
+    help='bandwidth of distribution')
+@click.option('--weights_outliers_included','-ic', is_flag=True,
+    help="include Ks outliers")
+@click.option('--method', '-m', type=click.Choice(['gmm', 'bgmm']), default='gmm', show_default=True, help="mixture modeling method")
+@click.option('--seed',type=int, default=2352890, show_default=True, help="random seed given to initialize parameters")
+@click.option('--em_iter', '-ei',type=int, default=100, show_default=True, help="number of EM iterations to perform")
+@click.option('--n_init', '-ni',type=int, default=1, show_default=True, help="number of initializations to perform")
+@click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
+@click.option('--boots', type=int, default=200, show_default=True, help="number of bootstrap replicates of kde")
+@click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
-    ksdf = pd.read_csv(ks_distribution,header=0,index_col=False,sep='\t')
+    _peak(**kwargs)
+
+def _peak(ks_distribution, anchorks, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde
+    from wgd.core import _mkdir
+    ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
+    ksdf_filtered = alnfilter(ksdf,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1],weights_outliers_included=False)
+    fn_ksdf, weight_col = group_dS(ksdf_filtered)
+    train_in = log_trans(fn_ksdf)
+    outpath = _mkdir(outdir)
+    if method == 'gmm':
+        models, aic, bic, besta, bestb, N = fit_gmm(train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if method == 'bgmm':
+        models, N = fit_bgmm(train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    for n, m in zip(N,models):
+        ksdf_predict = add_prediction(ksdf,fn_ksdf,train_in,m)
+        ksdf_predict.to_csv(os.path.join(outpath, "Ks_{0}_{1}components_prediction.tsv".format(method,n)),header=True,index=True,sep='\t')
+    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
+    logging.info("Done")
+
 
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -412,6 +439,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
+    logging.info("Done")
     
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})

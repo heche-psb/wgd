@@ -994,10 +994,25 @@ class GeneFamily:
         df = pd.DataFrame.from_dict(d, orient="index")
         self.codeml_results = self.codeml_results.join(df)
 
+def get_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<=cutoff]
+    weight_exc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_exc = weight_exc.to_frame(name='weightoutlierincluded')
+    return weight_exc
+
+def get_outlierincluded(df):
+    weight_inc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_inc = weight_inc.to_frame(name='weightoutlierincluded')
+    return weight_inc
+
 def _get_ks(family):
     family.get_ks()
+    if family.codeml_results.shape[1] !=3:
+        weight_inc = get_outlierincluded(family.codeml_results)
+        weight_exc = get_outlierexcluded(family.codeml_results,cutoff = 5)
+        family.codeml_results = family.codeml_results.join(weight_inc)
+        family.codeml_results = family.codeml_results.join(weight_exc)
     family.codeml_results.to_csv(family.out)
-
 
 class KsDistributionBuilder:
     def __init__(self, gene_families, seqs, n_threads=4):
