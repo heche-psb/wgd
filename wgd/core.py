@@ -997,7 +997,7 @@ class GeneFamily:
 def get_outlierexcluded(df,cutoff = 5):
     df = df[df['dS']<=cutoff]
     weight_exc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
-    weight_exc = weight_exc.to_frame(name='weightoutlierincluded')
+    weight_exc = weight_exc.to_frame(name='weightoutlierexcluded')
     return weight_exc
 
 def get_outlierincluded(df):
