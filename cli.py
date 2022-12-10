@@ -117,7 +117,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                     table = table_tmp
                 else:
                     table = table.merge(table_tmp)
-        gfid = ['GF_{}'.format(str(i+1)) for i in range(table.shape[0])]
+        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'OG', gfid)
         if not keepduplicates:
             for i in table.columns:
@@ -161,7 +161,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             if not keepduplicates:
                 table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
-        gfid = ['GF_{}'.format(str(i+1)) for i in range(table.shape[0])]
+        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'OG', gfid)
         table.to_csv(focusname, sep="\t",index=False)
             #only the object of s has all the function therein SequenceData
@@ -197,11 +197,11 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
             os.mkdir(rbhgfdirname)
             for i, fam in enumerate(seqid_table):
                 for seqs in fam:
-                    fname = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".pep")
+                    fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
                     with open(fname,'a') as f:
                         Record = seq_pro.get(idmap.get(seqs))
                         f.write(">{}\n{}\n".format(seqs, Record))
-                    fname2 = os.path.join(rbhgfdirname, 'GF_' + str(i+1) + ".cds")
+                    fname2 = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".cds")
                     with open(fname2,'a') as f:
                         Record = seq_cds.get(idmap.get(seqs))
                         f.write(">{}\n{}\n".format(seqs, Record))
@@ -211,11 +211,11 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                 os.mkdir(rbhgfapdirname)
                 for i, fam in enumerate(seqid_table):
                     for seqs in fam:
-                        fname = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".pep")
+                        fname = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".pep")
                         with open(fname,'a') as f:
                             Record = seq_pro.get(idmap.get(seqs))
                             f.write(">{}\n{}\n".format(seqs, Record))
-                        fname2 = os.path.join(rbhgfapdirname, 'GF_' + str(i+1) + ".cds")
+                        fname2 = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".cds")
                         with open(fname2,'a') as f:
                             Record = seq_cds.get(idmap.get(seqs))
                             f.write(">{}\n{}\n".format(seqs, Record))
@@ -248,6 +248,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
 @click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
 @click.option('--annotation','-at', is_flag=True,help="Functional annotation for orthologous families")
+@click.option('--pairwise', is_flag=True,help="Pairwise gene-pair feeded into codeml")
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -275,8 +276,8 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation):
-    from wgd.core import SequenceData
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise):
+    from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
@@ -294,8 +295,6 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
-    if ks:
-        print('running Ks analysis')
     if concatenation or dating == 'mcmctree':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
@@ -315,8 +314,19 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
             Run_r8s(spt, ctree_length, outdir, datingset)
         else:
             Run_r8s(speciestree, nsites, outdir, datingset)
+    if ks:
+        s = mergeMultiRBH_seqs(seqs)
+        fams = read_gene_families(families)
+        fams = get_gene_families(s, fams, pairwise=pairwise, strip_gaps=False, tree_method=tree_method)
+        ksdb = KsDistributionBuilder(fams, s, n_threads=nthreads)
+        ksdb.get_distribution()
+        prefix = os.path.basename(families)
+        outfile = os.path.join(outdir, "{}.ks.tsv".format(prefix))
+        logging.info("Ks result saved to {}".format(outfile))
+        ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
+    logging.info("Done")
 
 # Get peak and confidence interval of Ks distribution
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -350,7 +360,7 @@ def _peak(ks_distribution, anchorks, outdir, alignfilter, ksrange, bin_width, we
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde
     from wgd.core import _mkdir
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
-    ksdf_filtered = alnfilter(ksdf,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1],weights_outliers_included=False)
+    ksdf_filtered = alnfilter(ksdf,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1],weights_outliers_included=weights_outliers_included)
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     outpath = _mkdir(outdir)

@@ -75,7 +75,8 @@ def _label_families(df):
     df.index = ["GF{:0>5}".format(i+1) for i in range(len(df.index))]
 
 def _process_unrooted_tree(treefile, fformat="newick"):
-    tree = Phylo.read(treefile, fformat).root_at_midpoint()
+    tree = Phylo.read(treefile, fformat)
+    tree.root_at_midpoint()
     _label_internals(tree)
     return tree
 
@@ -408,7 +409,7 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option
         idmap.update(seqs[i].idmap)
     for i, fam in enumerate(fams):
         family = []
-        famid = 'GF_' + str(i+1)
+        famid = "GF{:0>5}".format(i+1)
         for seqid in fam:
             safeid = idmap.get(seqid)
             family.append(safeid)
@@ -570,7 +571,7 @@ def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap):
     calnfs_rn = [i + ".rename" for i in calnfs]
     palnfs_rn = [i + ".rename" for i in palnfs]
     for i in range(famnum):
-        famid = 'GF_' + str(i+1)
+        famid = "GF{:0>5}".format(i+1)
         cds_aln_rn = cds_alns_rn[famid]
         pro_aln_rn = pro_alns_rn[famid]
         for j in range(len(pro_aln_rn)):
@@ -593,7 +594,7 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     proseq = {}
     ctree_length = 0
     for i in range(famnum):
-        famid = 'GF_' + str(i+1)
+        famid = "GF{:0>5}".format(i+1)
         cds_aln = cds_alns[famid]
         pro_aln = pro_alns[famid]
         for j in range(len(pro_aln)):
@@ -778,11 +779,11 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         calnf_rn = calnfs_rn[fam]
         palnf_rn = palnfs_rn[fam]
         if partition:
-            logging.info("Running mcmctree on {} codon alignment with partition".format('GF_' + str(fam+1)))
+            logging.info("Running mcmctree on GF{:0>5} codon alignment with partition".format(fam+1))
             calnfpartitioned_paml = Getpartitionedpaml(calnf_rn, outdir)
             McMctree = mcmctree(calnfpartitioned_paml, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition)
             McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
-        logging.info("Running mcmctree on {} codon and peptide alignment without partition".format('GF_' + str(fam+1)))
+        logging.info("Running mcmctree on GF{:0>5} codon and peptide alignment without partition".format(fam+1))
         McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
         McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
 #Run r8s
