@@ -10,7 +10,6 @@ from Bio import SeqIO
 from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_dna
 from Bio.Align import MultipleSeqAlignment
 from Bio.Alphabet import IUPAC
 from Bio.Data.CodonTable import TranslationError
@@ -300,13 +299,21 @@ def read_gene_families(fname):
 
 def read_MultiRBH_gene_families(fname):
     """
-    Read gene families from dmd -focus, in the format that each column contains seqid of each species and header of column is cds filename of each species
+    Read gene MRBH families
+    derived from dmd -focus or --globalmrbh in the format that each column contains seqid of each species and header of column is cds filename of each species
     """
     seqid_table = []
     with open (fname,'r') as orthotable:
         next(orthotable)
         for row in orthotable:
-            seqid = [s.strip('\n') for s in row.split('\t')]
+            seqid = []
+            for s in row.split('\t'):
+                s = s.strip('\n').split(',')
+                if type(s) != list:
+                    seqid.append(s)
+                else:
+                    for i in s:
+                        seqid.append(i)
             seqid_table.append(seqid[1:])
     return seqid_table
 
@@ -850,8 +857,7 @@ def egg_annotation(cds_fastaf,eggnogdata,outdir):
         famid = "GF{:0>5}".format(i+1)
         outpath = os.path.join(outdir, 'Egg_{}'.format(famid))
         cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '-i', '{}'.format(cds_fasta), '-o', outpath, '--data_dir', '{}'.format(eggnogdata)]
-        print(cmd)
-        out = sp.run(cmd, stdout=sp.PIPE)
+        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
