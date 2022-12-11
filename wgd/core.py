@@ -402,19 +402,21 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option
     calnfs = []
     palnfs = []
     calnfs_length = []
+    cds_fastaf = []
+    #pro_fastaf = []
     for i in range(len(seqs)):
         seq_cds.update(seqs[i].cds_sequence)
         seq_pro.update(seqs[i].pro_sequence)
     for i in range(len(seqs)):
         idmap.update(seqs[i].idmap)
     for i, fam in enumerate(fams):
-        family = []
         famid = "GF{:0>5}".format(i+1)
+        fnamep =os.path.join(outdir, famid + ".pep")
+        fnamec =os.path.join(outdir, famid + ".cds")
+        #pro_fastaf.append(fnamep)
+        cds_fastaf.append(fnamec)
         for seqid in fam:
             safeid = idmap.get(seqid)
-            family.append(safeid)
-            fnamep =os.path.join(outdir, famid + ".pep")
-            fnamec =os.path.join(outdir, famid + ".cds")
             with open(fnamep,'a') as f:
                 f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
             with open(fnamec,'a') as f:
@@ -551,7 +553,7 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option
             tree = Phylo.read(tree_pth,'newick')
             tree_fams[famid] = tree
             tree_famsf.append(tree_pth)
-    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length
+    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf
 
 def GetG2SMap(families, outdir):
     df = pd.read_csv(families,header=0,index_col=False,sep='\t')
@@ -843,7 +845,13 @@ def Run_r8s(spt, nsites, outdir, datingset):
     r8s_out = sp.run(r8s_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     #with open (r8s_outf,"w") as f: f.write(r8s_out.stdout.decode('utf-8'))
 
-
+def egg_annotation(cds_fastaf,eggnogdata,outdir):
+    for i, cds_fasta in enumerate(cds_fastaf):
+        famid = "GF{:0>5}".format(i+1)
+        outpath = os.path.join(outdir, 'Egg_{}'.format(famid))
+        cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '-i', '{}'.format(cds_fasta), '-o', outpath, '--data_dir', '{}'.format(eggnogdata)]
+        print(cmd)
+        out = sp.run(cmd, stdout=sp.PIPE)
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?

@@ -249,6 +249,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
 @click.option('--annotation','-at', is_flag=True,help="Functional annotation for orthologous families")
 @click.option('--pairwise', is_flag=True,help="Pairwise gene-pair feeded into codeml")
+@click.option('--eggnogdata', '-ed', default=None, show_default=True,help='Eggnog data dirctory for annotation')
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -276,9 +277,9 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, egg_annotation
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
@@ -294,7 +295,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
     #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
-    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
+    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir)
     if concatenation or dating == 'mcmctree':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
@@ -314,6 +315,11 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
             Run_r8s(spt, ctree_length, outdir, datingset)
         else:
             Run_r8s(speciestree, nsites, outdir, datingset)
+    if annotation:
+        if eggnogdata is None:
+            logging.error("Please provide the path to eggNOG-mapper databases")
+            exit(0)
+        egg_annotation(cds_fastaf,eggnogdata,outdir)
     if ks:
         s = mergeMultiRBH_seqs(seqs)
         fams = read_gene_families(families)

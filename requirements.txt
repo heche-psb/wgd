@@ -1,5 +1,5 @@
 attrs==20.3.0
-biopython==1.75
+biopython==1.76
 click==7.1.2
 colorama==0.4.4
 commonmark==0.9.1
