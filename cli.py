@@ -164,18 +164,20 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'OG', gfid)
         table.to_csv(focusname, sep="\t",index=False)
-            #only the object of s has all the function therein SequenceData
-        if not anchorpoints is None:
-            ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
-            ap = ap.loc[:,'gene_x':'gene_y']
-            focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
-            table_ap = table.merge(ap,left_on = focus,right_on = 'gene_x')
-            table_ap.drop('gene_x', inplace=True, axis=1)
-            table_ap.insert(2, 'gene_y', table_ap.pop('gene_y'))
-            #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
-            #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
-            table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
-            table_ap.to_csv(focusapname, sep="\t",index=False)
+    if not anchorpoints is None:
+        ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
+        ap = ap.loc[:,'gene_x':'gene_y']
+        ap_reverse = ap.rename(columns = {'gene_x' : 'gene_y', 'gene_y' : 'gene_x'})
+        ap_combined = pd.concat([ap,ap_reverse])
+        focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
+        table.insert(1, focus, table.pop(focus))
+        table_ap = table.merge(ap_combined,left_on = focus,right_on = 'gene_x')
+        table_ap.drop('gene_x', inplace=True, axis=1)
+        table_ap.insert(2, 'gene_y', table_ap.pop('gene_y'))
+        #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
+        #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
+        table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
+        table_ap.to_csv(focusapname, sep="\t",index=False)
     if globalmrbh or not focus is None:
         if keepfasta:
             idmap = {}
@@ -221,6 +223,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                             f.write(">{}\n{}\n".format(seqs, Record))
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in s]
+    logging.info("Done")
     return s
 
 #MSA and ML tree inference for given sets of orthologous gene familes for species tree inference and WGD timing
