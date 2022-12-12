@@ -250,6 +250,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--annotation','-at', is_flag=True,help="Functional annotation for orthologous families")
 @click.option('--pairwise', is_flag=True,help="Pairwise gene-pair feeded into codeml")
 @click.option('--eggnogdata', '-ed', default=None, show_default=True,help='Eggnog data dirctory for annotation')
+@click.option('--pfam', type=click.Choice(['none', 'denovo', 'realign']),default='none',show_default=True,help='PFAM domains for annotation')
+@click.option('--dmnb', default=None, show_default=True,help='Diamond database for annotation')
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -277,7 +279,7 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, egg_annotation
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -319,7 +321,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         if eggnogdata is None:
             logging.error("Please provide the path to eggNOG-mapper databases")
             exit(0)
-        egg_annotation(cds_fastaf,eggnogdata,outdir)
+        egg_annotation(cds_fastaf,eggnogdata,outdir,pfam,dmnb)
     if ks:
         s = mergeMultiRBH_seqs(seqs)
         fams = read_gene_families(families)

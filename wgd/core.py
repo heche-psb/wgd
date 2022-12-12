@@ -852,11 +852,28 @@ def Run_r8s(spt, nsites, outdir, datingset):
     r8s_out = sp.run(r8s_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     #with open (r8s_outf,"w") as f: f.write(r8s_out.stdout.decode('utf-8'))
 
-def egg_annotation(cds_fastaf,eggnogdata,outdir):
+def pfam_annot(cmd,pfam):
+    if pfam == "denovo":
+        cmd.append('--pfam_realign')
+        cmd.append('denovo')
+    if pfam == "realign":
+        cmd.append('--pfam_realign')
+        cmd.append('realign')
+    return cmd
+
+def dmnb_annot(cmd,dmnb):
+    if not dmnb is None:
+        cmd.append('--dmnd_db')
+        cmd.append('{}'.format(dmnb))
+    return cmd
+
+def egg_annotation(cds_fastaf,eggnogdata,outdir,pfam,dmnb):
     for i, cds_fasta in enumerate(cds_fastaf):
         famid = "GF{:0>5}".format(i+1)
         outpath = os.path.join(outdir, 'Egg_{}'.format(famid))
         cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '-i', '{}'.format(cds_fasta), '-o', outpath, '--data_dir', '{}'.format(eggnogdata)]
+        cmd = pfam_annot(cmd,pfam)
+        cmd = dmnb_annot(cmd,dmnb)
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
 # NOTE: It would be nice to implement an option to do a complete approach
@@ -1020,13 +1037,28 @@ def get_outlierincluded(df):
     weight_inc = weight_inc.to_frame(name='weightoutlierincluded')
     return weight_inc
 
+def get_nodeaverged_dS_outlierincluded(df):
+    node_averaged_dS_inc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_inc = node_averaged_dS_inc.to_frame(name='node_averaged_dS_outlierincluded')
+    return node_averaged_dS_inc
+
+def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<=cutoff]
+    node_averaged_dS_exc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
+    return node_averaged_dS_exc
+
 def _get_ks(family):
     family.get_ks()
     if family.codeml_results.shape[1] !=3:
         weight_inc = get_outlierincluded(family.codeml_results)
         weight_exc = get_outlierexcluded(family.codeml_results,cutoff = 5)
+        node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(family.codeml_results)
+        node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(family.codeml_results,cutoff = 5)
         family.codeml_results = family.codeml_results.join(weight_inc)
         family.codeml_results = family.codeml_results.join(weight_exc)
+        family.codeml_results = family.codeml_results.merge(node_averaged_dS_inc,on = ['family', 'node'])
+        family.codeml_results = family.codeml_results.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
     family.codeml_results.to_csv(family.out)
 
 class KsDistributionBuilder:
