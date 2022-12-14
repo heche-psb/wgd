@@ -864,17 +864,57 @@ def pfam_annot(cmd,pfam):
 def dmnb_annot(cmd,dmnb):
     if not dmnb is None:
         cmd.append('--dmnd_db')
-        cmd.append('{}'.format(dmnb))
+        cmd.append(os.path.abspath(dmnb))
     return cmd
 
-def egg_annotation(cds_fastaf,eggnogdata,outdir,pfam,dmnb):
+def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue):
+    parent = os.getcwd()
+    data_fir = os.path.abspath(eggnogdata)
+    os.chdir(outdir)
+    annotdir = _mkdir('egg_annotation')
     for i, cds_fasta in enumerate(cds_fastaf):
         famid = "GF{:0>5}".format(i+1)
-        outpath = os.path.join(outdir, 'Egg_{}'.format(famid))
-        cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '-i', '{}'.format(cds_fasta), '-o', outpath, '--data_dir', '{}'.format(eggnogdata)]
+        famid = os.path.join(annotdir,famid)
+        cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '--evalue', '{}'.format(evalue), '-i', os.path.basename(cds_fasta), '-o', famid, '--data_dir', data_fir]
         cmd = pfam_annot(cmd,pfam)
         cmd = dmnb_annot(cmd,dmnb)
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    os.chdir(parent)
+
+def hmmer_pfam(cds_fastaf,hmm,outdir,evalue):
+    parent = os.getcwd()
+    hmmdb_dir = os.path.abspath(hmm)
+    os.chdir(outdir)
+    annotdir = _mkdir('hmmer_pfam_annotation')
+    for i, cds_fasta in enumerate(cds_fastaf):
+        famid = "GF{:0>5}".format(i+1)
+        famid = os.path.join(annotdir,famid) 
+        cmd = ['hmmscan','-o', '{}.txt'.format(famid), '--tblout', '{}.tbl'.format(famid), '--domtblout', '{}.dom'.format(famid), '--pfamtblout', '{}.pfam'.format(famid), '--noali', '-E', '{}'.format(evalue), hmmdb_dir, os.path.basename(cds_fasta)]
+        out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    os.chdir(parent)
+
+def cpgf_interproscan(cds_fastaf,exepath):
+    for cds_fasta in cds_fastaf:
+        cmd = ['cp',cds_fasta,exepath]
+        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
+def mvgfback_interproscan(fname,out_path):
+    cmd = ['mv',fname,out_path]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
+def interproscan(cds_fastaf,exepath,outdir):
+    cpgf_interproscan(cds_fastaf,exepath)
+    parent = os.getcwd()
+    os.chdir(outdir)
+    annotdir = _mkdir('interproscan_annotation')
+    out_path = os.path.join(parent,outdir,annotdir)
+    os.chdir(exepath)
+    for i, cds_fasta in enumerate(cds_fastaf):
+        famid = "GF{:0>5}".format(i+1)
+        cmd = ['./interproscan.sh', '-i', os.path.basename(cds_fasta), '-f', 'tsv', '-dp']
+        out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+        mvgfback_interproscan(os.path.basename(cds_fasta)+'.tsv',out_path)
+    os.chdir(parent)
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?

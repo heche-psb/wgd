@@ -250,11 +250,15 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
 @click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
 @click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
-@click.option('--annotation','-at', is_flag=True,help="Functional annotation for orthologous families")
+@click.option('--annotation',type=click.Choice(['none','eggnog', 'hmmpfam', 'interproscan']),default='none',show_default=True,help="Functional annotation for orthologous families")
 @click.option('--pairwise', is_flag=True,help="Pairwise gene-pair feeded into codeml")
 @click.option('--eggnogdata', '-ed', default=None, show_default=True,help='Eggnog data dirctory for annotation')
 @click.option('--pfam', type=click.Choice(['none', 'denovo', 'realign']),default='none',show_default=True,help='PFAM domains for annotation')
 @click.option('--dmnb', default=None, show_default=True,help='Diamond database for annotation')
+@click.option('--hmm', default=None, show_default=True,help='profile for hmmscan')
+@click.option('--evalue', default=1e-3, show_default=True,help='E-value threshold for annotation')
+@click.option('--exepath', default=None, show_default=True,help='Path to interproscan installation folder')
+
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -282,9 +286,9 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, egg_annotation
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
@@ -320,11 +324,17 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
             Run_r8s(spt, ctree_length, outdir, datingset)
         else:
             Run_r8s(speciestree, nsites, outdir, datingset)
-    if annotation:
-        if eggnogdata is None:
-            logging.error("Please provide the path to eggNOG-mapper databases")
-            exit(0)
-        egg_annotation(cds_fastaf,eggnogdata,outdir,pfam,dmnb)
+    if not annotation == 'none':
+        logging.info("Doing functional annotation on orthologous families")
+        if annotation == 'eggnog':
+            if eggnogdata is None:
+                logging.error("Please provide the path to eggNOG-mapper databases")
+                exit(0)
+            eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue)
+        if annotation == 'hmmpfam':
+            hmmer_pfam(cds_fastaf,hmm,outdir,evalue)
+        if annotation == 'interproscan':
+            interproscan(cds_fastaf,exepath,outdir)
     if ks:
         s = mergeMultiRBH_seqs(seqs)
         fams = read_gene_families(families)
