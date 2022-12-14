@@ -313,7 +313,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         if speciestree is None:
             logging.error("Please provide species tree for mcmctree dating")
             exit(0)
-        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist)
+        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist, nthreads)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")
@@ -330,11 +330,11 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
             if eggnogdata is None:
                 logging.error("Please provide the path to eggNOG-mapper databases")
                 exit(0)
-            eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue)
+            eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads)
         if annotation == 'hmmpfam':
-            hmmer_pfam(cds_fastaf,hmm,outdir,evalue)
+            hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads)
         if annotation == 'interproscan':
-            interproscan(cds_fastaf,exepath,outdir)
+            interproscan(cds_fastaf,exepath,outdir,nthreads)
     if ks:
         s = mergeMultiRBH_seqs(seqs)
         fams = read_gene_families(families)

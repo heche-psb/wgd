@@ -760,18 +760,20 @@ def Getpartitionedpaml(alnf,outdir):
     return alnfpartitioned_paml
 
 # Run MCMCtree
-def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist):
+def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist, nthreads):
     CI_table = {}
     PM_table = {}
     wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
     Concat_calnf_paml = fasta2paml(Concat_caln,Concat_calnf)
     Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
+    McMctrees = []
     if partition:
-        logging.info("Running mcmctree on concatenated codon alignment with partition")
+        #logging.info("Running mcmctree on concatenated codon alignment with partition")
         Concatpospartitioned_paml = Getpartitionedpaml(Concat_calnf, outdir)
         McMctree = mcmctree(Concatpospartitioned_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition)
-        McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
-    logging.info("Running mcmctree on concatenated codon and peptide alignment without partition")
+        McMctrees.append(McMctree)
+        #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+    #logging.info("Running mcmctree on concatenated codon and peptide alignment without partition")
     if aamodel == 'wag':
         logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
     elif aamodel == 'lg':
@@ -781,20 +783,24 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
     else:
         logging.info('Running mcmctree using Poisson without gamma rates for protein model')
     McMctree = mcmctree(Concat_calnf_paml, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
-    McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+    McMctrees.append(McMctree)
+    #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
     famnum = len(calnfs)
     calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap)
     for fam in range(famnum):
         calnf_rn = calnfs_rn[fam]
         palnf_rn = palnfs_rn[fam]
         if partition:
-            logging.info("Running mcmctree on GF{:0>5} codon alignment with partition".format(fam+1))
+            #logging.info("Running mcmctree on GF{:0>5} codon alignment with partition".format(fam+1))
             calnfpartitioned_paml = Getpartitionedpaml(calnf_rn, outdir)
             McMctree = mcmctree(calnfpartitioned_paml, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition)
-            McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
-        logging.info("Running mcmctree on GF{:0>5} codon and peptide alignment without partition".format(fam+1))
+            McMctrees.append(McMctree)
+            #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+        #logging.info("Running mcmctree on GF{:0>5} codon and peptide alignment without partition".format(fam+1))
         McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
-        McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+        McMctrees.append(McMctree)
+        #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+    Parallel(n_jobs=nthreads)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
 #Run r8s
 def Reroot(inputtree,outgroup):
     spt = inputtree + '.reroot'
@@ -867,30 +873,36 @@ def dmnb_annot(cmd,dmnb):
         cmd.append(os.path.abspath(dmnb))
     return cmd
 
-def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue):
+def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads):
     parent = os.getcwd()
     data_fir = os.path.abspath(eggnogdata)
     os.chdir(outdir)
     annotdir = _mkdir('egg_annotation')
+    cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
         famid = "GF{:0>5}".format(i+1)
         famid = os.path.join(annotdir,famid)
         cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '--evalue', '{}'.format(evalue), '-i', os.path.basename(cds_fasta), '-o', famid, '--data_dir', data_fir]
         cmd = pfam_annot(cmd,pfam)
         cmd = dmnb_annot(cmd,dmnb)
-        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        cmds.append(cmd)
+    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     os.chdir(parent)
 
-def hmmer_pfam(cds_fastaf,hmm,outdir,evalue):
+def hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads):
     parent = os.getcwd()
     hmmdb_dir = os.path.abspath(hmm)
     os.chdir(outdir)
     annotdir = _mkdir('hmmer_pfam_annotation')
+    cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
         famid = "GF{:0>5}".format(i+1)
         famid = os.path.join(annotdir,famid) 
         cmd = ['hmmscan','-o', '{}.txt'.format(famid), '--tblout', '{}.tbl'.format(famid), '--domtblout', '{}.dom'.format(famid), '--pfamtblout', '{}.pfam'.format(famid), '--noali', '-E', '{}'.format(evalue), hmmdb_dir, os.path.basename(cds_fasta)]
-        out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+        cmds.append(cmd)
+        #out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     os.chdir(parent)
 
 def cpgf_interproscan(cds_fastaf,exepath):
@@ -898,22 +910,27 @@ def cpgf_interproscan(cds_fastaf,exepath):
         cmd = ['cp',cds_fasta,exepath]
         sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
 
-def mvgfback_interproscan(fname,out_path):
-    cmd = ['mv',fname,out_path]
-    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+def mvgfback_interproscan(cds_fastaf,out_path):
+    for fname in cds_fastaf:
+        cmd = ['mv',fname + '.tsv',out_path]
+        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+        cmd = ['rm',fname]
+        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
 
-def interproscan(cds_fastaf,exepath,outdir):
+def interproscan(cds_fastaf,exepath,outdir,nthreads):
     cpgf_interproscan(cds_fastaf,exepath)
     parent = os.getcwd()
     os.chdir(outdir)
     annotdir = _mkdir('interproscan_annotation')
     out_path = os.path.join(parent,outdir,annotdir)
     os.chdir(exepath)
+    cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
         famid = "GF{:0>5}".format(i+1)
         cmd = ['./interproscan.sh', '-i', os.path.basename(cds_fasta), '-f', 'tsv', '-dp']
-        out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-        mvgfback_interproscan(os.path.basename(cds_fasta)+'.tsv',out_path)
+        cmds.append(cmd)
+    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    mvgfback_interproscan(cds_fastaf,out_path)
     os.chdir(parent)
 
 # NOTE: It would be nice to implement an option to do a complete approach
