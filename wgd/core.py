@@ -396,9 +396,167 @@ def Pairaligninfo(aln):
     df_pairs_info = pd.DataFrame.from_dict(pairs_info).set_index("pair")
     return df_pairs_info
 
-def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option="--auto", **kwargs):
-    cds = {}
-    pro = []
+def add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns):
+    famid = "GF{:0>5}".format(i+1)
+    cds_fastaf.append(os.path.join(outdir, famid + ".pep"))
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    fnamepalns[famid]=fnamepaln
+    palnfs.append(fnamepaln)
+    pro_aln = AlignIO.read(fnamepaln, "fasta")
+    pro_alns[famid] = pro_aln
+    fnamecaln =os.path.join(outdir, famid + ".caln")
+    fnamecalns[famid] = fnamecaln
+    calnfs.append(fnamecaln)
+    cds_aln = AlignIO.read(fnamecaln, "fasta")
+    calnfs_length.append(cds_aln.get_alignment_length())
+    cds_alns[famid] = cds_aln
+
+def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
+    famid = "GF{:0>5}".format(i+1)
+    fnamep =os.path.join(outdir, famid + ".pep")
+    fnamec =os.path.join(outdir, famid + ".cds")
+    for seqid in fam:
+        safeid = idmap.get(seqid)
+        with open(fnamep,'a') as f:
+            f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+        with open(fnamec,'a') as f:
+            f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
+    cmd = ["mafft"] + option.split() + ["--amino", fnamep]
+    out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
+    _log_process(out, program="mafft")
+    pro_aln = AlignIO.read(fnamepaln, "fasta")
+    fnamecaln =os.path.join(outdir, famid + ".caln")
+    aln = {}
+    for i, s in enumerate(pro_aln):
+        cds_aln = ""
+        safeid = idmap.get(s.id)
+        cds_seq = seq_cds.get(safeid)
+        k = 0
+        for j in range(pro_aln.get_alignment_length()):
+            if pro_aln[i,j] == "-":
+                cds_aln += "---"
+            elif pro_aln[i,j] == "X":
+                cds_aln += "???"
+            else:
+                cds_aln += cds_seq[k:k+3]
+                k = k + 3
+        aln[s.id] = cds_aln
+    with open(fnamecaln, 'a') as f:
+        for k, v in aln.items():
+            f.write(">{}\n{}\n".format(k, v))
+    #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
+
+def addmbtree(outdir,tree_fams,tree_famsf,i=0,concat=False):
+    if not concat:
+        famid = "GF{:0>5}".format(i+1)
+    else:
+        famid = 'Concat' 
+    tree_pth = famid + ".paln.nexus" + ".con.tre.backname"
+    tree_pth = os.path.join(outdir, tree_pth)
+    tree = Phylo.read(tree_pth,'newick')
+    tree_fams[famid]=tree
+    tree_famsf.append(tree_pth)
+
+def mrbayes_run(outdir,famid,fnamepaln,pro_aln,treeset):
+    fnamepalnnexus =os.path.join(outdir, famid + ".paln.nexus")
+    AlignIO.convert(fnamepaln, 'fasta', fnamepalnnexus, 'nexus', IUPAC.extended_protein)
+    cwd = os.getcwd()
+    os.chdir(outdir)
+    conf = os.path.join(cwd, outdir, famid + ".config.mb")
+    logf = os.path.join(cwd, outdir, famid + ".mb.log")
+    bashf = os.path.join(cwd, outdir, famid + ".bash.mb")
+    config = {'set':'autoclose=yes nowarn=yes','execute':'./{}'.format(os.path.basename(fnamepalnnexus)),'prset':'aamodelpr=fixed(lg)','lset':'rates=gamma','mcmcp':['diagnfreq=100','samplefreq=10'],'mcmc':'ngen=1100 savebrlens=yes nchains=1','sumt':'','sump':'','quit':''}
+    if not treeset is None:
+        diasam = [100,10]
+        ngnc = [1100,1]
+        for i in treeset:
+            i = i.strip('\t').strip(' ')
+            if 'diagnfreq' in i:
+                diasam[0] = i[10:]
+            if 'samplefreq' in i:
+                diasam[1] = i[11:]
+            if 'ngen' in i:
+                ngnc[0] = i[5:]
+            if 'nchains' in i:
+                ngnc[1] = i[8:]
+        config['mcmcp'] = ['diagnfreq={}'.format(diasam[0]),'samplefreq={}'.format(diasam[1])]
+        config['mcmc'] = 'ngen={0} savebrlens=yes nchains={1}'.format(ngnc[0],ngnc[1])
+    with open(conf,"w") as f:
+        para = []
+        for (k,v) in config.items():
+            if isinstance(v, list):
+                para.append('{0} {1}'.format(k, v[0]))
+                para.append('{0} {1}'.format(k, v[1]))
+            else:
+                para.append('{0} {1}'.format(k, v))
+        para = "\n".join(para)
+        f.write(para)
+    with open(bashf,"w") as f:
+        f.write('mb <{0}> {1}'.format(os.path.basename(conf),os.path.basename(logf)))
+    mb_cmd = ["sh", os.path.basename(bashf)]
+    sp.run(mb_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    genenumber = len(pro_aln)
+    linenumber = genenumber + 3
+    mb_out = famid + ".paln.nexus" + ".con.tre"
+    mb_out_content = []
+    with open(mb_out,"r") as f:
+        lines = f.readlines()
+        for line in lines:
+            mb_out_content.append(line.strip(' ').strip('\t').strip('\n').strip(','))
+    mb_useful = mb_out_content[-linenumber:-1]
+    mb_id = mb_useful[:-2]
+    mb_tree = mb_useful[-1]
+    mb_id_dict = {}
+    tree_pth = famid + ".paln.nexus" + ".con.tre.backname"
+    for i in mb_id:
+        i = i.split("\t")
+        mb_id_dict[i[0]]=i[1]
+    with open(tree_pth,'w') as f:
+        for (k,v) in mb_id_dict.items():
+            mb_tree = mb_tree.replace('{}[&prob='.format(k),'{}[&prob='.format(v))
+        f.write(mb_tree[27:])
+    os.chdir(cwd)
+
+def addiqfatree(famid,tree_fams,fnamecaln,tree_famsf,postfix):
+    tree_pth = fnamecaln + postfix
+    tree = Phylo.read(tree_pth,'newick')
+    tree_fams[famid] = tree
+    tree_famsf.append(tree_pth)
+
+def iqtree_run(treeset,fnamecaln):
+    if not treeset is None:
+        treesetfull = []
+        iq_cmd = ["iqtree", "-s", fnamecaln]
+        for i in treeset:
+            i = i.strip(" ").split(" ")
+            if type(i) == list:
+                treesetfull = treesetfull + i
+            else:
+                treesetfull.append(i)
+        iq_cmd = iq_cmd + treesetfull
+    else:
+        iq_cmd = ["iqtree", "-s", fnamecaln] + ["-fast"] #+ ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
+    sp.run(iq_cmd, stdout=sp.PIPE)
+
+def fasttree_run(fnamecaln,treeset):
+    tree_pth = fnamecaln + ".fasttree"
+    if not treeset is None:
+        treesetfull = []
+        ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+        for i in treeset:
+            i = i.strip(" ").split(" ")
+            if type(i) == list:
+                treesetfull = treesetfull + i
+            else:
+                treesetfull.append(i)
+        ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
+    else:
+        ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+    sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+
+def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", **kwargs):
     idmap = {}
     seq_cds = {}
     seq_pro = {}
@@ -410,156 +568,23 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir, option
     palnfs = []
     calnfs_length = []
     cds_fastaf = []
-    #pro_fastaf = []
     for i in range(len(seqs)):
         seq_cds.update(seqs[i].cds_sequence)
         seq_pro.update(seqs[i].pro_sequence)
-    for i in range(len(seqs)):
         idmap.update(seqs[i].idmap)
-    for i, fam in enumerate(fams):
-        famid = "GF{:0>5}".format(i+1)
-        fnamep =os.path.join(outdir, famid + ".pep")
-        fnamec =os.path.join(outdir, famid + ".cds")
-        #pro_fastaf.append(fnamep)
-        cds_fastaf.append(fnamec)
-        for seqid in fam:
-            safeid = idmap.get(seqid)
-            with open(fnamep,'a') as f:
-                f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
-            with open(fnamec,'a') as f:
-                f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
-        cmd = ["mafft"] + option.split() + ["--amino", fnamep]
-        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        fnamepaln =os.path.join(outdir, famid + ".paln")
-        palnfs.append(fnamepaln)
-        with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
-        _log_process(out, program="mafft")
-        pro_aln = AlignIO.read(fnamepaln, "fasta")
-        pro_alns[famid] = pro_aln
-        fnamecaln =os.path.join(outdir, famid + ".caln")
-        calnfs.append(fnamecaln)
-        aln = {}
-        for i, s in enumerate(pro_aln):
-            cds_aln = ""
-            safeid = idmap.get(s.id)
-            cds_seq = seq_cds.get(safeid)
-            k = 0
-            for j in range(pro_aln.get_alignment_length()):
-                if pro_aln[i,j] == "-":
-                    cds_aln += "---"
-                elif pro_aln[i,j] == "X":
-                    cds_aln += "???"
-                else:
-                    cds_aln += cds_seq[k:k+3]
-                    k = k + 3
-            aln[s.id] = cds_aln
-        with open(fnamecaln, 'a') as f:
-            for k, v in aln.items():
-                f.write(">{}\n{}\n".format(k, v))
-        #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
-        cds_aln = AlignIO.read(fnamecaln, "fasta")
-        calnfs_length.append(cds_aln.get_alignment_length())
-        cds_alns[famid] = cds_aln
-        if tree_method == "mrbayes":
-            fnamepalnnexus =os.path.join(outdir, famid + ".paln.nexus")
-            AlignIO.convert(fnamepaln, 'fasta', fnamepalnnexus, 'nexus', IUPAC.extended_protein)
-            cwd = os.getcwd()
-            tmppath = os.path.join(cwd, outdir)
-            os.chdir(tmppath)
-            conf = os.path.join(cwd, outdir, famid + ".config.mb")
-            logf = os.path.join(cwd, outdir, famid + ".mb.log")
-            bashf = os.path.join(cwd, outdir, famid + ".bash.mb")
-            config = {'set':'autoclose=yes nowarn=yes','execute':'./{}'.format(os.path.basename(fnamepalnnexus)),'prset':'aamodelpr=fixed(lg)','lset':'rates=gamma','mcmcp':['diagnfreq=100','samplefreq=10'],'mcmc':'ngen=1100 savebrlens=yes nchains=1','sumt':'','sump':'','quit':''}
-            if not treeset is None:
-                diasam = [100,10]
-                ngnc = [1100,1]
-                for i in treeset:
-                    i = i.strip('\t').strip(' ')
-                    if 'diagnfreq' in i:
-                        diasam[0] = i[10:]
-                    if 'samplefreq' in i:
-                        diasam[1] = i[11:]
-                    if 'ngen' in i:
-                        ngnc[0] = i[5:]
-                    if 'nchains' in i:
-                        ngnc[1] = i[8:]
-                config['mcmcp'] = ['diagnfreq={}'.format(diasam[0]),'samplefreq={}'.format(diasam[1])]
-                config['mcmc'] = 'ngen={0} savebrlens=yes nchains={1}'.format(ngnc[0],ngnc[1])
-            with open(conf,"w") as f:
-                para = []
-                for (k,v) in config.items():
-                    if isinstance(v, list):
-                        para.append('{0} {1}'.format(k, v[0]))
-                        para.append('{0} {1}'.format(k, v[1]))
-                    else:
-                        para.append('{0} {1}'.format(k, v))
-                para = "\n".join(para)
-                f.write(para)
-            with open(bashf,"w") as f:
-                f.write('mb <{0}> {1}'.format(os.path.basename(conf),os.path.basename(logf)))
-            mb_cmd = ["sh", "{}".format(os.path.basename(bashf))]
-            sp.run(mb_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-            genenumber = len(pro_aln)
-            linenumber = genenumber + 3
-            mb_out = famid + ".paln.nexus" + ".con.tre"
-            mb_out_content = []
-            with open(mb_out,"r") as f:
-                lines = f.readlines()
-                for line in lines:
-                    mb_out_content.append(line.strip(' ').strip('\t').strip('\n').strip(','))
-            mb_useful = mb_out_content[-linenumber:-1]
-            mb_id = mb_useful[:-2]
-            mb_tree = mb_useful[-1]
-            mb_id_dict = {}
-            mb_treef = famid + ".paln.nexus" + ".con.tre.backname"
-            for i in mb_id:
-                i = i.split("\t")
-                mb_id_dict[i[0]]=i[1]
-            with open(mb_treef,'w') as f:
-                for (k,v) in mb_id_dict.items():
-                    mb_tree = mb_tree.replace('{}[&prob='.format(k),'{}[&prob='.format(v))
-                f.write(mb_tree[27:])
-            tree = Phylo.read(mb_treef,'newick')
-            tree_fams[famid] = tree
-            mb_treef = os.path.join(outdir, mb_treef)
-            tree_famsf.append(mb_treef)
-            os.chdir(cwd)
-        if tree_method == "iqtree":
-            if not treeset is None:
-                treesetfull = []
-                iq_cmd = ["iqtree", "-s", fnamecaln]
-                for i in treeset:
-                    i = i.strip(" ").split(" ")
-                    if type(i) == list:
-                        treesetfull = treesetfull + i
-                    else:
-                        treesetfull.append(i)
-                iq_cmd = iq_cmd + treesetfull
-            else:
-                iq_cmd = ["iqtree", "-s", fnamecaln] + ["-st","CODON"] + ["-fast"]#+ ["-bb", "1000"] + ["-bnni"]
-            iq_out = sp.run(iq_cmd, stdout=sp.PIPE)
-            tree_pth = fnamecaln + ".treefile"
-            tree = Phylo.read(tree_pth,'newick')
-            tree_fams[famid] = tree
-            tree_famsf.append(tree_pth)
-        if tree_method == "fasttree":
-            tree_pth = fnamecaln + ".fasttree"
-            if not treeset is None:
-                treesetfull = []
-                ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
-                for i in treeset:
-                    i = i.strip(" ").split(" ")
-                    if type(i) == list:
-                        treesetfull = treesetfull + i
-                    else:
-                        treesetfull.append(i)
-                ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
-            else:
-                ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
-            ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-            tree = Phylo.read(tree_pth,'newick')
-            tree_fams[famid] = tree
-            tree_famsf.append(tree_pth)
+    fnamecalns, fnamepalns = {},{}
+    Parallel(n_jobs=nthreads)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
+    for i in range(len(fams)): add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
+    x = lambda i : "GF{:0>5}".format(i+1)
+    if tree_method == "mrbayes":
+        Parallel(n_jobs=nthreads)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
+        for i in range(len(fams)): addmbtree(outdir,tree_fams,tree_famsf,i=i,concat=False)
+    if tree_method == "iqtree":
+        Parallel(n_jobs=nthreads)(delayed(iqtree_run)(treeset,fnamecalns[x(i)]) for i in range(len(fams)))
+        for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.treefile')
+    if tree_method == "fasttree":
+        Parallel(n_jobs=nthreads)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
+        for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf
 
 def GetG2SMap(families, outdir):
@@ -640,49 +665,23 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     Concat_caln = AlignIO.read(Concat_calnf, "fasta")
     ctree_length = Concat_caln.get_alignment_length()
     Concat_paln = AlignIO.read(Concat_palnf, "fasta")
+    Concat_ctrees, ctree_pths, Concat_ptrees, ptree_pths, famid = {},[],{},[],'Concat'
+    if tree_method == 'mrbayes':
+        mrbayes_run(outdir,famid,Concat_palnf,Concat_paln,treeset)
+        addmbtree(outdir,Concat_ptrees,ptree_pths,i,concat=True)
+        # TO DO -- get caln work in mrbayes
+        Concat_ctrees, ctree_pths = Concat_ptrees, ptree_pths
     if tree_method == "iqtree":
-        ctree_pth = Concat_calnf + ".treefile"
-        ptree_pth = Concat_palnf + ".treefile"
-        if not treeset is None:
-            treesetfull = []
-            iq_ccmd = ["iqtree", "-s", Concat_calnf]
-            iq_pcmd = ["iqtree", "-s", Concat_palnf]
-            for i in treeset:
-                i = i.strip(" ").split(" ")
-                if type(i) == list:
-                    treesetfull = treesetfull + i
-                else:
-                    treesetfull.append(i)
-            iq_ccmd = iq_ccmd + treesetfull
-            iq_pcmd = iq_pcmd + treesetfull
-        else:
-            iq_ccmd = ["iqtree", "-s", Concat_calnf] + ["-st","CODON"] + ["-fast"]
-            iq_pcmd = ["iqtree", "-s", Concat_palnf] + ["-fast"]
-        print(iq_ccmd+iq_pcmd)
-        iq_cout = sp.run(iq_ccmd, stdout=sp.PIPE)
-        iq_pout = sp.run(iq_pcmd, stdout=sp.PIPE)
-        Concat_ptree = Phylo.read(ptree_pth, 'newick')
-        Concat_ctree = Phylo.read(ctree_pth, 'newick')
+        iqtree_run(treeset,Concat_calnf)
+        addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.treefile')
+        iqtree_run(treeset,Concat_palnf)
+        addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.treefile')
     if tree_method == "fasttree":
-        ctree_pth = Concat_calnf + ".fasttree"
-        if not treeset is None:
-            treesetfull = []
-            ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
-            for i in treeset:
-                i = i.strip(" ").split(" ")
-                if type(i) == list:
-                    treesetfull = treesetfull + i
-                else:
-                    treesetfull.append(i)
-            ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
-        else:
-            ft_cmd = ["FastTree", '-out', ctree_pth, Concat_calnf]
-        ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        ptree_pth = Concat_palnf + ".fasttree"
-        ft_cmd = ["FastTree", '-out', ptree_pth, Concat_palnf]
-        ft_out = sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        Concat_ctree = Phylo.read(ctree_pth,'newick')
-        Concat_ptree = Phylo.read(ptree_pth,'newick')
+        fasttree_run(Concat_calnf,treeset)
+        addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.fasttree')
+        fasttree_run(Concat_palnf,treeset)
+        addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.fasttree')
+    Concat_ctree, ctree_pth, Concat_ptree, ptree_pth = Concat_ctrees[famid], ctree_pths[0], Concat_ptrees[famid], ptree_pths[0]
     return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist
 
 def _Codon2partition_(alnf, outdir):
