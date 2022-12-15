@@ -556,6 +556,145 @@ def fasttree_run(fnamecaln,treeset):
         ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
     sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
+def get_mrbh(s_i,s_j,cscore,eval):
+    logging.info("{} vs. {}".format(s_i.prefix, s_j.prefix))
+    s_i.get_rbh_orthologs(s_j, cscore=cscore, eval=eval)
+    s_i.write_rbh_orthologs(s_j,singletons=False)
+
+def getrbhf(s_i,s_j,outdir):
+    fname = os.path.join(outdir, "{}_{}.rbh.tsv".format(s_i.prefix, s_j.prefix))
+    df = pd.read_csv(fname,header = 0, index_col = False,sep = '\t')
+    return df
+
+def getfastaf(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds):
+    for seqs in fam:
+        fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
+        with open(fname,'a') as f:
+            Record = seq_pro.get(idmap.get(seqs))
+            f.write(">{}\n{}\n".format(seqs, Record))
+        fname2 = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".cds")
+        with open(fname2,'a') as f:
+            Record = seq_cds.get(idmap.get(seqs))
+            f.write(">{}\n{}\n".format(seqs, Record))
+
+def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads):
+    if globalmrbh:
+        logging.info("Multiple CDS files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
+        table = pd.DataFrame()
+        gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
+        for i in range(len(s)-1):
+            tables = []
+            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[i],s[j],cscore,eval) for j in range(i+1,len(s)))
+            for j in range(i+1,len(s)):
+                df = getrbhf(s[i],s[j],outdir)
+                if table.empty:
+                    table = df
+                else:
+                    table = table.merge(df)
+        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'OG', gfid)
+        if not keepduplicates:
+            for i in table.columns:
+                table.drop_duplicates(subset=[i],inplace=True)
+        table.to_csv(gmrbhf, sep="\t",index=False)
+    elif not focus is None:
+        logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
+        x = 0
+        table = pd.DataFrame()
+        focusname = os.path.join(outdir, 'merge_focus.tsv')
+        for i in range(len(s)):
+            if s[i].prefix == focus:
+                x = x+i
+        if x == 0:
+            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
+            for j in range(1, len(s)):
+                df = getrbhf(s[0],s[j],outdir)
+                if table.empty:
+                    table = df
+                else:
+                    table = table.merge(df)
+            if not keepduplicates:
+                table = table.drop_duplicates([focus])
+            table.insert(0, focus, table.pop(focus))
+        else:
+            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
+            for k in range(0,x):
+                df = getrbhf(s[x],s[k],outdir)
+                if table.empty:
+                    table = df
+                else:
+                    table = table.merge(df)
+            if not len(s) == 2 and not x+1 == len(s):
+                Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
+                for l in range(x+1,len(s)):
+                    df = getrbhf(s[x],s[l],outdir)
+                    table = table.merge(df)
+            if not keepduplicates:
+                table = table.drop_duplicates([focus])
+            table.insert(0, focus, table.pop(focus))
+        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'OG', gfid)
+        table.to_csv(focusname, sep="\t",index=False)
+    if not anchorpoints is None:
+        ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
+        ap = ap.loc[:,'gene_x':'gene_y']
+        ap_reverse = ap.rename(columns = {'gene_x' : 'gene_y', 'gene_y' : 'gene_x'})
+        ap_combined = pd.concat([ap,ap_reverse])
+        focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
+        table.insert(1, focus, table.pop(focus))
+        table_ap = table.merge(ap_combined,left_on = focus,right_on = 'gene_x')
+        table_ap.drop('gene_x', inplace=True, axis=1)
+        table_ap.insert(2, 'gene_y', table_ap.pop('gene_y'))
+        #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
+        #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
+        table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
+        table_ap.to_csv(focusapname, sep="\t",index=False)
+    if globalmrbh or not focus is None:
+        if keepfasta:
+            idmap = {}
+            for i in range(len(s)):
+                idmap.update(s[i].idmap)
+            if globalmrbh:
+                seqid_table = read_MultiRBH_gene_families(gmrbhf)
+            else:
+                seqid_table = read_MultiRBH_gene_families(focusname)
+            for fam in seqid_table:
+                for seq in fam:
+                    safeid = idmap.get(seq)
+            seq_cds = {}
+            seq_pro = {}
+            for i in range(len(s)):
+                seq_cds.update(s[i].cds_sequence)
+                seq_pro.update(s[i].pro_sequence)
+            rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
+            os.mkdir(rbhgfdirname)
+            Parallel(n_jobs=nthreads)(delayed(getfastaf)(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+           # for i, fam in enumerate(seqid_table):
+           #     for seqs in fam:
+           #         fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
+           #         with open(fname,'a') as f:
+           #             Record = seq_pro.get(idmap.get(seqs))
+           #             f.write(">{}\n{}\n".format(seqs, Record))
+           #         fname2 = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".cds")
+           #         with open(fname2,'a') as f:
+           #             Record = seq_cds.get(idmap.get(seqs))
+           #             f.write(">{}\n{}\n".format(seqs, Record))
+            if not anchorpoints is None:
+                seqid_table = read_MultiRBH_gene_families(focusapname)
+                rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
+                os.mkdir(rbhgfapdirname)
+                Parallel(n_jobs=nthreads)(delayed(getfastaf)(i,fam,rbhgfapdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+                #for i, fam in enumerate(seqid_table):
+                #    for seqs in fam:
+                #        fname = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".pep")
+                #        with open(fname,'a') as f:
+                #            Record = seq_pro.get(idmap.get(seqs))
+                #            f.write(">{}\n{}\n".format(seqs, Record))
+                #        fname2 = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".cds")
+                #        with open(fname2,'a') as f:
+                #            Record = seq_cds.get(idmap.get(seqs))
+                #            f.write(">{}\n{}\n".format(seqs, Record))
+
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", **kwargs):
     idmap = {}
     seq_cds = {}
