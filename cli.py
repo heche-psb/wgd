@@ -5,6 +5,7 @@ import sys
 import os
 import warnings
 import pandas as pd
+import matplotlib.pyplot as plt
 import subprocess as sp
 import pkg_resources  # part of setuptools
 from rich.logging import RichHandler
@@ -240,9 +241,9 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     help='anchor Ks distribution if available')
 @click.option('--outdir', '-o', default='wgd_peak', show_default=True,
     help='output directory')
-@click.option('--alignfilter', '-f', nargs=3, type=float, default= (0.,300,0.), show_default=True,
+@click.option('--alignfilter', '-f', nargs=3, type=float, default= (0.,0,0.), show_default=True,
     help='filter alignment identity, length and coverage')
-@click.option('--ksrange', '-r', nargs=2, type=float, default=(0.005, 3), show_default=True,
+@click.option('--ksrange', '-r', nargs=2, type=float, default=(0, 5), show_default=True,
     help='range of Ks to be analyzed')
 @click.option('--bin_width', '-bw',type=float, default=0.1, show_default=True,
     help='bandwidth of distribution')
@@ -255,30 +256,45 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--boots', type=int, default=200, show_default=True, help="number of bootstrap replicates of kde")
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
+@click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='stacked', show_default=True, help="plotting method")
+@click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchorks, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde
+def _peak(ks_distribution, anchorks, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap
     from wgd.core import _mkdir
+    outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
-    ksdf_filtered = alnfilter(ksdf,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1],weights_outliers_included=weights_outliers_included)
+    if len(ksdf.columns) <4:
+        logging.info("Begin to analyze peak of WGD dates")
+        draw_kde_CI(outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
+        exit()
+    ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
-    outpath = _mkdir(outdir)
+    get_kde(outdir,train_in,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
-        models, aic, bic, besta, bestb, N = fit_gmm(train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+        out_file = os.path.join(outdir, "AIC_BIC.pdf")
+        models, aic, bic, besta, bestb, N = fit_gmm(out_file, train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if method == 'bgmm':
         models, N = fit_bgmm(train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
     for n, m in zip(N,models):
+        fname = os.path.join(outpath, "Ks_{0}_{1}components_prediction.tsv".format(method,n))
         ksdf_predict = add_prediction(ksdf,fn_ksdf,train_in,m)
-        ksdf_predict.to_csv(os.path.join(outpath, "Ks_{0}_{1}components_prediction.tsv".format(method,n)),header=True,index=True,sep='\t')
-    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
+        ksdf_predict.to_csv(fname,header=True,index=True,sep='\t')
+        logging.info("Plotting components-annotated Ks distribution for {} components model".format(n))
+        fig = default_plot(ksdf_predict, title=fname, bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
+        fig.savefig(fname + "_Ks.svg")
+        fig.savefig(fname + "_Ks.pdf")
+        plt.close()
+        ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
+        draw_components_kde_bootstrap(outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
+    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
     logging.info("Done")
-
 
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -345,11 +361,11 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     logging.info("Saving to {}".format(outfile))
     ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
     logging.info("Making plots")
-    df = apply_filters(ksdb.df, [("dS", 1e-4, 5.), ("S", 10, 1e6)])
+    df = apply_filters(ksdb.df, [("dS", 0., 5.)])
     ylabel = "Duplications"
     if len(sequences) == 2:
         ylabel = "RBH orthologs"
-    fig = default_plot(df, title=prefix, rwidth=0.8, bins=50, ylabel=ylabel)
+    fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     if tmpdir is None:

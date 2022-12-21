@@ -55,8 +55,7 @@ def default_plot(
     """
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
-    colors = colors or ['black'] * ndists
-    
+    colors = colors or ['black'] * ndists 
     # assemble panels
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
@@ -68,7 +67,8 @@ def default_plot(
             x = f(dist[k])
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            ax.hist(y, weights=w, color=c, alpha=a,**kwargs)
+            if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=c, alpha=a, rwidth=0.8)
+            else: ax.hist(y, weights=w, color=c, alpha=a, rwidth=0.8,**kwargs)
             xlabel = _labels[k]
             if f == np.log10:
                 xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
@@ -82,7 +82,6 @@ def default_plot(
     fig.tight_layout()
     plt.subplots_adjust(top=0.85)  # prevent suptitle from overlapping
     return fig
-
 
 def syntenic_depth_plot(segprofile):
     cols = segprofile.columns

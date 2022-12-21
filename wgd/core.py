@@ -897,6 +897,28 @@ def Getpartitionedpaml(alnf,outdir):
         f.write(data1+data2+data3)
     return alnfpartitioned_paml
 
+def get_dates(wgd_mrca,CI_table,PM_table,prefixx):
+    Figtree = Phylo.read('FigTree.tre','nexus')
+    wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
+    CI = wgd_node.comment.strip('[&95%={').strip('}]').split(', ')
+    PM = wgd_node.clades[0].branch_length
+    CI_table[prefixx]=[float(i) for i in CI]
+    PM_table[prefixx]=PM
+
+def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml):
+    parent = os.getcwd()
+    calnfs_rn_cat = calnfs_rn + [Concat_calnf_paml]
+    for i,calnf_rn in enumerate(calnfs_rn_cat):
+        prefix = os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
+        folder = os.path.join(outdir, "mcmctree",prefix,"cds")
+        os.chdir(folder)
+        get_dates(wgd_mrca,CI_table,PM_table,prefix+"_cds")
+        os.chdir(parent)
+        folder = os.path.join(outdir, "mcmctree",prefix,"pep")
+        os.chdir(folder)
+        get_dates(wgd_mrca,CI_table,PM_table,prefix+"_pep")
+        os.chdir(parent)
+
 # Run MCMCtree
 def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist, nthreads):
     CI_table = {}
@@ -939,6 +961,17 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         McMctrees.append(McMctree)
         #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
     Parallel(n_jobs=nthreads)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
+    Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml)
+    df_CI = pd.DataFrame.from_dict(CI_table,orient='index',columns=['CI_lower','CI_upper'])
+    df_PM = pd.DataFrame.from_dict(PM_table,orient='index',columns=['PM'])
+    fname_CI = os.path.join(outdir,'mcmctree','CI.tsv')
+    fname_PM = os.path.join(outdir,'mcmctree','PM.tsv')
+    df_CI.to_csv(fname_CI,header = True,index=True,sep='\t')
+    df_PM.to_csv(fname_PM,header = True,index=True,sep='\t')
+    #print(len(CI_table))
+    #print(len(PM_table))
+    #for items in CI_table.items():
+    #    print(items)
 #Run r8s
 def Reroot(inputtree,outgroup):
     spt = inputtree + '.reroot'
