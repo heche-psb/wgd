@@ -18,6 +18,7 @@ from joblib import Parallel, delayed
 from wgd.codeml import Codeml
 from wgd.cluster import cluster_ks
 from wgd.mcmctree import mcmctree
+from wgd.beast import beast
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
@@ -713,7 +714,8 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
         idmap.update(seqs[i].idmap)
     fnamecalns, fnamepalns = {},{}
     Parallel(n_jobs=nthreads)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
-    for i in range(len(fams)): add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
+    for i in range(len(fams)):
+        add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
     x = lambda i : "GF{:0>5}".format(i+1)
     if tree_method == "mrbayes":
         Parallel(n_jobs=nthreads)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
@@ -726,6 +728,7 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
         for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf
 
+#def Test_tree_boots(speciestree,tree_famsf):    
 def GetG2SMap(families, outdir):
     df = pd.read_csv(families,header=0,index_col=False,sep='\t')
     df.drop('OG', axis=1, inplace=True)
@@ -739,7 +742,7 @@ def GetG2SMap(families, outdir):
                 f.write(j + " "+ i + "\n")
     return G2SMap, Slist
 
-def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap):
+def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs):
     famnum = len(pro_alns_rn)
     calnfs_rn = [i + ".rename" for i in calnfs]
     palnfs_rn = [i + ".rename" for i in palnfs]
@@ -919,8 +922,23 @@ def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml):
         get_dates(wgd_mrca,CI_table,PM_table,prefix+"_pep")
         os.chdir(parent)
 
+def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, calnfs, tmpdir, outdir, speciestree, datingset, slist, nthreads, beastlgjar, beagle, fossil, chainset, rootheight):
+    beasts = []
+    famnum = len(calnfs)
+    beast_concat = beast(Concat_calnf, Concat_caln, Concat_paln, tmpdir, outdir, speciestree, datingset, slist, fossil, chainset, rootheight)
+    beasts.append(beast_concat)
+    for fam in range(famnum):
+        famid = "GF{:0>5}".format(fam+1)
+        cds_aln_rn = cds_alns_rn[famid]
+        pro_aln_rn = pro_alns_rn[famid]
+        calnf = calnfs[fam]
+        beast_i = beast(calnf, cds_aln_rn, pro_aln_rn, tmpdir, outdir, speciestree, datingset, slist, fossil, chainset, rootheight)
+        beasts.append(beast_i)
+    beast_i.run_beast(beastlgjar,beagle)
+    Parallel(n_jobs=nthreads)(delayed(i.run_beast)(beastlgjar,beagle) for i in beasts)
+
 # Run MCMCtree
-def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist, nthreads):
+def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, datingset, aamodel, partition, slist, nthreads):
     CI_table = {}
     PM_table = {}
     wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
@@ -946,7 +964,7 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
     McMctrees.append(McMctree)
     #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
     famnum = len(calnfs)
-    calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs, outdir, gsmap)
+    calnfs_rn, palnfs_rn = FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs)
     for fam in range(famnum):
         calnf_rn = calnfs_rn[fam]
         palnf_rn = palnfs_rn[fam]

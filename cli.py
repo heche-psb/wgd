@@ -128,7 +128,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--concatenation', is_flag=True,help="species tree inference using concatenation method")
 @click.option('--coalescence', is_flag=True,help="species tree inference using multispecies coalescence method")
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree for dating')
-@click.option('--dating', '-d', type=click.Choice(['mcmctree', 'r8s', 'none']),default='none',show_default=True,help="dating orthologous families")
+@click.option('--dating', '-d', type=click.Choice(['beast', 'mcmctree', 'r8s', 'none']),default='none',show_default=True,help="dating orthologous families")
 @click.option('--datingset', '-ds', multiple=True, default=None, show_default=True,help='parameters setting for dating')
 @click.option('--nsites', '-ns', default=None, show_default=True,help='nsites information for r8s dating')
 @click.option('--outgroup', '-ot', default=None, show_default=True,help='outgroup species for r8s dating')
@@ -143,7 +143,11 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--hmm', default=None, show_default=True,help='profile for hmmscan')
 @click.option('--evalue', default=1e-3, show_default=True,help='E-value threshold for annotation')
 @click.option('--exepath', default=None, show_default=True,help='Path to interproscan installation folder')
-
+@click.option('--fossil', '-f', nargs=5, default= ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500'), show_default=True, help='fossil calibration info (id,taxa,mean,std,offset)')
+@click.option('--rootheight', '-rh', nargs=3,default= (4,0.5,400), show_default=True, help='root height calibration info (mean,std,offset)')
+@click.option('--chainset', '-cs', nargs=2,default= (10000,100), show_default=True, help='MCMC chain info (length,frequency) for beast')
+@click.option('--beastlgjar', default=None, show_default=True,help='path of beastLG.jar')
+@click.option('--beagle', is_flag=True,help='using beagle')
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -171,9 +175,9 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath, fossil, rootheight, chainset, beastlgjar, beagle):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
@@ -184,21 +188,24 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         logging.error("Please provide at least three sequence files for constructing trees")
         exit(0)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds) for s in sequences]
-    #s = mergeMultiRBH_seqs(seqs)
     for s in range(len(seqs)):
         logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
-    #fams = read_gene_families(families)
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto")
     if concatenation or dating != 'none':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
         coalescence_ctree, coalescence_treef = Coale(tree_famsf, families, outdir)
+    if dating == 'beast':
+        if speciestree is None or beastlgjar is None:
+            logging.error("Please provide species tree and path of beastLG.jar for beast dating")
+            exit(0)
+        Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, calnfs, tmpdir, outdir, speciestree, datingset, slist, nthreads, beastlgjar, beagle, fossil, chainset, rootheight)
     if dating=='mcmctree':
         if speciestree is None:
             logging.error("Please provide species tree for mcmctree dating")
             exit(0)
-        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, gsmap, datingset, aamodel, partition, slist, nthreads)
+        Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, datingset, aamodel, partition, slist, nthreads)
     if dating=='r8s':
         if datingset is None:
             logging.error("Please provide necessary fixage or constrain information of internal node for r8s dating")
@@ -216,10 +223,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
                 logging.error("Please provide the path to eggNOG-mapper databases")
                 exit(0)
             eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads)
-        if annotation == 'hmmpfam':
-            hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads)
-        if annotation == 'interproscan':
-            interproscan(cds_fastaf,exepath,outdir,nthreads)
+        if annotation == 'hmmpfam': hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads)
+        if annotation == 'interproscan': interproscan(cds_fastaf,exepath,outdir,nthreads)
     if ks:
         s = mergeMultiRBH_seqs(seqs)
         fams = read_gene_families(families)
@@ -230,15 +235,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         outfile = os.path.join(outdir, "{}.ks.tsv".format(prefix))
         logging.info("Ks result saved to {}".format(outfile))
         ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
-    if tmpdir is None:
-        [x.remove_tmp(prompt=False) for x in seqs]
+    if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
     logging.info("Done")
 
 # Get peak and confidence interval of Ks distribution
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('ks_distribution', type=click.Path(exists=True))
-@click.option('--anchorks', '-a', default=None, show_default=True,
-    help='anchor Ks distribution if available')
+@click.option('--anchor', '-a', default=None, show_default=True,
+    help='anchor pair infomation if available')
 @click.option('--outdir', '-o', default='wgd_peak', show_default=True,
     help='output directory')
 @click.option('--alignfilter', '-f', nargs=3, type=float, default= (0.,0,0.), show_default=True,
@@ -258,13 +262,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
 @click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='stacked', show_default=True, help="plotting method")
 @click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
+@click.option('--multiplicon', '-mp', default=None, show_default=True,help='multiplicon infomation if available')
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchorks, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method):
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
