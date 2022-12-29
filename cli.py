@@ -7,6 +7,7 @@ import warnings
 import pandas as pd
 import matplotlib.pyplot as plt
 import subprocess as sp
+from timeit import default_timer as timer
 import pkg_resources  # part of setuptools
 from rich.logging import RichHandler
 __version__ = pkg_resources.require("wgd")[0].version
@@ -60,6 +61,11 @@ def cli(verbosity):
 @click.option('--globalmrbh','-gm', is_flag=True,
     help="global MRBH regardless of focus species")
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
+@click.option('--orthoinfer','-oi', is_flag=True,help="orthogroups inference")
+@click.option('--onlyortho','-oo', is_flag=True,help="only run orthogroups inference")
+@click.option('--getsog','-gs', is_flag=True,help="get nested single-copy gene families")
+@click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
+@click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -87,28 +93,38 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir,
-        to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset):
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer
+    start = timer()
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
+    if orthoinfer:
+        logging.info("Infering orthologous gene families")
+        ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset)
+        if onlyortho:
+            if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
+            end = timer()
+            logging.info("Total run time: {}s".format(int(end-start)))
+            logging.info("Done")
+            exit()
     if len(s) == 0:
         logging.error("No sequences provided!")
         return
-    logging.info("tmp_dir = {}".format(s[0].tmp_path))
+    for seq in s: logging.info("tmpdir = {} for {}".format(seq.tmp_path,seq.prefix))
     if len(s) == 1:
         logging.info("One CDS file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
-        s[0].write_paranome()
-    if focus is None and len(s) != 1 and not globalmrbh:
+        s[0].write_paranome(False)
+    elif focus is None and not globalmrbh:
         logging.info("Multiple CDS files: will compute RBH orthologs")
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
-                s[i].get_rbh_orthologs(s[j], cscore=cscore, eval=eval)
+                s[i].get_rbh_orthologs(s[j], cscore, True, eval=eval)
                 s[i].write_rbh_orthologs(s[j],singletons=False)
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
-    if tmpdir is None:
-        [x.remove_tmp(prompt=False) for x in s]
+    if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
+    end = timer()
+    logging.info("Total run time: {}s".format(int(end-start)))
     logging.info("Done")
 
 #MSA and ML tree inference for given sets of orthologous gene familes for species tree inference and WGD timing
@@ -178,6 +194,7 @@ def focus(**kwargs):
 def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath, fossil, rootheight, chainset, beastlgjar, beagle):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST
+    start = timer()
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
@@ -191,7 +208,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     for s in range(len(seqs)):
         logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
     fams = read_MultiRBH_gene_families(families)
-    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto")
+    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto")
     if concatenation or dating != 'none':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
@@ -236,6 +253,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         logging.info("Ks result saved to {}".format(outfile))
         ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
     if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
+    end = timer()
+    logging.info("Total run time: {}s".format(int(end-start)))
     logging.info("Done")
 
 # Get peak and confidence interval of Ks distribution
@@ -634,4 +653,7 @@ def mix_(
 
 
 if __name__ == '__main__':
+    start = time.time()
     cli()
+    end = time.time()
+    logging.info("Total run time: {}s".format(int(end-start)))

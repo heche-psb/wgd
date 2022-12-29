@@ -340,7 +340,10 @@ def draw_kde_CI(outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4,**kwargs
     logging.info("The 95% empirical confidence interval (CI) of WGD dates is {0} - {1} billion years".format(lower,upper))
     kde_y = NaiveKDE(bw=bw_method).fit(train_in.tolist(),weights=None).evaluate(kde_x)
     mode_orig, maxim_orig = kde_mode(kde_x, kde_y)
-    plt.axvline(x = mode_orig, color = 'black', alpha = 0.8, ls = '-.', lw = 1)
+    plt.axvline(x = mode_orig, color = 'black', alpha = 0.8, ls = ':', lw = 1)
+    kde_y = NaiveKDE(bw=bw_method).fit(modes).evaluate(kde_x)
+    mode_of_modes, maxim_of_modes = kde_mode(kde_x, kde_y)
+    plt.axvline(x = mode_of_modes, color = 'red', alpha = 0.8, ls = '-.', lw = 1)
     logging.info("The kde-mode of original WGD dates is {} billion years".format(mode_orig))
     plt.xlabel("Billion years ago", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
@@ -348,7 +351,7 @@ def draw_kde_CI(outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4,**kwargs
     plt.yticks(np.linspace(0,Ten_multi(int(maxim_orig))+10,num=10,dtype=int))
     plt.hist(train_in,bins = np.linspace(minm, maxm, num=50),density=True,color = 'black', alpha=0.15, rwidth=0.8)
     props = dict(boxstyle='round', facecolor='gray', alpha=0.1)
-    text = "\n".join(["Peak: {:4.4f}".format(mode_orig),"CI: {:4.4f}-{:4.4f}".format(lower, upper),"OGs: {}".format(len(train_in))])
+    text = "\n".join(["Raw mode: {:4.4f}".format(mode_of_modes),"Peak: {:4.4f}".format(mode_orig),"CI: {:4.4f}-{:4.4f}".format(lower, upper),"OGs: {}".format(len(train_in))])
     plt.text(0.75,0.95,text,transform=ax.transAxes,fontsize=8,verticalalignment='top',bbox=props)
     fname = os.path.join(outdir, "WGD_peak.pdf")
     plt.tight_layout()
@@ -414,3 +417,6 @@ def draw_components_kde_bootstrap(outdir,num,ksdf_predict,weighted,boots,bin_wid
         plt.close()
     os.chdir(parent)
 
+def Getanchor_Ksdf(anchor,ksdf,multiplicon):
+    ap = pd.read_csv(anchor,header=0,index_col=0,sep = '\t')
+    mp = pd.read_csv(multiplicon,header=0,index_col=0,sep = '\t')

@@ -19,6 +19,7 @@ from wgd.codeml import Codeml
 from wgd.cluster import cluster_ks
 from wgd.mcmctree import mcmctree
 from wgd.beast import beast
+import copy
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
@@ -132,6 +133,10 @@ class SequenceData:
             self.idmap[record.id] = gid
         return
 
+    def spgenemap(self):
+        self.sgmap = {i:self.prefix for i in self.idmap.keys()}
+        return self.sgmap
+
     def merge(self, other):
         """
         Merge other into self, keeping the paths etc. of self.
@@ -140,31 +145,39 @@ class SequenceData:
         self.pro_seqs.update(other.pro_seqs)
         self.idmap.update(other.idmap)
 
+    def merge_seq(self,other):
+        self.cds_seqs.update(other.cds_seqs)
+        self.cds_sequence.update(other.cds_sequence)
+        self.pro_sequence.update(other.pro_sequence)
+        self.idmap.update(other.idmap)
+
+    def merge_dmd_hits(self,other):
+        self.dmd_hits.update(other.dmd_hits)
+
     def make_diamond_db(self):
         if not os.path.isfile(self.pro_db + '.dmnd'):
             cmd = ["diamond", "makedb", "--in", self.pro_fasta, "-d", self.pro_db]
             out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             logging.debug(out.stderr.decode())
-            if out.returncode == 1:
-                logging.error(out.stderr.decode())
+            if out.returncode == 1: logging.error(out.stderr.decode())
 
-    def run_diamond(self, seqs, eval=1e-10):
+    def run_diamond(self, seqs, orthoinfer, eval=1e-10):
         self.make_diamond_db()
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
         outfile = os.path.join(self.tmp_path, run)
-        cmd = ["diamond", "blastp", "-d", self.pro_db, "-q",
-            seqs.pro_fasta, "-o", outfile]
-        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-        logging.debug(out.stderr.decode())
+        if not orthoinfer:
+            cmd = ["diamond", "blastp", "-d", self.pro_db, "-q", seqs.pro_fasta, "-o", outfile]
+            out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+            logging.debug(out.stderr.decode())
         df = pd.read_csv(outfile, sep="\t", header=None)
         df = df.loc[df[0] != df[1]]
         self.dmd_hits[seqs.prefix] = df = df.loc[df[10] <= eval]
         return df
 
-    def get_rbh_orthologs(self, seqs, cscore, eval=1e-10):
+    def get_rbh_orthologs(self, seqs, cscore, orthoinfer, eval=1e-10):
         if self == seqs:
             raise ValueError("RBH orthologs only defined for distinct species")
-        df = self.run_diamond(seqs, eval=eval)
+        df = self.run_diamond(seqs, orthoinfer, eval=eval)
         if cscore == None:
             df1 = df.sort_values(10).drop_duplicates([0])
             df2 = df.sort_values(10).drop_duplicates([1])
@@ -181,19 +194,28 @@ class SequenceData:
             df_with_best_c=df_with_best.loc[(df_with_best[11]  >= cscore*df_with_best['species2_best']) & (df_with_best[11]  >= cscore*df_with_best['species1_best'])]
             df_c_score=df_with_best_c.iloc[:,0:12]
             self.rbh[seqs.prefix] = df_c_score
-
-
-
         # self.rbh[seqs.prefix] = seqs.rbh[self.prefix] = df1.merge(df2)
         # write to file using original ids for next steps
+
+    def rndmd_hit(self):
+        self.dmd_hits = {'_'.join([self.prefix,k]):v for k,v in self.dmd_hits.items()}
+        #for key in self.dmd_hits.copy().keys(): self.dmd_hits['_'.join([self.prefix,key])] = self.dmd_hits.pop(key)
+
+    def get_para_skip_dmd(self, inflation=1.5, eval=1e-10):
+        gf = os.path.join(self.tmp_path, 'Concated')
+        df = pd.concat([v for v in self.dmd_hits.values()])
+        df.to_csv(gf, sep="\t", header=False, index=False, columns=[0,1,10])
+        gf = SequenceSimilarityGraph(gf)
+        mcl_out = gf.run_mcl(inflation=inflation)
+        with open(mcl_out, "r") as f:
+            for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
     def get_paranome(self, inflation=1.5, eval=1e-10):
         df = self.run_diamond(self, eval=eval)
         gf = self.get_mcl_graph(self.prefix)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
-            for i, line in enumerate(f.readlines()):
-                self.mcl[i] = line.strip().split()
+            for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
     def get_mcl_graph(self, *args):
         # args are keys in `self.dmd_hits` to use for building MCL graph
@@ -202,13 +224,14 @@ class SequenceData:
         df.to_csv(gf, sep="\t", header=False, index=False, columns=[0,1,10])
         return SequenceSimilarityGraph(gf)
 
-    def write_paranome(self, fname=None, singletons=True):
+    def write_paranome(self, orthoinfer, fname=None, singletons=True):
         if singletons: 
             self.add_singletons_paranome()
         if not fname:
             fname = os.path.join(self.out_path, "{}.tsv".format(self.prefix))
         with open(fname, "w") as f:
-            f.write("\t" + self.prefix + "\n")
+            if not orthoinfer:
+                f.write("\t" + self.prefix + "\n")
             for i, (k, v) in enumerate(sorted(self.mcl.items())):
                 # We report original gene IDs
                 f.write("GF{:0>5}\t".format(i+1))
@@ -257,7 +280,6 @@ class SequenceData:
                 return
         out = sp.run(["rm", "-r", self.tmp_path], stdout=sp.PIPE, stderr=sp.PIPE)
         logging.debug(out.stderr.decode())
-
 
 class SequenceSimilarityGraph:
     def __init__(self, graph_file):
@@ -320,10 +342,8 @@ def read_MultiRBH_gene_families(fname):
 
 def merge_seqs(seqs):
     if type(seqs) == list:
-        if len(seqs) > 2:
-            raise ValueError("More than two sequence data objects?")
-        if len(seqs) == 2:
-            seqs[0].merge(seqs[1])
+        if len(seqs) > 2: raise ValueError("More than two sequence data objects?")
+        if len(seqs) == 2: seqs[0].merge(seqs[1])
         seqs = seqs[0]
     return seqs
 
@@ -412,48 +432,48 @@ def add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,
     calnfs_length.append(cds_aln.get_alignment_length())
     cds_alns[famid] = cds_aln
 
-def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
-    famid = "GF{:0>5}".format(i+1)
-    fnamep =os.path.join(outdir, famid + ".pep")
-    fnamec =os.path.join(outdir, famid + ".cds")
-    for seqid in fam:
-        safeid = idmap.get(seqid)
-        with open(fnamep,'a') as f:
-            f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
-        with open(fnamec,'a') as f:
-            f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
-    cmd = ["mafft"] + option.split() + ["--amino", fnamep]
+def mafft_cmd(fpep,o,fpaln):
+    cmd = ["mafft"] + o.split() + ["--amino", fpep]
     out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-    fnamepaln =os.path.join(outdir, famid + ".paln")
-    with open(fnamepaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
     _log_process(out, program="mafft")
-    pro_aln = AlignIO.read(fnamepaln, "fasta")
-    fnamecaln =os.path.join(outdir, famid + ".caln")
+    with open(fpaln, 'w') as f: f.write(out.stdout.decode('utf-8'))
+
+def backtrans(fpaln,fcaln,idmap,seq_cds):
     aln = {}
+    pro_aln = AlignIO.read(fpaln, "fasta")
     for i, s in enumerate(pro_aln):
         cds_aln = ""
         safeid = idmap.get(s.id)
         cds_seq = seq_cds.get(safeid)
         k = 0
         for j in range(pro_aln.get_alignment_length()):
-            if pro_aln[i,j] == "-":
-                cds_aln += "---"
-            elif pro_aln[i,j] == "X":
-                cds_aln += "???"
+            if pro_aln[i,j] == "-": cds_aln += "---"
+            elif pro_aln[i,j] == "X": cds_aln += "???"
             else:
                 cds_aln += cds_seq[k:k+3]
                 k = k + 3
         aln[s.id] = cds_aln
-    with open(fnamecaln, 'a') as f:
-        for k, v in aln.items():
-            f.write(">{}\n{}\n".format(k, v))
+    with open(fcaln, 'w') as f:
+        for k, v in aln.items(): f.write(">{}\n{}\n".format(k, v))
+    return pro_aln
+
+def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
+    famid = "GF{:0>5}".format(i+1)
+    fnamep =os.path.join(outdir, famid + ".pep")
+    fnamec =os.path.join(outdir, famid + ".cds")
+    for seqid in fam:
+        safeid = idmap.get(seqid)
+        with open(fnamep,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+        with open(fnamec,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    mafft_cmd(fnamep,option,fnamepaln)
+    fnamecaln =os.path.join(outdir, famid + ".caln")
+    backtrans(fnamepaln,fnamecaln,idmap,seq_cds)
     #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
 
 def addmbtree(outdir,tree_fams,tree_famsf,i=0,concat=False):
-    if not concat:
-        famid = "GF{:0>5}".format(i+1)
-    else:
-        famid = 'Concat' 
+    if not concat: famid = "GF{:0>5}".format(i+1)
+    else: famid = 'Concat' 
     tree_pth = famid + ".paln.nexus" + ".con.tre.backname"
     tree_pth = os.path.join(outdir, tree_pth)
     tree = Phylo.read(tree_pth,'newick')
@@ -474,14 +494,10 @@ def mrbayes_run(outdir,famid,fnamepaln,pro_aln,treeset):
         ngnc = [1100,1]
         for i in treeset:
             i = i.strip('\t').strip(' ')
-            if 'diagnfreq' in i:
-                diasam[0] = i[10:]
-            if 'samplefreq' in i:
-                diasam[1] = i[11:]
-            if 'ngen' in i:
-                ngnc[0] = i[5:]
-            if 'nchains' in i:
-                ngnc[1] = i[8:]
+            if 'diagnfreq' in i: diasam[0] = i[10:]
+            if 'samplefreq' in i: diasam[1] = i[11:]
+            if 'ngen' in i: ngnc[0] = i[5:]
+            if 'nchains' in i: ngnc[1] = i[8:]
         config['mcmcp'] = ['diagnfreq={}'.format(diasam[0]),'samplefreq={}'.format(diasam[1])]
         config['mcmc'] = 'ngen={0} savebrlens=yes nchains={1}'.format(ngnc[0],ngnc[1])
     with open(conf,"w") as f:
@@ -490,8 +506,7 @@ def mrbayes_run(outdir,famid,fnamepaln,pro_aln,treeset):
             if isinstance(v, list):
                 para.append('{0} {1}'.format(k, v[0]))
                 para.append('{0} {1}'.format(k, v[1]))
-            else:
-                para.append('{0} {1}'.format(k, v))
+            else: para.append('{0} {1}'.format(k, v))
         para = "\n".join(para)
         f.write(para)
     with open(bashf,"w") as f:
@@ -504,8 +519,7 @@ def mrbayes_run(outdir,famid,fnamepaln,pro_aln,treeset):
     mb_out_content = []
     with open(mb_out,"r") as f:
         lines = f.readlines()
-        for line in lines:
-            mb_out_content.append(line.strip(' ').strip('\t').strip('\n').strip(','))
+        for line in lines: mb_out_content.append(line.strip(' ').strip('\t').strip('\n').strip(','))
     mb_useful = mb_out_content[-linenumber:-1]
     mb_id = mb_useful[:-2]
     mb_tree = mb_useful[-1]
@@ -515,8 +529,7 @@ def mrbayes_run(outdir,famid,fnamepaln,pro_aln,treeset):
         i = i.split("\t")
         mb_id_dict[i[0]]=i[1]
     with open(tree_pth,'w') as f:
-        for (k,v) in mb_id_dict.items():
-            mb_tree = mb_tree.replace('{}[&prob='.format(k),'{}[&prob='.format(v))
+        for (k,v) in mb_id_dict.items(): mb_tree = mb_tree.replace('{}[&prob='.format(k),'{}[&prob='.format(v))
         f.write(mb_tree[27:])
     os.chdir(cwd)
 
@@ -532,13 +545,10 @@ def iqtree_run(treeset,fnamecaln):
         iq_cmd = ["iqtree", "-s", fnamecaln]
         for i in treeset:
             i = i.strip(" ").split(" ")
-            if type(i) == list:
-                treesetfull = treesetfull + i
-            else:
-                treesetfull.append(i)
+            if type(i) == list: treesetfull = treesetfull + i
+            else: treesetfull.append(i)
         iq_cmd = iq_cmd + treesetfull
-    else:
-        iq_cmd = ["iqtree", "-s", fnamecaln] + ["-fast"] #+ ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
+    else: iq_cmd = ["iqtree", "-s", fnamecaln] + ["-fast"] #+ ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
     sp.run(iq_cmd, stdout=sp.PIPE)
 
 def fasttree_run(fnamecaln,treeset):
@@ -548,18 +558,15 @@ def fasttree_run(fnamecaln,treeset):
         ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
         for i in treeset:
             i = i.strip(" ").split(" ")
-            if type(i) == list:
-                treesetfull = treesetfull + i
-            else:
-                treesetfull.append(i)
+            if type(i) == list: treesetfull = treesetfull + i
+            else: treesetfull.append(i)
         ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
-    else:
-        ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
+    else: ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
     sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
 def get_mrbh(s_i,s_j,cscore,eval):
     logging.info("{} vs. {}".format(s_i.prefix, s_j.prefix))
-    s_i.get_rbh_orthologs(s_j, cscore=cscore, eval=eval)
+    s_i.get_rbh_orthologs(s_j, cscore, True, eval=eval)
     s_i.write_rbh_orthologs(s_j,singletons=False)
 
 def getrbhf(s_i,s_j,outdir):
@@ -588,15 +595,12 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[i],s[j],cscore,eval) for j in range(i+1,len(s)))
             for j in range(i+1,len(s)):
                 df = getrbhf(s[i],s[j],outdir)
-                if table.empty:
-                    table = df
-                else:
-                    table = table.merge(df)
+                if table.empty: table = df
+                else: table = table.merge(df)
         gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'OG', gfid)
         if not keepduplicates:
-            for i in table.columns:
-                table.drop_duplicates(subset=[i],inplace=True)
+            for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         table.to_csv(gmrbhf, sep="\t",index=False)
     elif not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
@@ -604,34 +608,27 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
         for i in range(len(s)):
-            if s[i].prefix == focus:
-                x = x+i
+            if s[i].prefix == focus: x = x+i
         if x == 0:
             Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
             for j in range(1, len(s)):
                 df = getrbhf(s[0],s[j],outdir)
-                if table.empty:
-                    table = df
-                else:
-                    table = table.merge(df)
-            if not keepduplicates:
-                table = table.drop_duplicates([focus])
+                if table.empty: table = df
+                else: table = table.merge(df)
+            if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         else:
             Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
             for k in range(0,x):
                 df = getrbhf(s[x],s[k],outdir)
-                if table.empty:
-                    table = df
-                else:
-                    table = table.merge(df)
+                if table.empty: table = df
+                else: table = table.merge(df)
             if not len(s) == 2 and not x+1 == len(s):
                 Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
                 for l in range(x+1,len(s)):
                     df = getrbhf(s[x],s[l],outdir)
                     table = table.merge(df)
-            if not keepduplicates:
-                table = table.drop_duplicates([focus])
+            if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'OG', gfid)
@@ -653,15 +650,11 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
     if globalmrbh or not focus is None:
         if keepfasta:
             idmap = {}
-            for i in range(len(s)):
-                idmap.update(s[i].idmap)
-            if globalmrbh:
-                seqid_table = read_MultiRBH_gene_families(gmrbhf)
-            else:
-                seqid_table = read_MultiRBH_gene_families(focusname)
-            for fam in seqid_table:
-                for seq in fam:
-                    safeid = idmap.get(seq)
+            for i in range(len(s)): idmap.update(s[i].idmap)
+            if globalmrbh: seqid_table = read_MultiRBH_gene_families(gmrbhf)
+            else: seqid_table = read_MultiRBH_gene_families(focusname)
+            #for fam in seqid_table:
+                #for seq in fam: safeid = idmap.get(seq)
             seq_cds = {}
             seq_pro = {}
             for i in range(len(s)):
@@ -726,7 +719,25 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
     if tree_method == "fasttree":
         Parallel(n_jobs=nthreads)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
         for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
-    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf
+    return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams
+
+def select_phylogeny(tree_fams,slist):
+    tree_fams_phylocorrect = {}
+    x = lambda i : "GF{:0>5}".format(i+1)
+    wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
+    for i in range(len(tree_fams)):
+        tree = copy.deepcopy(tree_fams[x(i)])
+        tree.root_at_midpoint()
+        wgd_node = tree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
+        if wgd_node.count_terminals() == 2:
+            tree_fams_phylocorrect[x(i)] = tree_fams[x(i)]
+    return tree_fams_phylocorrect
+
+def judgetree(tree,wgd_mrca):
+    tree_copy = copy.deepcopy(tree)
+    wgd_node = tree_copy.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
+    if wgd_node.count_terminals() == 2: return True
+    else: return False
 
 #def Test_tree_boots(speciestree,tree_famsf):    
 def GetG2SMap(families, outdir):
@@ -1121,6 +1132,195 @@ def interproscan(cds_fastaf,exepath,outdir,nthreads):
     Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     mvgfback_interproscan(cds_fastaf,out_path)
     os.chdir(parent)
+
+def run_or(i,j,s,eval,orthoinfer):
+    s[i].run_diamond(s[j], orthoinfer, eval=eval)
+
+def back_dmdhits(i,j,s,eval):
+    ftmp = os.path.join(s[i].tmp_path,'_'.join([s[i].prefix,s[j].prefix])+'.tsv')
+    df = pd.read_csv(ftmp, sep="\t", header=None)
+    df = df.loc[df[0] != df[1]]
+    s[i].dmd_hits[s[j].prefix] = df = df.loc[df[10] <= eval]
+
+def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
+    for i in range(len(s)):
+        Parallel(n_jobs=nthreads)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        for j in range(i, len(s)): back_dmdhits(i,j,s,eval)
+        s[i].rndmd_hit()
+    for i in range(1, len(s)):
+        s[0].merge_dmd_hits(s[i])
+        s[0].merge_seq(s[i])
+    s[0].get_para_skip_dmd(inflation=inflation, eval=eval)
+    prefix = s[0].prefix
+    s[0].prefix = 'Orthologues'
+    txtf = s[0].write_paranome(True)
+    s[0].prefix = prefix
+    return s[0],txtf
+
+def concatcdss(sequences,outdir):
+    Concat_cdsf = os.path.join(outdir,'Orthologues')
+    cmd = ['cat'] + [s for s in sequences]
+    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    return Concat_cdsf
+
+def ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset):
+    #Concat_cdsf = concatcdss(sequences,outdir)
+    #ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
+    ss,txtf = ortho_infer_mul(s,nthreads,eval,inflation,False)
+    #logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
+    #ss.get_paranome(inflation=inflation, eval=eval)
+    #txtf = ss.write_paranome(True)
+    sgmaps = {}
+    slist = []
+    for seq in s: sgmaps.update(seq.spgenemap())
+    for seq in s: slist.append(seq.prefix)
+    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset)
+    #if tmpdir is None: ss.remove_tmp(prompt=False)
+    #sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
+    return txtf
+
+def writeogsep(table,seq,fc,fp):
+    for v in table.values():
+        if type(v) == list: v = v[0]
+        if v == '': continue
+        cds = seq.cds_sequence[seq.idmap[v]]
+        pro = seq.pro_sequence[seq.idmap[v]]
+        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(v,cds))
+        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(v,pro))
+
+def label2nest(tree,slist,sgmaps):
+    dic = {}
+    treecopy = copy.deepcopy(tree)
+    treecopy.root_at_midpoint()
+    for i,clade in enumerate(treecopy.get_nonterminals()): clade.name = str(i)
+    for clade in treecopy.get_nonterminals():
+        if clade.count_terminals() == len(slist):
+            clade.collapse_all()
+            ids = [i.name for i in clade.clades]
+            sps = list(map(lambda n: sgmaps[n],ids))
+            if set(sps) == set(slist): dic = {j:i for i,j in zip(ids,sps)}
+    return dic
+
+def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs):
+    x = lambda i : "GF{:0>5}".format(i+1)
+    fpaln,fcaln = fp + '.aln',fc + '.aln'
+    if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.fasttree')
+    if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.treefile')
+    if tree_method == 'mrbayes': addmbtree(outd,tree_fams,tree_famsf,i=i,concat=False)
+    dic = label2nest(tree_fams[x(i)],slist,sgmaps)
+    if not dic:
+        dic.update({'NestedSOG':x(i)})
+        df = pd.DataFrame.from_dict([dic])
+        nested_dfs.append(df)
+
+def aln2tree_sc(fp,fc,idmap,cds,tree_method,treeset,outd,i):
+    x = lambda i : "GF{:0>5}".format(i+1)
+    fpaln,o,fcaln = fp + '.aln','--auto',fc + '.aln'
+    mafft_cmd(fp,o,fpaln)
+    pro_aln = backtrans(fpaln,fcaln,idmap,cds)
+    if tree_method == "iqtree": iqtree_run(treeset,fcaln)
+    if tree_method == "fasttree": fasttree_run(fcaln,treeset)
+    if tree_method == "mrbayes": mrbayes_run(outd,x(i),fpaln,pro_aln,treeset)
+
+def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog):
+    fam_table,represent_seqs = {},{}
+    count_table = {s:0 for s in slist}
+    sumcount = 0
+    ct = 'multi-copy'
+    exist_sp = set(gsmap.values())
+    coverage = len(exist_sp)/len(slist)
+    fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>5}.cds".format(i+1))
+    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>5}.pep".format(i+1))
+    fc_rep = os.path.join(_mkdir(os.path.join(frep,'cds')),"GF{:0>5}.cds".format(i+1))
+    fp_rep = os.path.join(_mkdir(os.path.join(frep,'pep')),"GF{:0>5}.pep".format(i+1))
+    fc_sog = os.path.join(_mkdir(os.path.join(fsog,'cds')),"GF{:0>5}.cds".format(i+1))
+    fp_sog = os.path.join(_mkdir(os.path.join(fsog,'pep')),"GF{:0>5}.pep".format(i+1))
+    for k,v in gsmap.items():
+        cds = ss.cds_sequence[ss.idmap[k]]
+        pro = ss.pro_sequence[ss.idmap[k]]
+        if fam_table.get(v) == None:
+            fam_table[v] = k
+            represent_seqs[v] = k
+        else:
+            fam_table[v] = ", ".join([fam_table[v],k])
+            if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
+        count_table[v] = count_table[v] + 1
+        sumcount = sumcount + 1
+        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
+        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
+    writeogsep(represent_seqs,ss,fc_rep,fp_rep)
+    for ms in set(slist) - set(gsmap.values()): fam_table[ms],represent_seqs[ms] = '',''
+    if all([len(v) == 1 for v in fam_table.values()]):
+        writeogsep(fam_table,ss,fc_sog,fp_sog)
+        ct = 'single-copy'
+    fam_df = pd.DataFrame.from_dict([fam_table])
+    count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
+    count_df = pd.DataFrame.from_dict([count_table])
+    rep_df = pd.DataFrame.from_dict([represent_seqs])
+    fams_df.append(fam_df)
+    counts_df.append(count_df)
+    reps_df.append(rep_df)
+
+def seqdict(gsmap,ss,ftmpc,ftmpp,i):
+    fc = os.path.join(ftmpc,"GF{:0>5}.cds".format(i+1))
+    fp = os.path.join(ftmpp,"GF{:0>5}.pep".format(i+1))
+    for k,v in gsmap.items():
+        cds = ss.cds_sequence[ss.idmap[k]]
+        pro = ss.pro_sequence[ss.idmap[k]]
+        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
+        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
+
+def countdict(gsmap,slist,ss,counts_df):
+    count_table = {s:0 for s in slist}
+    sumcount = 0
+    for k,v in gsmap.items():
+        count_table[v] = count_table[v] + 1
+        sumcount = sumcount + 1
+    count_table.update({'Sum':sumcount})
+    count_df = pd.DataFrame.from_dict([count_table])
+    counts_df.append(count_df)
+
+def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset):
+    fname_fam = os.path.join(outdir,'Orthogroups.sp.tsv')
+    fname_count = os.path.join(outdir,'Orthogroups.genecount.tsv')
+    fname_rep = os.path.join(outdir,'Orthogroups.representives.tsv')
+    fname_nest = os.path.join(outdir,'Orthogroups.nested_single_copy.tsv')
+    ftmp = _mkdir(os.path.join(outdir,'Orthologues_Sequence'))
+    frep = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Representives'))
+    fsog = _mkdir(os.path.join(outdir,'Orthologues_Single_Copy'))
+    txt = pd.read_csv(txtf,header = None,index_col=0,sep='\t')
+    y= lambda x: {j:sgmaps[j] for j in x}
+    fams_df,counts_df,reps_df = [],[],[]
+    for i in range(txt.shape[0]):
+        sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog)
+    if getsog:
+        tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
+        yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>5}.cds".format(x+1))
+        yp = lambda x: os.path.join(ftmp,'pep',"GF{:0>5}.pep".format(x+1))
+        yco = lambda x,y: counts_df[x].loc[0,y]
+        outd = os.path.join(ftmp,'pep')
+        for i in range(txt.shape[0]):
+            li = [yco(i,s) for s in slist]
+            if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
+        Parallel(n_jobs=nthreads)(delayed(aln2tree_sc)(yp(i),yc(i),ss.idmap,ss.cds_sequence,tree_method,treeset,outd,i) for i in aln_fam_is)
+        for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs)
+        if not nested_dfs:
+            nested_coc = pd.concat(nested_dfs,ignore_index=True).set_index('NestedSOG')
+            nested_coc.to_csv(fname_nest,header = True,index =True,sep = '\t')
+    #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
+    #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
+    #Parallel(n_jobs=nthreads)(delayed(seqdict)(y(txt.iloc[i,0].split(', ')),ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
+    fams_coc = pd.concat(fams_df,ignore_index=True)
+    counts_coc = pd.concat(counts_df,ignore_index=True)
+    reps_coc = pd.concat(reps_df,ignore_index=True)
+    sogs_coc = pd.concat(fams_df,ignore_index=True)
+    _label_families(fams_coc)
+    _label_families(counts_coc)
+    _label_families(reps_coc)
+    fams_coc.to_csv(fname_fam,header = True,index =True,sep = '\t')
+    counts_coc.to_csv(fname_count,header = True,index =True,sep = '\t')
+    reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
