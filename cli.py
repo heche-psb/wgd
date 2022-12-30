@@ -66,6 +66,7 @@ def cli(verbosity):
 @click.option('--getsog','-gs', is_flag=True,help="get nested single-copy gene families")
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
 @click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
+@click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family ')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -93,13 +94,13 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset,msogcut):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
     if orthoinfer:
         logging.info("Infering orthologous gene families")
-        ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset)
+        ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut)
         if onlyortho:
             if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
             end = timer()

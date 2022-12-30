@@ -1164,7 +1164,7 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset):
+def ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut):
     #Concat_cdsf = concatcdss(sequences,outdir)
     #ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
     ss,txtf = ortho_infer_mul(s,nthreads,eval,inflation,False)
@@ -1175,7 +1175,7 @@ def ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getso
     slist = []
     for seq in s: sgmaps.update(seq.spgenemap())
     for seq in s: slist.append(seq.prefix)
-    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset)
+    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut)
     #if tmpdir is None: ss.remove_tmp(prompt=False)
     #sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
     return txtf
@@ -1189,41 +1189,94 @@ def writeogsep(table,seq,fc,fp):
         with open(fc,'a') as f: f.write('>{}\n{}\n'.format(v,cds))
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(v,pro))
 
-def label2nest(tree,slist,sgmaps):
-    dic = {}
+def getnestedfasta(fnest,df,ss,nfs_count):
+    fc_nest = _mkdir(os.path.join(fnest,'cds'))
+    fp_nest = _mkdir(os.path.join(fnest,'pep'))
+    ndc = copy.deepcopy(nfs_count)
+    for j,rn in enumerate(df.index):
+        if nfs_count[rn] == 1:
+            fcname = os.path.join(fc_nest,'{}.cds'.format(rn))
+            fpname = os.path.join(fp_nest,'{}.pep'.format(rn))
+            with open(fcname,'w') as f:
+                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
+            with open(fpname,'w') as f:
+                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.pro_sequence[ss.idmap[i]]))
+        else:
+            t = ndc[rn]
+            fcname = os.path.join(fc_nest,'{0}_{1}.cds'.format(rn,t))
+            fpname = os.path.join(fp_nest,'{0}_{1}.pep'.format(rn,t))
+            with open(fcname,'w') as f:
+                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
+            with open(fpname,'w') as f:
+                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.pro_sequence[ss.idmap[i]]))
+            ndc[rn] = ndc[rn] - 1
+
+def filternested(sps,msogcut):
+    counts_table = {i:sps.count(i) for i in set(sps)}
+    return len([i for i in counts_table.values() if i==1])/len(set(sps)) >= msogcut
+
+def getunique(ids,sps,idmap,pros):
+    d = {}
+    leng = lambda n: len(pros[idmap[n]])
+    for i,s in zip(ids,sps):
+        if d.get(s) == None: d[s] = i
+        elif leng(i) > leng(d[s]): d[s] = i
+    d.update({'nestedtype':'loose'})
+    return d
+
+def label2nest(tree,slist,sgmaps,ss,msogcut):
+    dics = []
     treecopy = copy.deepcopy(tree)
     treecopy.root_at_midpoint()
     for i,clade in enumerate(treecopy.get_nonterminals()): clade.name = str(i)
     for clade in treecopy.get_nonterminals():
         if clade.count_terminals() == len(slist):
-            clade.collapse_all()
-            ids = [i.name for i in clade.clades]
+            cladec = copy.deepcopy(clade)
+            cladec.collapse_all()
+            ids = [i.name for i in cladec.clades]
             sps = list(map(lambda n: sgmaps[n],ids))
-            if set(sps) == set(slist): dic = {j:i for i,j in zip(ids,sps)}
-    return dic
+            if set(sps) == set(slist):
+                dic = {j:i for i,j in zip(ids,sps)}
+                dic.update({'nestedtype':'strict'})
+                dics.append(dic)
+        elif clade.count_terminals() > len(slist):
+            cladec = copy.deepcopy(clade)
+            cladec.collapse_all()
+            ids = [i.name for i in cladec.clades]
+            sps = list(map(lambda n: sgmaps[n],ids))
+            if set(sps) == set(slist) and filternested(sps,msogcut):
+                dic = getunique(ids,sps,ss.idmap,ss.pro_sequence)
+                dics.append(dic)
+    return dics
 
-def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs):
+def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut):
     x = lambda i : "GF{:0>5}".format(i+1)
     fpaln,fcaln = fp + '.aln',fc + '.aln'
     if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.fasttree')
     if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.treefile')
     if tree_method == 'mrbayes': addmbtree(outd,tree_fams,tree_famsf,i=i,concat=False)
-    dic = label2nest(tree_fams[x(i)],slist,sgmaps)
-    if not dic:
-        dic.update({'NestedSOG':x(i)})
-        df = pd.DataFrame.from_dict([dic])
-        nested_dfs.append(df)
+    dics = label2nest(tree_fams[x(i)],slist,sgmaps,ss,msogcut)
+    if dics:
+        for dic in dics:
+            dic.update({'NestedSOG':x(i)})
+            df = pd.DataFrame.from_dict([dic])
+            nested_dfs.append(df)
 
-def aln2tree_sc(fp,fc,idmap,cds,tree_method,treeset,outd,i):
+def aln2tree_sc(fp,fc,ss,tree_method,treeset,outd,i):
     x = lambda i : "GF{:0>5}".format(i+1)
     fpaln,o,fcaln = fp + '.aln','--auto',fc + '.aln'
     mafft_cmd(fp,o,fpaln)
-    pro_aln = backtrans(fpaln,fcaln,idmap,cds)
+    pro_aln = backtrans(fpaln,fcaln,ss.idmap,ss.cds_sequence)
     if tree_method == "iqtree": iqtree_run(treeset,fcaln)
     if tree_method == "fasttree": fasttree_run(fcaln,treeset)
     if tree_method == "mrbayes": mrbayes_run(outd,x(i),fpaln,pro_aln,treeset)
 
-def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog):
+def sgratio(l):
+    t = [i for i in l if i]
+    ratio = len(t)/len(l)
+    return ratio
+
+def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut):
     fam_table,represent_seqs = {},{}
     count_table = {s:0 for s in slist}
     sumcount = 0
@@ -1251,9 +1304,11 @@ def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog):
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
     writeogsep(represent_seqs,ss,fc_rep,fp_rep)
     for ms in set(slist) - set(gsmap.values()): fam_table[ms],represent_seqs[ms] = '',''
-    if all([len(v) == 1 for v in fam_table.values()]):
+    li = [v == 1 for v in count_table.values()]
+    if all(li):
         writeogsep(fam_table,ss,fc_sog,fp_sog)
         ct = 'single-copy'
+    elif sgratio(li) >= msogcut: ct = 'mostly single-copy'
     fam_df = pd.DataFrame.from_dict([fam_table])
     count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
     count_df = pd.DataFrame.from_dict([count_table])
@@ -1281,7 +1336,7 @@ def countdict(gsmap,slist,ss,counts_df):
     count_df = pd.DataFrame.from_dict([count_table])
     counts_df.append(count_df)
 
-def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset):
+def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut):
     fname_fam = os.path.join(outdir,'Orthogroups.sp.tsv')
     fname_count = os.path.join(outdir,'Orthogroups.genecount.tsv')
     fname_rep = os.path.join(outdir,'Orthogroups.representives.tsv')
@@ -1289,11 +1344,12 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset):
     ftmp = _mkdir(os.path.join(outdir,'Orthologues_Sequence'))
     frep = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Representives'))
     fsog = _mkdir(os.path.join(outdir,'Orthologues_Single_Copy'))
+    fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
     txt = pd.read_csv(txtf,header = None,index_col=0,sep='\t')
     y= lambda x: {j:sgmaps[j] for j in x}
     fams_df,counts_df,reps_df = [],[],[]
     for i in range(txt.shape[0]):
-        sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog)
+        sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut)
     if getsog:
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
         yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>5}.cds".format(x+1))
@@ -1303,11 +1359,16 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset):
         for i in range(txt.shape[0]):
             li = [yco(i,s) for s in slist]
             if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
-        Parallel(n_jobs=nthreads)(delayed(aln2tree_sc)(yp(i),yc(i),ss.idmap,ss.cds_sequence,tree_method,treeset,outd,i) for i in aln_fam_is)
-        for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs)
-        if not nested_dfs:
+        Parallel(n_jobs=nthreads)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
+        for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut)
+        if nested_dfs:
             nested_coc = pd.concat(nested_dfs,ignore_index=True).set_index('NestedSOG')
             nested_coc.to_csv(fname_nest,header = True,index =True,sep = '\t')
+            logging.info("{} nested single-copy families delineated".format(nested_coc.shape[0]))
+            nfs = list(nested_coc.index)
+            nfs_count = {i:nfs.count(i) for i in set(nfs)}
+            getnestedfasta(fnest,nested_coc,ss,nfs_count)
+        else: logging.info("No nested single-copy families delineated")
     #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
     #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(y(txt.iloc[i,0].split(', ')),ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
@@ -1321,6 +1382,9 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset):
     fams_coc.to_csv(fname_fam,header = True,index =True,sep = '\t')
     counts_coc.to_csv(fname_count,header = True,index =True,sep = '\t')
     reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
+    logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
+    mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
+    logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
