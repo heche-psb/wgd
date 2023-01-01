@@ -19,6 +19,7 @@ from wgd.codeml import Codeml
 from wgd.cluster import cluster_ks
 from wgd.mcmctree import mcmctree
 from wgd.beast import beast
+from timeit import default_timer as timer
 import copy
 # Reconsider the renaming, more a pain than helpful?
 
@@ -211,7 +212,7 @@ class SequenceData:
             for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
     def get_paranome(self, inflation=1.5, eval=1e-10):
-        df = self.run_diamond(self, eval=eval)
+        df = self.run_diamond(self, False, eval=eval)
         gf = self.get_mcl_graph(self.prefix)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
@@ -1133,6 +1134,87 @@ def interproscan(cds_fastaf,exepath,outdir,nthreads):
     mvgfback_interproscan(cds_fastaf,out_path)
     os.chdir(parent)
 
+def endt(tmpdir,start,s):
+    if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
+    end = timer()
+    logging.info("Total run time: {}s".format(int(end-start)))
+    logging.info("Done")
+    exit()
+
+def concathmm(outdir,df):
+    hmmconcatf = os.path.join(outdir,'Full.hmm')
+    gids = map(lambda i:os.path.join(outdir,i+'.cds.hmm'),df.index)
+    cmd = ['cat'] + [i for i in gids]
+    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    return hmmconcatf
+
+def run_hmmerb(ids,fc,fp,s):
+    for i in ids:
+        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(i,s.cds_sequence[s.idmap[i]]))
+        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(i,s.pro_sequence[s.idmap[i]]))
+    fpaln,o,fcaln,fhmm = fp + '.aln','--auto',fc + '.aln',fc + '.hmm'
+    mafft_cmd(fp,o,fpaln)
+    backtrans(fpaln,fcaln,s.idmap,s.cds_sequence)
+    cmd = ['hmmbuild'] + [fhmm] + [fcaln]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
+def hmmerbuild(df,s,outdir,nthreads):
+    yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
+    yfnc = lambda i: os.path.join(outdir,'{}.cds'.format(i))
+    yfnp = lambda i: os.path.join(outdir,'{}.pep'.format(i))
+    Parallel(n_jobs=nthreads)(delayed(run_hmmerb)(yids(i),yfnc(i),yfnp(i),s) for i in df.index)
+
+def hmmerscan(outdir,querys,hmmf,eval,nthreads):
+    cmd = ['hmmpress'] + [hmmf]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    cmds = []
+    outs = []
+    yprefix = lambda i: os.path.join(outdir,os.path.basename(i))
+    for s in querys:
+        pf = yprefix(s)
+        cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, s]
+        cmds.append(cmd)
+        outs.append('{}.tbl'.format(pf))
+    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    return outs
+
+def modifydf(df,outs,outdir,fam2assign):
+    fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
+    yb = lambda i:os.path.basename(i).strip('.tbl')
+    outdict = {yb(i):{} for i in outs}
+    for out in outs:
+        dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
+        end = dfo.shape[0] - 10
+        for i in range(3,end):
+            pair = dfo.iloc[i,0].split('          ')
+            f = pair[0][:-4]
+            g = pair[2][:-2]
+            if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:g})
+            else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
+    for k,v in outdict.items():
+        yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
+        df.insert(0, k, pd.Series(yg, index=yf))
+    df.to_csv(fname,header = True, index = True,sep = '\t')
+
+def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign):
+    hmmerbuild(df,s,outdir,nthreads)
+    hmmf = concathmm(outdir,df)
+    outs = hmmerscan(outdir,querys,hmmf,eval,nthreads)
+    modifydf(df,outs,outdir,fam2assign)
+
+def dmd4g2f(outdir,s,nthreads,querys,df):
+    print('dmd4')
+
+def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
+    logging.info("Assigning sequences into given gene families")
+    #seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in seq2assign]
+    df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
+    for i in range(1, len(s)): s[0].merge_seq(s[i])
+    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seq2assign,df,eval,fam2assign)
+    else: dmd4g2f(outdir,s[0],nthreads,seqs_query,df)
+    endt(tmpdir,start,s)
+
 def run_or(i,j,s,eval,orthoinfer):
     s[i].run_diamond(s[j], orthoinfer, eval=eval)
 
@@ -1221,7 +1303,7 @@ def getunique(ids,sps,idmap,pros):
     for i,s in zip(ids,sps):
         if d.get(s) == None: d[s] = i
         elif leng(i) > leng(d[s]): d[s] = i
-    d.update({'nestedtype':'loose'})
+    d.update({'NestedType':'loose'})
     return d
 
 def label2nest(tree,slist,sgmaps,ss,msogcut):
@@ -1237,7 +1319,7 @@ def label2nest(tree,slist,sgmaps,ss,msogcut):
             sps = list(map(lambda n: sgmaps[n],ids))
             if set(sps) == set(slist):
                 dic = {j:i for i,j in zip(ids,sps)}
-                dic.update({'nestedtype':'strict'})
+                dic.update({'NestedType':'strict'})
                 dics.append(dic)
         elif clade.count_terminals() > len(slist):
             cladec = copy.deepcopy(clade)

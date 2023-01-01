@@ -67,6 +67,10 @@ def cli(verbosity):
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
 @click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
 @click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family ')
+@click.option('--geneassign','-ga', is_flag=True,help="assign genes to given gene families")
+@click.option('--assign_method', '-am',type=click.Choice(['hmmer', 'diamond']),default='hmmer',show_default=True,help="gene assignment method")
+@click.option('--seq2assign', '-sa', multiple=True, default= None, show_default=True, help='sequences to be assigned')
+@click.option('--fam2assign', '-fa',default= None, show_default=True, help='families to be assigned upon')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -94,19 +98,16 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset,msogcut):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign):
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
+    if geneassign:
+        genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
         logging.info("Infering orthologous gene families")
         ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut)
-        if onlyortho:
-            if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
-            end = timer()
-            logging.info("Total run time: {}s".format(int(end-start)))
-            logging.info("Done")
-            exit()
+        if onlyortho: endt(tmpdir,start,s)
     if len(s) == 0:
         logging.error("No sequences provided!")
         return
@@ -123,10 +124,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
                 s[i].get_rbh_orthologs(s[j], cscore, True, eval=eval)
                 s[i].write_rbh_orthologs(s[j],singletons=False)
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
-    if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
-    end = timer()
-    logging.info("Total run time: {}s".format(int(end-start)))
-    logging.info("Done")
+    endt(tmpdir,start,s)
 
 #MSA and ML tree inference for given sets of orthologous gene familes for species tree inference and WGD timing
 
