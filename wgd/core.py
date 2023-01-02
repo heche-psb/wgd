@@ -74,7 +74,7 @@ def _label_internals(tree):
         c.name = str(i)
 
 def _label_families(df):
-    df.index = ["GF{:0>5}".format(i+1) for i in range(len(df.index))]
+    df.index = ["GF{:0>8}".format(i+1) for i in range(len(df.index))]
 
 def _process_unrooted_tree(treefile, fformat="newick"):
     tree = Phylo.read(treefile, fformat)
@@ -133,6 +133,11 @@ class SequenceData:
             self.pro_sequence[gid] = aa_sequence
             self.idmap[record.id] = gid
         return
+
+    def orig_profasta(self):
+        self.orig_pro_fasta = os.path.join(self.tmp_path, self.prefix+'.pep')
+        with open(self.orig_pro_fasta,'w') as f:
+            for k,v in self.idmap.items(): f.write('>{}\n{}\n'.format(k,self.pro_sequence[v]))
 
     def spgenemap(self):
         self.sgmap = {i:self.prefix for i in self.idmap.keys()}
@@ -235,7 +240,7 @@ class SequenceData:
                 f.write("\t" + self.prefix + "\n")
             for i, (k, v) in enumerate(sorted(self.mcl.items())):
                 # We report original gene IDs
-                f.write("GF{:0>5}\t".format(i+1))
+                f.write("GF{:0>8}\t".format(i+1))
                 f.write(", ".join([self.cds_seqs[x].id for x in v]))
                 f.write("\n")
         return fname
@@ -327,18 +332,18 @@ def read_MultiRBH_gene_families(fname):
     derived from dmd -focus or --globalmrbh in the format that each column contains seqid of each species and header of column is cds filename of each species
     """
     seqid_table = []
-    with open (fname,'r') as orthotable:
-        next(orthotable)
-        for row in orthotable:
-            seqid = []
-            for s in row.split('\t'):
-                s = s.strip('\n').split(',')
-                if type(s) != list:
-                    seqid.append(s)
-                else:
-                    for i in s:
-                        seqid.append(i)
-            seqid_table.append(seqid[1:])
+    df = pd.read_csv(fname,header=0,index_col=0,sep='\t')
+    yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
+    seqid_table = [yids(i) for i in df.index]
+    #with open (fname,'r') as orthotable:
+    #    next(orthotable)
+    #    for row in orthotable:
+    #        seqid = []
+    #        for s in row.split('\t'):
+    #            s = s.strip('\n')
+    #            if s:
+    #                for i in s.split(', '): seqid.append(i)
+    #        seqid_table.append(seqid[1:])
     return seqid_table
 
 def merge_seqs(seqs):
@@ -373,17 +378,14 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
         for col in families.columns:
             ids = families.loc[fid][col]
             if ids == ['']: continue
-            if rename:
-                family += _rename(ids, seqs.idmap)
-            else:
-                family += ids
+            if rename: family += _rename(ids, seqs.idmap)
+            else: family += ids
         if len(family) > 1:
             cds = {x: seqs.cds_seqs[x] for x in family}
             pro = {x: seqs.pro_seqs[x] for x in family}
             tmp = os.path.join(seqs.tmp_path, fid)
             gene_families.append(GeneFamily(fid, cds, pro, tmp, **kwargs))
-        else:
-            logging.debug("Skipping singleton family {}{}".format(fid,family))
+        else: logging.debug("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
 def identity_ratio(aln):
@@ -419,7 +421,7 @@ def Pairaligninfo(aln):
     return df_pairs_info
 
 def add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns):
-    famid = "GF{:0>5}".format(i+1)
+    famid = "GF{:0>8}".format(i+1)
     cds_fastaf.append(os.path.join(outdir, famid + ".pep"))
     fnamepaln =os.path.join(outdir, famid + ".paln")
     fnamepalns[famid]=fnamepaln
@@ -459,7 +461,7 @@ def backtrans(fpaln,fcaln,idmap,seq_cds):
     return pro_aln
 
 def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
-    famid = "GF{:0>5}".format(i+1)
+    famid = "GF{:0>8}".format(i+1)
     fnamep =os.path.join(outdir, famid + ".pep")
     fnamec =os.path.join(outdir, famid + ".cds")
     for seqid in fam:
@@ -473,7 +475,7 @@ def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
     #Note that here the backtranslated codon-alignment will be shorter than the original cds file by a stop codon
 
 def addmbtree(outdir,tree_fams,tree_famsf,i=0,concat=False):
-    if not concat: famid = "GF{:0>5}".format(i+1)
+    if not concat: famid = "GF{:0>8}".format(i+1)
     else: famid = 'Concat' 
     tree_pth = famid + ".paln.nexus" + ".con.tre.backname"
     tree_pth = os.path.join(outdir, tree_pth)
@@ -567,7 +569,7 @@ def fasttree_run(fnamecaln,treeset):
 
 def get_mrbh(s_i,s_j,cscore,eval):
     logging.info("{} vs. {}".format(s_i.prefix, s_j.prefix))
-    s_i.get_rbh_orthologs(s_j, cscore, True, eval=eval)
+    s_i.get_rbh_orthologs(s_j, cscore, False, eval=eval)
     s_i.write_rbh_orthologs(s_j,singletons=False)
 
 def getrbhf(s_i,s_j,outdir):
@@ -577,11 +579,11 @@ def getrbhf(s_i,s_j,outdir):
 
 def getfastaf(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds):
     for seqs in fam:
-        fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
+        fname = os.path.join(rbhgfdirname, 'GF{:0>8}'.format(i+1) + ".pep")
         with open(fname,'a') as f:
             Record = seq_pro.get(idmap.get(seqs))
             f.write(">{}\n{}\n".format(seqs, Record))
-        fname2 = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".cds")
+        fname2 = os.path.join(rbhgfdirname, 'GF{:0>8}'.format(i+1) + ".cds")
         with open(fname2,'a') as f:
             Record = seq_cds.get(idmap.get(seqs))
             f.write(">{}\n{}\n".format(seqs, Record))
@@ -598,8 +600,8 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 df = getrbhf(s[i],s[j],outdir)
                 if table.empty: table = df
                 else: table = table.merge(df)
-        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
-        table.insert(0,'OG', gfid)
+        gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'GF', gfid)
         if not keepduplicates:
             for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         table.to_csv(gmrbhf, sep="\t",index=False)
@@ -631,8 +633,8 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                     table = table.merge(df)
             if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
-        gfid = ['GF{:0>5}'.format(str(i+1)) for i in range(table.shape[0])]
-        table.insert(0,'OG', gfid)
+        gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
+        table.insert(0,'GF', gfid)
         table.to_csv(focusname, sep="\t",index=False)
     if not anchorpoints is None:
         ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
@@ -710,7 +712,7 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
     Parallel(n_jobs=nthreads)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
     for i in range(len(fams)):
         add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
-    x = lambda i : "GF{:0>5}".format(i+1)
+    x = lambda i : "GF{:0>8}".format(i+1)
     if tree_method == "mrbayes":
         Parallel(n_jobs=nthreads)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
         for i in range(len(fams)): addmbtree(outdir,tree_fams,tree_famsf,i=i,concat=False)
@@ -724,7 +726,7 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
 
 def select_phylogeny(tree_fams,slist):
     tree_fams_phylocorrect = {}
-    x = lambda i : "GF{:0>5}".format(i+1)
+    x = lambda i : "GF{:0>8}".format(i+1)
     wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
     for i in range(len(tree_fams)):
         tree = copy.deepcopy(tree_fams[x(i)])
@@ -742,16 +744,15 @@ def judgetree(tree,wgd_mrca):
 
 #def Test_tree_boots(speciestree,tree_famsf):    
 def GetG2SMap(families, outdir):
-    df = pd.read_csv(families,header=0,index_col=False,sep='\t')
-    df.drop('OG', axis=1, inplace=True)
+    df = pd.read_csv(families,header=0,index_col=0,sep='\t')
     G2SMap = os.path.join(outdir, "G2S.Map")
     Slist = []
+    yids = lambda i: ', '.join(list(i)).split(', ')
     for i in df.columns:
         Slist.append(i)
-        for j in df[i]:
-            j = j.strip(" ").strip("\n").strip("\t")
-            with open(G2SMap, "a") as f:
-                f.write(j + " "+ i + "\n")
+        ids = yids(df[i].dropna())
+        with open(G2SMap, "a") as f:
+            for j in ids: f.write(j + " "+ i + "\n")
     return G2SMap, Slist
 
 def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs):
@@ -759,7 +760,7 @@ def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs):
     calnfs_rn = [i + ".rename" for i in calnfs]
     palnfs_rn = [i + ".rename" for i in palnfs]
     for i in range(famnum):
-        famid = "GF{:0>5}".format(i+1)
+        famid = "GF{:0>8}".format(i+1)
         cds_aln_rn = cds_alns_rn[famid]
         pro_aln_rn = pro_alns_rn[famid]
         for j in range(len(pro_aln_rn)):
@@ -782,7 +783,7 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     proseq = {}
     ctree_length = 0
     for i in range(famnum):
-        famid = "GF{:0>5}".format(i+1)
+        famid = "GF{:0>8}".format(i+1)
         cds_aln = cds_alns[famid]
         pro_aln = pro_alns[famid]
         for j in range(len(pro_aln)):
@@ -940,7 +941,7 @@ def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, 
     beast_concat = beast(Concat_calnf, Concat_caln, Concat_paln, tmpdir, outdir, speciestree, datingset, slist, fossil, chainset, rootheight)
     beasts.append(beast_concat)
     for fam in range(famnum):
-        famid = "GF{:0>5}".format(fam+1)
+        famid = "GF{:0>8}".format(fam+1)
         cds_aln_rn = cds_alns_rn[famid]
         pro_aln_rn = pro_alns_rn[famid]
         calnf = calnfs[fam]
@@ -1081,7 +1082,7 @@ def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads):
     annotdir = _mkdir('egg_annotation')
     cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
-        famid = "GF{:0>5}".format(i+1)
+        famid = "GF{:0>8}".format(i+1)
         famid = os.path.join(annotdir,famid)
         cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '--evalue', '{}'.format(evalue), '-i', os.path.basename(cds_fasta), '-o', famid, '--data_dir', data_fir]
         cmd = pfam_annot(cmd,pfam)
@@ -1098,7 +1099,7 @@ def hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads):
     annotdir = _mkdir('hmmer_pfam_annotation')
     cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
-        famid = "GF{:0>5}".format(i+1)
+        famid = "GF{:0>8}".format(i+1)
         famid = os.path.join(annotdir,famid) 
         cmd = ['hmmscan','-o', '{}.txt'.format(famid), '--tblout', '{}.tbl'.format(famid), '--domtblout', '{}.dom'.format(famid), '--pfamtblout', '{}.pfam'.format(famid), '--noali', '-E', '{}'.format(evalue), hmmdb_dir, os.path.basename(cds_fasta)]
         cmds.append(cmd)
@@ -1127,7 +1128,7 @@ def interproscan(cds_fastaf,exepath,outdir,nthreads):
     os.chdir(exepath)
     cmds = []
     for i, cds_fasta in enumerate(cds_fastaf):
-        famid = "GF{:0>5}".format(i+1)
+        famid = "GF{:0>8}".format(i+1)
         cmd = ['./interproscan.sh', '-i', os.path.basename(cds_fasta), '-f', 'tsv', '-dp']
         cmds.append(cmd)
     Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
@@ -1143,13 +1144,13 @@ def endt(tmpdir,start,s):
 
 def concathmm(outdir,df):
     hmmconcatf = os.path.join(outdir,'Full.hmm')
-    gids = map(lambda i:os.path.join(outdir,i+'.cds.hmm'),df.index)
+    gids = map(lambda i:os.path.join(outdir,i+'.pep.hmm'),df.index)
     cmd = ['cat'] + [i for i in gids]
     out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return hmmconcatf
 
-def run_hmmerb(ids,fc,fp,s):
+def run_hmmerbc(ids,fc,fp,s):
     for i in ids:
         with open(fc,'a') as f: f.write('>{}\n{}\n'.format(i,s.cds_sequence[s.idmap[i]]))
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(i,s.pro_sequence[s.idmap[i]]))
@@ -1159,21 +1160,31 @@ def run_hmmerb(ids,fc,fp,s):
     cmd = ['hmmbuild'] + [fhmm] + [fcaln]
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
 
+def run_hmmerbp(ids,fp,s):
+    for i in ids:
+        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(i,s.pro_sequence[s.idmap[i]]))
+    fpaln,o,fhmm = fp + '.aln','--auto',fp + '.hmm'
+    mafft_cmd(fp,o,fpaln)
+    cmd = ['hmmbuild'] + [fhmm] + [fpaln]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
 def hmmerbuild(df,s,outdir,nthreads):
     yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
     yfnc = lambda i: os.path.join(outdir,'{}.cds'.format(i))
     yfnp = lambda i: os.path.join(outdir,'{}.pep'.format(i))
-    Parallel(n_jobs=nthreads)(delayed(run_hmmerb)(yids(i),yfnc(i),yfnp(i),s) for i in df.index)
+    #Parallel(n_jobs=nthreads)(delayed(run_hmmerb)(yids(i),yfnc(i),yfnp(i),s) for i in df.index)
+    Parallel(n_jobs=nthreads)(delayed(run_hmmerbp)(yids(i),yfnp(i),s) for i in df.index)
 
 def hmmerscan(outdir,querys,hmmf,eval,nthreads):
     cmd = ['hmmpress'] + [hmmf]
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     cmds = []
     outs = []
-    yprefix = lambda i: os.path.join(outdir,os.path.basename(i))
+    yprefix = lambda i: os.path.join(outdir,os.path.basename(i).strip('.pep'))
     for s in querys:
-        pf = yprefix(s)
-        cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, s]
+        s.orig_profasta()
+        pf = yprefix(s.orig_pro_fasta)
+        cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, s.orig_pro_fasta]
         cmds.append(cmd)
         outs.append('{}.tbl'.format(pf))
     Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
@@ -1187,32 +1198,59 @@ def modifydf(df,outs,outdir,fam2assign):
         dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
         end = dfo.shape[0] - 10
         for i in range(3,end):
-            pair = dfo.iloc[i,0].split('          ')
+            pair = dfo.iloc[i,0].split()
             f = pair[0][:-4]
-            g = pair[2][:-2]
+            g = pair[2]
             if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:g})
             else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
     for k,v in outdict.items():
         yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
         df.insert(0, k, pd.Series(yg, index=yf))
     df.to_csv(fname,header = True, index = True,sep = '\t')
+    return df
+
+def getassignfasta(df,s,querys,outdir):
+    yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
+    for i in querys: s.merge_seq(i)
+    p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned'))
+    pc = _mkdir(os.path.join(p,'cds'))
+    pp = _mkdir(os.path.join(p,'pep'))
+    for i in df.index:
+        fc = os.path.join(pc,i+'.cds')
+        fp = os.path.join(pp,i+'.pep')
+        for gi in yids(i):
+            with open(fc,'a') as f: f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
+            with open(fp,'a') as f: f.write('>{}\n{}\n'.format(gi,s.pro_sequence[s.idmap[gi]]))
 
 def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign):
     hmmerbuild(df,s,outdir,nthreads)
     hmmf = concathmm(outdir,df)
     outs = hmmerscan(outdir,querys,hmmf,eval,nthreads)
-    modifydf(df,outs,outdir,fam2assign)
+    df = modifydf(df,outs,outdir,fam2assign)
+    getassignfasta(df,s,querys,outdir)
 
+def rmtmp(tmpdir,outdir,querys):
+    if tmpdir == None:
+        [x.remove_tmp(prompt=False) for x in querys]
+        bf = os.path.join(outdir,'rm.sh')
+        with open(bf,'w') as f: f.write('rm *.hmm *.dom *.pfam *.pep *.aln *.txt *.tbl Full.hmm*')
+        cwd = os.getcwd()
+        os.chdir(outdir)
+        sp.run(['sh','rm.sh'],stdout=sp.PIPE,stderr=sp.PIPE)
+        sp.run(['rm','rm.sh'],stdout=sp.PIPE,stderr=sp.PIPE)
+        os.chdir(cwd)
+        
 def dmd4g2f(outdir,s,nthreads,querys,df):
     print('dmd4')
 
 def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
     logging.info("Assigning sequences into given gene families")
-    #seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in seq2assign]
+    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in seq2assign]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
-    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seq2assign,df,eval,fam2assign)
+    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
     else: dmd4g2f(outdir,s[0],nthreads,seqs_query,df)
+    rmtmp(tmpdir,outdir,seqs_query)
     endt(tmpdir,start,s)
 
 def run_or(i,j,s,eval,orthoinfer):
@@ -1332,7 +1370,7 @@ def label2nest(tree,slist,sgmaps,ss,msogcut):
     return dics
 
 def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut):
-    x = lambda i : "GF{:0>5}".format(i+1)
+    x = lambda i : "GF{:0>8}".format(i+1)
     fpaln,fcaln = fp + '.aln',fc + '.aln'
     if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.fasttree')
     if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.treefile')
@@ -1345,7 +1383,7 @@ def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,neste
             nested_dfs.append(df)
 
 def aln2tree_sc(fp,fc,ss,tree_method,treeset,outd,i):
-    x = lambda i : "GF{:0>5}".format(i+1)
+    x = lambda i : "GF{:0>8}".format(i+1)
     fpaln,o,fcaln = fp + '.aln','--auto',fc + '.aln'
     mafft_cmd(fp,o,fpaln)
     pro_aln = backtrans(fpaln,fcaln,ss.idmap,ss.cds_sequence)
@@ -1365,12 +1403,12 @@ def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msog
     ct = 'multi-copy'
     exist_sp = set(gsmap.values())
     coverage = len(exist_sp)/len(slist)
-    fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>5}.cds".format(i+1))
-    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>5}.pep".format(i+1))
-    fc_rep = os.path.join(_mkdir(os.path.join(frep,'cds')),"GF{:0>5}.cds".format(i+1))
-    fp_rep = os.path.join(_mkdir(os.path.join(frep,'pep')),"GF{:0>5}.pep".format(i+1))
-    fc_sog = os.path.join(_mkdir(os.path.join(fsog,'cds')),"GF{:0>5}.cds".format(i+1))
-    fp_sog = os.path.join(_mkdir(os.path.join(fsog,'pep')),"GF{:0>5}.pep".format(i+1))
+    fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>8}.cds".format(i+1))
+    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>8}.pep".format(i+1))
+    fc_rep = os.path.join(_mkdir(os.path.join(frep,'cds')),"GF{:0>8}.cds".format(i+1))
+    fp_rep = os.path.join(_mkdir(os.path.join(frep,'pep')),"GF{:0>8}.pep".format(i+1))
+    fc_sog = os.path.join(_mkdir(os.path.join(fsog,'cds')),"GF{:0>8}.cds".format(i+1))
+    fp_sog = os.path.join(_mkdir(os.path.join(fsog,'pep')),"GF{:0>8}.pep".format(i+1))
     for k,v in gsmap.items():
         cds = ss.cds_sequence[ss.idmap[k]]
         pro = ss.pro_sequence[ss.idmap[k]]
@@ -1400,8 +1438,8 @@ def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msog
     reps_df.append(rep_df)
 
 def seqdict(gsmap,ss,ftmpc,ftmpp,i):
-    fc = os.path.join(ftmpc,"GF{:0>5}.cds".format(i+1))
-    fp = os.path.join(ftmpp,"GF{:0>5}.pep".format(i+1))
+    fc = os.path.join(ftmpc,"GF{:0>8}.cds".format(i+1))
+    fp = os.path.join(ftmpp,"GF{:0>8}.pep".format(i+1))
     for k,v in gsmap.items():
         cds = ss.cds_sequence[ss.idmap[k]]
         pro = ss.pro_sequence[ss.idmap[k]]
@@ -1434,8 +1472,8 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut)
     if getsog:
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
-        yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>5}.cds".format(x+1))
-        yp = lambda x: os.path.join(ftmp,'pep',"GF{:0>5}.pep".format(x+1))
+        yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>8}.cds".format(x+1))
+        yp = lambda x: os.path.join(ftmp,'pep',"GF{:0>8}.pep".format(x+1))
         yco = lambda x,y: counts_df[x].loc[0,y]
         outd = os.path.join(ftmp,'pep')
         for i in range(txt.shape[0]):

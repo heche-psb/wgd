@@ -121,7 +121,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
-                s[i].get_rbh_orthologs(s[j], cscore, True, eval=eval)
+                s[i].get_rbh_orthologs(s[j], cscore, False, eval=eval)
                 s[i].write_rbh_orthologs(s[j],singletons=False)
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
     endt(tmpdir,start,s)
