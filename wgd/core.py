@@ -1414,7 +1414,7 @@ def sgratio(l):
     ratio = len(t)/len(l)
     return ratio
 
-def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut):
+def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,getsog,msogcut):
     fam_table,represent_seqs = {},{}
     count_table = {s:0 for s in slist}
     sumcount = 0
@@ -1451,18 +1451,25 @@ def sgdict(gsmap,slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msog
     count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
     count_df = pd.DataFrame.from_dict([count_table])
     rep_df = pd.DataFrame.from_dict([represent_seqs])
-    fams_df.append(fam_df)
-    counts_df.append(count_df)
-    reps_df.append(rep_df)
+    fam_df.to_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=True,index=True,sep='\t')
+    count_df.to_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=True,index=True,sep='\t')
+    rep_df.to_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=True,index=True,sep='\t')
+    #fams_df.append(fam_df)
+    #counts_df.append(count_df)
+    #reps_df.append(rep_df)
 
-def seqdict(gsmap,ss,ftmpc,ftmpp,i):
-    fc = os.path.join(ftmpc,"GF{:0>8}.cds".format(i+1))
-    fp = os.path.join(ftmpp,"GF{:0>8}.pep".format(i+1))
-    for k,v in gsmap.items():
-        cds = ss.cds_sequence[ss.idmap[k]]
-        pro = ss.pro_sequence[ss.idmap[k]]
-        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
-        with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
+def seqdict(gsmap,ss,i,ftmp):
+    fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>8}.cds".format(i+1))
+    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>8}.pep".format(i+1))
+    with open(fc,'w') as f:
+        for k in gsmap.keys(): f.write('>{}\n{}\n'.format(k,ss.cds_sequence[ss.idmap[k]]))
+    with open(fp,'w') as f:
+        for k in gsmap.keys(): f.write('>{}\n{}\n'.format(k,ss.pro_sequence[ss.idmap[k]]))
+    #for k in gsmap.keys():
+    #    cds = ss.cds_sequence[ss.idmap[k]]
+    #    pro = ss.pro_sequence[ss.idmap[k]]
+    #    with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
+    #    with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
 
 def countdict(gsmap,slist,ss,counts_df):
     count_table = {s:0 for s in slist}
@@ -1474,6 +1481,14 @@ def countdict(gsmap,slist,ss,counts_df):
     count_df = pd.DataFrame.from_dict([count_table])
     counts_df.append(count_df)
 
+def rmtsv(ftmp):
+    cwd = os.getcwd()
+    os.chdir(ftmp)
+    with open('rm.sh','w') as f: f.write('rm *.tsv')
+    sp.run(['sh','rm.sh'],stdout=sp.PIPE, stderr=sp.PIPE)
+    sp.run(['rm','rm.sh'],stdout=sp.PIPE, stderr=sp.PIPE)
+    os.chdir(cwd)
+
 def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut):
     fname_fam = os.path.join(outdir,'Orthogroups.sp.tsv')
     fname_count = os.path.join(outdir,'Orthogroups.genecount.tsv')
@@ -1482,19 +1497,43 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     ftmp = _mkdir(os.path.join(outdir,'Orthologues_Sequence'))
     frep = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Representives'))
     fsog = _mkdir(os.path.join(outdir,'Orthologues_Single_Copy'))
-    fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
     txt = pd.read_csv(txtf,header = None,index_col=0,sep='\t')
     y= lambda x: {j:sgmaps[j] for j in x}
     fams_df,counts_df,reps_df = [],[],[]
-    for i in range(txt.shape[0]):
-        sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut)
+    sh = txt.shape[0]
+    gsmaps = [y(txt.iloc[i,0].split(', ')) for i in range(sh)]
+    #Parallel(n_jobs=nthreads)(delayed(seqdict)(gsmaps[i],ss,i,ftmp) for i in range(sh))
+    #for i in range(sh):
+    Parallel(n_jobs=nthreads)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,getsog,msogcut) for i in range(sh))
+        #sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut)
+    #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
+    #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
+    #Parallel(n_jobs=nthreads)(delayed(seqdict)(y(txt.iloc[i,0].split(', ')),ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
+    #fams_coc = pd.concat(fams_df,ignore_index=True)
+    #counts_coc = pd.concat(counts_df,ignore_index=True)
+    #reps_coc = pd.concat(reps_df,ignore_index=True)
+    #sogs_coc = pd.concat(fams_df,ignore_index=True)
+    fams_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    counts_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    reps_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    _label_families(fams_coc)
+    _label_families(counts_coc)
+    _label_families(reps_coc)
+    rmtsv(ftmp)
+    fams_coc.to_csv(fname_fam,header = True,index =True,sep = '\t')
+    counts_coc.to_csv(fname_count,header = True,index =True,sep = '\t')
+    reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
+    logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
+    mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
+    logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
     if getsog:
+        fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
         yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>8}.cds".format(x+1))
         yp = lambda x: os.path.join(ftmp,'pep',"GF{:0>8}.pep".format(x+1))
         yco = lambda x,y: counts_df[x].loc[0,y]
         outd = os.path.join(ftmp,'pep')
-        for i in range(txt.shape[0]):
+        for i in range(sh):
             li = [yco(i,s) for s in slist]
             if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
         Parallel(n_jobs=nthreads)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
@@ -1507,22 +1546,6 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             nfs_count = {i:nfs.count(i) for i in set(nfs)}
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
-    #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
-    #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
-    #Parallel(n_jobs=nthreads)(delayed(seqdict)(y(txt.iloc[i,0].split(', ')),ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
-    fams_coc = pd.concat(fams_df,ignore_index=True)
-    counts_coc = pd.concat(counts_df,ignore_index=True)
-    reps_coc = pd.concat(reps_df,ignore_index=True)
-    sogs_coc = pd.concat(fams_df,ignore_index=True)
-    _label_families(fams_coc)
-    _label_families(counts_coc)
-    _label_families(reps_coc)
-    fams_coc.to_csv(fname_fam,header = True,index =True,sep = '\t')
-    counts_coc.to_csv(fname_count,header = True,index =True,sep = '\t')
-    reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
-    logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
-    mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
-    logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
