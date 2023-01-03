@@ -1531,7 +1531,8 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
         yc = lambda x: os.path.join(ftmp,'cds',"GF{:0>8}.cds".format(x+1))
         yp = lambda x: os.path.join(ftmp,'pep',"GF{:0>8}.pep".format(x+1))
-        yco = lambda x,y: counts_df[x].loc[0,y]
+        #yco = lambda x,y: counts_df[x].loc[0,y]
+        yco = lambda x,y: counts_coc.loc["GF{:0>8}".format(x+1),y]
         outd = os.path.join(ftmp,'pep')
         for i in range(sh):
             li = [yco(i,s) for s in slist]
