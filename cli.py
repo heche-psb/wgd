@@ -102,7 +102,7 @@ def dmd(**kwargs):
 def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt
     start = timer()
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in sequences]
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in sequences]
     if geneassign:
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
@@ -204,7 +204,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     if len(sequences) < 2:
         logging.error("Please provide at least three sequence files for constructing trees")
         exit(0)
-    seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds) for s in sequences]
+    seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     for s in range(len(seqs)):
         logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
     fams = read_MultiRBH_gene_families(families)
@@ -370,7 +370,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     if len(sequences) == 2:
         tree_method = "cluster"  # for RBH others don't make sense (and crash)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,
-            to_stop=to_stop, cds=cds) for s in sequences]
+            to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     s = merge_seqs(seqs)
     logging.info("tmpdir = {}".format(s.tmp_path))
     fams = read_gene_families(families)

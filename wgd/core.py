@@ -90,7 +90,7 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None):
+            to_stop=True, cds=True, cscore=None,threads = 4):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
         self.tmp_path  = _mkdir(tmp_path)
@@ -108,6 +108,7 @@ class SequenceData:
         self.pro_sequence  = {}
         self.idmap     = {}  # map from the new safe id to the input seq id
         self.read_cds(to_stop=to_stop, cds=cds)
+        self.threads = threads
         _write_fasta(self.pro_fasta, self.pro_seqs)
 
     def read_cds(self, to_stop=True, cds=True):
@@ -162,7 +163,7 @@ class SequenceData:
 
     def make_diamond_db(self):
         if not os.path.isfile(self.pro_db + '.dmnd'):
-            cmd = ["diamond", "makedb", "--in", self.pro_fasta, "-d", self.pro_db]
+            cmd = ["diamond", "makedb", "--in", self.pro_fasta, "-d", self.pro_db, "-p", str(self.threads)]
             out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             logging.debug(out.stderr.decode())
             if out.returncode == 1: logging.error(out.stderr.decode())
@@ -172,7 +173,7 @@ class SequenceData:
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
         outfile = os.path.join(self.tmp_path, run)
         if not orthoinfer:
-            cmd = ["diamond", "blastp", "-d", self.pro_db, "-q", seqs.pro_fasta, "-o", outfile]
+            cmd = ["diamond", "blastp", "-d", self.pro_db, "-q", seqs.pro_fasta, "-o", outfile, "-p", str(self.threads)]
             out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             logging.debug(out.stderr.decode())
         df = pd.read_csv(outfile, sep="\t", header=None)
@@ -1245,7 +1246,7 @@ def dmd4g2f(outdir,s,nthreads,querys,df):
 
 def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
     logging.info("Assigning sequences into given gene families")
-    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore) for s in seq2assign]
+    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in seq2assign]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
     if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
@@ -1287,7 +1288,7 @@ def concatcdss(sequences,outdir):
 def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat):
     if concat:
         Concat_cdsf = concatcdss(sequences,outdir)
-        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
         ss.get_paranome(inflation=inflation, eval=eval)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
