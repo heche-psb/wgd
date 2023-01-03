@@ -600,11 +600,14 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             for j in range(i+1,len(s)):
                 df = getrbhf(s[i],s[j],outdir)
                 if table.empty: table = df
-                else: table = table.merge(df)
+                else:
+                    table = table.merge(df)
+                    if not keepduplicates:
+                        for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'GF', gfid)
-        if not keepduplicates:
-            for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
+        #if not keepduplicates:
+        #    for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         table.to_csv(gmrbhf, sep="\t",index=False)
     elif not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
@@ -618,21 +621,26 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             for j in range(1, len(s)):
                 df = getrbhf(s[0],s[j],outdir)
                 if table.empty: table = df
-                else: table = table.merge(df)
-            if not keepduplicates: table = table.drop_duplicates([focus])
+                else:
+                    table = table.merge(df)
+                    if not keepduplicates: table.drop_duplicates([focus])
+            #if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         else:
             Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
             for k in range(0,x):
                 df = getrbhf(s[x],s[k],outdir)
                 if table.empty: table = df
-                else: table = table.merge(df)
+                else:
+                    table = table.merge(df)
+                    if not keepduplicates: table.drop_duplicates([focus])
             if not len(s) == 2 and not x+1 == len(s):
                 Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
                 for l in range(x+1,len(s)):
                     df = getrbhf(s[x],s[l],outdir)
                     table = table.merge(df)
-            if not keepduplicates: table = table.drop_duplicates([focus])
+                    if not keepduplicates: table = table.drop_duplicates([focus])
+            #if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'GF', gfid)
@@ -1289,6 +1297,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
     if concat:
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
+        logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         ss.get_paranome(inflation=inflation, eval=eval)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
@@ -1302,8 +1311,9 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
     for seq in s: sgmaps.update(seq.spgenemap())
     for seq in s: slist.append(seq.prefix)
     txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut)
-    #if tmpdir is None: ss.remove_tmp(prompt=False)
-    #sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
+    if concat:
+        if tmpdir is None: ss.remove_tmp(prompt=False)
+        sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
     return txtf
 
 def writeogsep(table,seq,fc,fp):
