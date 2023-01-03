@@ -1284,10 +1284,15 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut):
+def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat):
+    if concat:
+        Concat_cdsf = concatcdss(sequences,outdir)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
+        ss.get_paranome(inflation=inflation, eval=eval)
+        txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
     #ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
-    ss,txtf = ortho_infer_mul(s,nthreads,eval,inflation,False)
+    else: ss,txtf = ortho_infer_mul(s,nthreads,eval,inflation,False)
     #logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
     #ss.get_paranome(inflation=inflation, eval=eval)
     #txtf = ss.write_paranome(True)
@@ -1341,7 +1346,7 @@ def getunique(ids,sps,idmap,pros):
     for i,s in zip(ids,sps):
         if d.get(s) == None: d[s] = i
         elif leng(i) > leng(d[s]): d[s] = i
-    d.update({'NestedType':'loose'})
+    d.update({'NestedType':'mostly single-copy'})
     return d
 
 def label2nest(tree,slist,sgmaps,ss,msogcut):
@@ -1357,7 +1362,7 @@ def label2nest(tree,slist,sgmaps,ss,msogcut):
             sps = list(map(lambda n: sgmaps[n],ids))
             if set(sps) == set(slist):
                 dic = {j:i for i,j in zip(ids,sps)}
-                dic.update({'NestedType':'strict'})
+                dic.update({'NestedType':'single-copy'})
                 dics.append(dic)
         elif clade.count_terminals() > len(slist):
             cladec = copy.deepcopy(clade)
