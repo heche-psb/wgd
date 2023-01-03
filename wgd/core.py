@@ -210,8 +210,9 @@ class SequenceData:
 
     def get_para_skip_dmd(self, inflation=1.5, eval=1e-10):
         gf = os.path.join(self.tmp_path, 'Concated')
-        df = pd.concat([v for v in self.dmd_hits.values()])
-        df.to_csv(gf, sep="\t", header=False, index=False, columns=[0,1,10])
+        ysave = lambda i:i.iloc[:,[0,1,10]]
+        df = pd.concat([ysave(v) for v in self.dmd_hits.values()])
+        df.to_csv(gf, sep="\t", header=False, index=False)
         gf = SequenceSimilarityGraph(gf)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
@@ -227,8 +228,9 @@ class SequenceData:
     def get_mcl_graph(self, *args):
         # args are keys in `self.dmd_hits` to use for building MCL graph
         gf = os.path.join(self.tmp_path, "_".join([self.prefix] + list(args)))
-        df = pd.concat([self.dmd_hits[x] for x in args])
-        df.to_csv(gf, sep="\t", header=False, index=False, columns=[0,1,10])
+        ysave = lambda i:i.iloc[:,[0,1,10]]
+        df = pd.concat([ysave(self.dmd_hits[x]) for x in args])
+        df.to_csv(gf, sep="\t", header=False, index=False)
         return SequenceSimilarityGraph(gf)
 
     def write_paranome(self, orthoinfer, fname=None, singletons=True):
@@ -552,7 +554,7 @@ def iqtree_run(treeset,fnamecaln):
             if type(i) == list: treesetfull = treesetfull + i
             else: treesetfull.append(i)
         iq_cmd = iq_cmd + treesetfull
-    else: iq_cmd = ["iqtree", "-s", fnamecaln] + ["-fast"] #+ ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
+    else: iq_cmd = ["iqtree", "-s", fnamecaln] #+ ["-fast"] + ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
     sp.run(iq_cmd, stdout=sp.PIPE)
 
 def fasttree_run(fnamecaln,treeset):

@@ -103,6 +103,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in sequences]
+    for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if geneassign:
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
@@ -205,8 +206,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         logging.error("Please provide at least three sequence files for constructing trees")
         exit(0)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
-    for s in range(len(seqs)):
-        logging.info("tmpdir = {} for {}".format(seqs[s].tmp_path,seqs[s].prefix))
+    for s in seqs: logging.info("tmpdir = {} for {}".format(s.tmp_path,s.prefix))
     fams = read_MultiRBH_gene_families(families)
     cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto")
     if concatenation or dating != 'none':
