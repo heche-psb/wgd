@@ -168,7 +168,7 @@ class SequenceData:
             logging.debug(out.stderr.decode())
             if out.returncode == 1: logging.error(out.stderr.decode())
 
-    def run_diamond(self, seqs, orthoinfer, eval=1e-10):
+    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False):
         self.make_diamond_db()
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
         outfile = os.path.join(self.tmp_path, run)
@@ -176,7 +176,8 @@ class SequenceData:
             cmd = ["diamond", "blastp", "-d", self.pro_db, "-q", seqs.pro_fasta, "-o", outfile, "-p", str(self.threads)]
             out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             logging.debug(out.stderr.decode())
-        df = pd.read_csv(outfile, sep="\t", header=None)
+        if savememory: df = pd.read_csv(outfile, sep="\t", header=None,usecols=[0,1,10])
+        else: df = pd.read_csv(outfile, sep="\t", header=None)
         df = df.loc[df[0] != df[1]]
         self.dmd_hits[seqs.prefix] = df = df.loc[df[10] <= eval]
         return df
@@ -210,16 +211,16 @@ class SequenceData:
 
     def get_para_skip_dmd(self, inflation=1.5, eval=1e-10):
         gf = os.path.join(self.tmp_path, 'Concated')
-        ysave = lambda i:i.iloc[:,[0,1,10]]
-        df = pd.concat([ysave(v) for v in self.dmd_hits.values()])
+        #ysave = lambda i:i.iloc[:,[0,1,10]]
+        df = pd.concat([v for v in self.dmd_hits.values()])
         df.to_csv(gf, sep="\t", header=False, index=False)
         gf = SequenceSimilarityGraph(gf)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
             for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
-    def get_paranome(self, inflation=1.5, eval=1e-10):
-        df = self.run_diamond(self, False, eval=eval)
+    def get_paranome(self, inflation=1.5, eval=1e-10, savememory=False):
+        df = self.run_diamond(self, False, eval=eval, savememory=savememory)
         gf = self.get_mcl_graph(self.prefix)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
@@ -228,8 +229,8 @@ class SequenceData:
     def get_mcl_graph(self, *args):
         # args are keys in `self.dmd_hits` to use for building MCL graph
         gf = os.path.join(self.tmp_path, "_".join([self.prefix] + list(args)))
-        ysave = lambda i:i.iloc[:,[0,1,10]]
-        df = pd.concat([ysave(self.dmd_hits[x]) for x in args])
+        #ysave = lambda i:i.iloc[:,[0,1,10]]
+        df = pd.concat([self.dmd_hits[x] for x in args])
         df.to_csv(gf, sep="\t", header=False, index=False)
         return SequenceSimilarityGraph(gf)
 
@@ -1265,7 +1266,7 @@ def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_s
     endt(tmpdir,start,s)
 
 def run_or(i,j,s,eval,orthoinfer):
-    s[i].run_diamond(s[j], orthoinfer, eval=eval)
+    s[i].run_diamond(s[j], orthoinfer, eval=eval, savememory=True)
 
 def back_dmdhits(i,j,s,eval):
     ftmp = os.path.join(s[i].tmp_path,'_'.join([s[i].prefix,s[j].prefix])+'.tsv')
@@ -1300,7 +1301,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
-        ss.get_paranome(inflation=inflation, eval=eval)
+        ss.get_paranome(inflation=inflation, eval=eval, savememory = True)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
     #ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
