@@ -100,7 +100,8 @@ def dmd(**kwargs):
     _dmd(**kwargs)
 
 def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter
+    memory_reporter()
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
@@ -113,7 +114,6 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
     if len(s) == 0:
         logging.error("No sequences provided!")
         return
-    for seq in s: logging.info("tmpdir = {} for {}".format(seq.tmp_path,seq.prefix))
     if len(s) == 1:
         logging.info("One CDS file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
@@ -279,28 +279,35 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--boots', type=int, default=200, show_default=True, help="number of bootstrap replicates of kde")
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
-@click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='stacked', show_default=True, help="plotting method")
+@click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='identical', show_default=True, help="plotting method")
 @click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
 @click.option('--multiplicon', '-mp', default=None, show_default=True,help='multiplicon infomation if available')
+@click.option('--anchorks', '-ak', is_flag=True, help='anchor Ks distribution clustering')
+@click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
+@click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
+@click.option('--alpha',type=float, default=0.5, show_default=True, help="alpha value to control Interpercentile range")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon, anchorks, n_medoids, kdemethod, alpha):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
     if len(ksdf.columns) <4:
         logging.info("Begin to analyze peak of WGD dates")
-        draw_kde_CI(outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
+        draw_kde_CI(kdemethod, outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
         exit()
     ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
-    get_kde(outdir,train_in,ksdf_filtered,weighted,ksrange[0],ksrange[1])
+    if anchorks:
+        fit_kmedoids(fn_ksdf, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha)
+        exit()
+    get_kde(kdemethod,outdir,train_in,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
         out_file = os.path.join(outdir, "AIC_BIC.pdf")
         models, aic, bic, besta, bestb, N = fit_gmm(out_file, train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
@@ -311,13 +318,13 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         ksdf_predict = add_prediction(ksdf,fn_ksdf,train_in,m)
         ksdf_predict.to_csv(fname,header=True,index=True,sep='\t')
         logging.info("Plotting components-annotated Ks distribution for {} components model".format(n))
-        fig = default_plot(ksdf_predict, title=fname, bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
+        fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
         fig.savefig(fname + "_Ks.svg")
         fig.savefig(fname + "_Ks.pdf")
         plt.close()
         ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
-        draw_components_kde_bootstrap(outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
-    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
+        draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
+    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
     logging.info("Done")
 
 # Ks distribution construction
@@ -486,11 +493,11 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
             ylabel = "RBH orthologs"
         ksd = pd.read_csv(ks_distribution, sep="\t", index_col=0)
         anchor_ks = get_anchor_ksd(ksd, anchors)
-        anchor_ks.to_csv(os.path.join(outdir, "{}.anchors.ks.csv".format(prefix)))
+        anchor_ks.to_csv(os.path.join(outdir, "{}.anchors.ks.tsv".format(prefix)),sep='\t')
         a = apply_filters(ksd,       [("dS", 1e-4, 5.), ("S", 10, 1e6)])
         b = apply_filters(anchor_ks, [("dS", 1e-4, 5.), ("S", 10, 1e6)])
         logging.info("Generating anchor Ks distribution")
-        fig = default_plot(a, b, title=prefix, rwidth=0.8, bins=50, ylabel=ylabel)
+        fig = default_plot(a, b, title=prefix, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
         # Ks colored dotplot

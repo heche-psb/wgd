@@ -15,15 +15,24 @@ from Bio.Alphabet import IUPAC
 from Bio.Data.CodonTable import TranslationError
 from Bio import Phylo
 from joblib import Parallel, delayed
+from concurrent.futures import ProcessPoolExecutor
 from wgd.codeml import Codeml
 from wgd.cluster import cluster_ks
 from wgd.mcmctree import mcmctree
 from wgd.beast import beast
 from timeit import default_timer as timer
 import copy
+import psutil
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
+def memory_reporter():
+    d = psutil.virtual_memory()
+    logging.info("Available memory for processes : {}GB ".format(d[1]/1e9))
+    logging.info("Memory usage in percent : {}% ".format(d[2]))
+    logging.info("The memory used : {}GB ".format(d[3]/1e9))
+    logging.info("The memory not used but readily available : {}GB ".format(d[4]/1e9))
+
 def _write_fasta(fname, seq_dict):
     with open(fname, "w") as f:
         for k, v in seq_dict.items():
@@ -599,7 +608,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
         for i in range(len(s)-1):
             tables = []
-            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[i],s[j],cscore,eval) for j in range(i+1,len(s)))
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[i],s[j],cscore,eval) for j in range(i+1,len(s)))
             for j in range(i+1,len(s)):
                 df = getrbhf(s[i],s[j],outdir)
                 if table.empty: table = df
@@ -620,7 +629,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         for i in range(len(s)):
             if s[i].prefix == focus: x = x+i
         if x == 0:
-            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
             for j in range(1, len(s)):
                 df = getrbhf(s[0],s[j],outdir)
                 if table.empty: table = df
@@ -630,7 +639,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             #if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         else:
-            Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
             for k in range(0,x):
                 df = getrbhf(s[x],s[k],outdir)
                 if table.empty: table = df
@@ -638,7 +647,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                     table = table.merge(df)
                     if not keepduplicates: table.drop_duplicates([focus])
             if not len(s) == 2 and not x+1 == len(s):
-                Parallel(n_jobs=nthreads)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
+                Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
                 for l in range(x+1,len(s)):
                     df = getrbhf(s[x],s[l],outdir)
                     table = table.merge(df)
@@ -677,7 +686,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 seq_pro.update(s[i].pro_sequence)
             rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
             os.mkdir(rbhgfdirname)
-            Parallel(n_jobs=nthreads)(delayed(getfastaf)(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(getfastaf)(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
            # for i, fam in enumerate(seqid_table):
            #     for seqs in fam:
            #         fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
@@ -692,7 +701,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 seqid_table = read_MultiRBH_gene_families(focusapname)
                 rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
                 os.mkdir(rbhgfapdirname)
-                Parallel(n_jobs=nthreads)(delayed(getfastaf)(i,fam,rbhgfapdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+                Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(getfastaf)(i,fam,rbhgfapdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
                 #for i, fam in enumerate(seqid_table):
                 #    for seqs in fam:
                 #        fname = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".pep")
@@ -721,18 +730,18 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
         seq_pro.update(seqs[i].pro_sequence)
         idmap.update(seqs[i].idmap)
     fnamecalns, fnamepalns = {},{}
-    Parallel(n_jobs=nthreads)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
     for i in range(len(fams)):
         add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
     x = lambda i : "GF{:0>8}".format(i+1)
     if tree_method == "mrbayes":
-        Parallel(n_jobs=nthreads)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
         for i in range(len(fams)): addmbtree(outdir,tree_fams,tree_famsf,i=i,concat=False)
     if tree_method == "iqtree":
-        Parallel(n_jobs=nthreads)(delayed(iqtree_run)(treeset,fnamecalns[x(i)]) for i in range(len(fams)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(iqtree_run)(treeset,fnamecalns[x(i)]) for i in range(len(fams)))
         for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.treefile')
     if tree_method == "fasttree":
-        Parallel(n_jobs=nthreads)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
         for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams
 
@@ -960,7 +969,7 @@ def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, 
         beast_i = beast(calnf, cds_aln_rn, pro_aln_rn, tmpdir, outdir, speciestree, datingset, slist, fossil, chainset, rootheight)
         beasts.append(beast_i)
     beast_i.run_beast(beastlgjar,beagle)
-    Parallel(n_jobs=nthreads)(delayed(i.run_beast)(beastlgjar,beagle) for i in beasts)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(i.run_beast)(beastlgjar,beagle) for i in beasts)
 
 # Run MCMCtree
 def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, datingset, aamodel, partition, slist, nthreads):
@@ -1003,7 +1012,7 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
         McMctrees.append(McMctree)
         #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
-    Parallel(n_jobs=nthreads)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
     Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml)
     df_CI = pd.DataFrame.from_dict(CI_table,orient='index',columns=['CI_lower','CI_upper'])
     df_PM = pd.DataFrame.from_dict(PM_table,orient='index',columns=['PM'])
@@ -1100,7 +1109,7 @@ def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads):
         cmd = pfam_annot(cmd,pfam)
         cmd = dmnb_annot(cmd,dmnb)
         cmds.append(cmd)
-    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     os.chdir(parent)
 
@@ -1116,7 +1125,7 @@ def hmmer_pfam(cds_fastaf,hmm,outdir,evalue,nthreads):
         cmd = ['hmmscan','-o', '{}.txt'.format(famid), '--tblout', '{}.tbl'.format(famid), '--domtblout', '{}.dom'.format(famid), '--pfamtblout', '{}.pfam'.format(famid), '--noali', '-E', '{}'.format(evalue), hmmdb_dir, os.path.basename(cds_fasta)]
         cmds.append(cmd)
         #out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     os.chdir(parent)
 
 def cpgf_interproscan(cds_fastaf,exepath):
@@ -1143,7 +1152,7 @@ def interproscan(cds_fastaf,exepath,outdir,nthreads):
         famid = "GF{:0>8}".format(i+1)
         cmd = ['./interproscan.sh', '-i', os.path.basename(cds_fasta), '-f', 'tsv', '-dp']
         cmds.append(cmd)
-    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     mvgfback_interproscan(cds_fastaf,out_path)
     os.chdir(parent)
 
@@ -1185,7 +1194,7 @@ def hmmerbuild(df,s,outdir,nthreads):
     yfnc = lambda i: os.path.join(outdir,'{}.cds'.format(i))
     yfnp = lambda i: os.path.join(outdir,'{}.pep'.format(i))
     #Parallel(n_jobs=nthreads)(delayed(run_hmmerb)(yids(i),yfnc(i),yfnp(i),s) for i in df.index)
-    Parallel(n_jobs=nthreads)(delayed(run_hmmerbp)(yids(i),yfnp(i),s) for i in df.index)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(run_hmmerbp)(yids(i),yfnp(i),s) for i in df.index)
 
 def hmmerscan(outdir,querys,hmmf,eval,nthreads):
     cmd = ['hmmpress'] + [hmmf]
@@ -1199,7 +1208,7 @@ def hmmerscan(outdir,querys,hmmf,eval,nthreads):
         cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, s.orig_pro_fasta]
         cmds.append(cmd)
         outs.append('{}.tbl'.format(pf))
-    Parallel(n_jobs=nthreads)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     return outs
 
 def modifydf(df,outs,outdir,fam2assign):
@@ -1276,9 +1285,16 @@ def back_dmdhits(i,j,s,eval):
 
 def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
     for i in range(len(s)):
-        Parallel(n_jobs=nthreads)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=30)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        #res = zip(*r)
+        #for e in res: print(e.shape)
+        #for j,e in zip(range(i, len(s)),res):
+        #    print(type(e))
+        #    print(e)
+        #    s[i].dmd_hits[s[j].prefix] = e
         for j in range(i, len(s)): back_dmdhits(i,j,s,eval)
         s[i].rndmd_hit()
+    memory_reporter()
     for i in range(1, len(s)):
         s[0].merge_dmd_hits(s[i])
         s[0].merge_seq(s[i])
@@ -1301,6 +1317,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
+        memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
@@ -1415,7 +1432,7 @@ def sgratio(l):
     ratio = len(t)/len(l)
     return ratio
 
-def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,getsog,msogcut):
+def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
     fam_table,represent_seqs = {},{}
     count_table = {s:0 for s in slist}
     sumcount = 0
@@ -1452,9 +1469,10 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,getsog,msogcut):
     count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
     count_df = pd.DataFrame.from_dict([count_table])
     rep_df = pd.DataFrame.from_dict([represent_seqs])
-    fam_df.to_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=True,index=True,sep='\t')
-    count_df.to_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=True,index=True,sep='\t')
-    rep_df.to_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=True,index=True,sep='\t')
+    #fam_df.to_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=True,index=True,sep='\t')
+    #count_df.to_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=True,index=True,sep='\t')
+    #rep_df.to_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=True,index=True,sep='\t')
+    return fam_df,count_df,rep_df
     #fams_df.append(fam_df)
     #counts_df.append(count_df)
     #reps_df.append(rep_df)
@@ -1503,30 +1521,35 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     fams_df,counts_df,reps_df = [],[],[]
     sh = txt.shape[0]
     gsmaps = [y(txt.iloc[i,0].split(', ')) for i in range(sh)]
+    memory_reporter()
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(gsmaps[i],ss,i,ftmp) for i in range(sh))
     #for i in range(sh):
-    Parallel(n_jobs=nthreads)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,getsog,msogcut) for i in range(sh))
-        #sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,getsog,msogcut)
+    r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
+    fam_dfs,count_dfs,rep_dfs=zip(*r)
+    #    sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,msogcut)
     #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
     #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(y(txt.iloc[i,0].split(', ')),ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
     #fams_coc = pd.concat(fams_df,ignore_index=True)
     #counts_coc = pd.concat(counts_df,ignore_index=True)
     #reps_coc = pd.concat(reps_df,ignore_index=True)
-    #sogs_coc = pd.concat(fams_df,ignore_index=True)
-    fams_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
-    counts_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
-    reps_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    fams_coc = pd.concat([i for i in fam_dfs],ignore_index=True)
+    counts_coc = pd.concat([i for i in count_dfs],ignore_index=True)
+    reps_coc = pd.concat([i for i in rep_dfs],ignore_index=True)
+    #fams_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    #counts_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
+    #reps_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
     _label_families(fams_coc)
     _label_families(counts_coc)
     _label_families(reps_coc)
-    rmtsv(ftmp)
+    #rmtsv(ftmp)
     fams_coc.to_csv(fname_fam,header = True,index =True,sep = '\t')
     counts_coc.to_csv(fname_count,header = True,index =True,sep = '\t')
     reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
     logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
     mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
     logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
+    memory_reporter()
     if getsog:
         fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
@@ -1538,7 +1561,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         for i in range(sh):
             li = [yco(i,s) for s in slist]
             if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
-        Parallel(n_jobs=nthreads)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
+        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=50)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
         for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut)
         if nested_dfs:
             nested_coc = pd.concat(nested_dfs,ignore_index=True).set_index('NestedSOG')
@@ -1548,6 +1571,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             nfs_count = {i:nfs.count(i) for i in set(nfs)}
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
+        memory_reporter()
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
@@ -1742,7 +1766,7 @@ class KsDistributionBuilder:
         self.n_threads = n_threads
 
     def get_distribution(self):
-        Parallel(n_jobs=self.n_threads)(
+        Parallel(n_jobs=self.n_threads,backend='multiprocessing',batch_size=200)(
             delayed(_get_ks)(family) for family in self.families)
         df = pd.concat([pd.read_csv(x.out, index_col=0) 
             for x in self.families], sort=True)
