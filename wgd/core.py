@@ -1285,7 +1285,7 @@ def back_dmdhits(i,j,s,eval):
 
 def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
     for i in range(len(s)):
-        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=30)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
         #res = zip(*r)
         #for e in res: print(e.shape)
         #for j,e in zip(range(i, len(s)),res):
