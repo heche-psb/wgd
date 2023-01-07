@@ -1561,7 +1561,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         for i in range(sh):
             li = [yco(i,s) for s in slist]
             if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
-        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=50)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
+        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=100)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
         for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut)
         if nested_dfs:
             nested_coc = pd.concat(nested_dfs,ignore_index=True).set_index('NestedSOG')
