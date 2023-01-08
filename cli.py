@@ -286,13 +286,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
 @click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
 @click.option('--alpha',type=float, default=0.5, show_default=True, help="alpha value to control Interpercentile range")
+@click.option('--n_clusters',type=int, default=5, show_default=True, help="number of clusters to plot Elbow loss function")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon, anchorks, n_medoids, kdemethod, alpha):
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon, anchorks, n_medoids, kdemethod, alpha, n_clusters):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
@@ -305,7 +306,7 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     if anchorks:
-        fit_kmedoids(fn_ksdf, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha)
+        fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
         exit()
     get_kde(kdemethod,outdir,train_in,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':

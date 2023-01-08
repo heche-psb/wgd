@@ -1432,13 +1432,40 @@ def sgratio(l):
     ratio = len(t)/len(l)
     return ratio
 
-def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
+def first_tsv_genecounts(gsmap,slist,ss,msogcut):
     fam_table,represent_seqs = {},{}
     count_table = {s:0 for s in slist}
     sumcount = 0
     ct = 'multi-copy'
     exist_sp = set(gsmap.values())
     coverage = len(exist_sp)/len(slist)
+    for k,v in gsmap.items():
+        pro = ss.pro_sequence[ss.idmap[k]]
+        if fam_table.get(v) == None:
+            fam_table[v] = k
+            represent_seqs[v] = k
+        else:
+            fam_table[v] = ", ".join([fam_table[v],k])
+            if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
+        count_table[v] = count_table[v] + 1
+        sumcount = sumcount + 1
+    for ms in set(slist) - set(gsmap.values()): fam_table[ms],represent_seqs[ms] = '',''
+    li = [v == 1 for v in count_table.values()]
+    if all(li): ct = 'single-copy'
+    elif sgratio(li) >= msogcut: ct = 'mostly single-copy'
+    fam_df = pd.DataFrame.from_dict([fam_table])
+    count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
+    count_df = pd.DataFrame.from_dict([count_table])
+    rep_df = pd.DataFrame.from_dict([represent_seqs])
+    return fam_df,count_df,rep_df
+
+def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
+    fam_table,represent_seqs = {},{}
+    count_table = {s:0 for s in slist}
+    #sumcount = 0
+    #ct = 'multi-copy'
+    #exist_sp = set(gsmap.values())
+    #coverage = len(exist_sp)/len(slist)
     fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>8}.cds".format(i+1))
     fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>8}.pep".format(i+1))
     fc_rep = os.path.join(_mkdir(os.path.join(frep,'cds')),"GF{:0>8}.cds".format(i+1))
@@ -1450,12 +1477,12 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
         pro = ss.pro_sequence[ss.idmap[k]]
         if fam_table.get(v) == None:
             fam_table[v] = k
-            represent_seqs[v] = k
+        #    represent_seqs[v] = k
         else:
             fam_table[v] = ", ".join([fam_table[v],k])
-            if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
+        #    if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
         count_table[v] = count_table[v] + 1
-        sumcount = sumcount + 1
+        #sumcount = sumcount + 1
         with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
     writeogsep(represent_seqs,ss,fc_rep,fp_rep)
@@ -1463,16 +1490,16 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
     li = [v == 1 for v in count_table.values()]
     if all(li):
         writeogsep(fam_table,ss,fc_sog,fp_sog)
-        ct = 'single-copy'
-    elif sgratio(li) >= msogcut: ct = 'mostly single-copy'
-    fam_df = pd.DataFrame.from_dict([fam_table])
-    count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
-    count_df = pd.DataFrame.from_dict([count_table])
-    rep_df = pd.DataFrame.from_dict([represent_seqs])
+    #    ct = 'single-copy'
+    #elif sgratio(li) >= msogcut: ct = 'mostly single-copy'
+    #fam_df = pd.DataFrame.from_dict([fam_table])
+    #count_table.update({'Sum':sumcount,'PhylogenyCoverage':coverage,'CopyType':ct})
+    #count_df = pd.DataFrame.from_dict([count_table])
+    #rep_df = pd.DataFrame.from_dict([represent_seqs])
     #fam_df.to_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=True,index=True,sep='\t')
     #count_df.to_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=True,index=True,sep='\t')
     #rep_df.to_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=True,index=True,sep='\t')
-    return fam_df,count_df,rep_df
+    #return fam_df,count_df,rep_df
     #fams_df.append(fam_df)
     #counts_df.append(count_df)
     #reps_df.append(rep_df)
@@ -1524,7 +1551,8 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     memory_reporter()
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(gsmaps[i],ss,i,ftmp) for i in range(sh))
     #for i in range(sh):
-    r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
+    r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(first_tsv_genecounts)(gsmaps[i],slist,ss,msogcut) for i in range(sh))
+    Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
     fam_dfs,count_dfs,rep_dfs=zip(*r)
     #    sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,msogcut)
     #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))

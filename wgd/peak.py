@@ -476,10 +476,10 @@ def info_centers(cluster_centers):
         logging.info("cluster {0} centered at {1}".format(i,c))
     return centers
 
-def write_labels(df,fn_ksdf,labels,outdir,n):
-    predict_column = pd.DataFrame(labels,index=fn_ksdf.index,columns=['KMedoids_Cluster']).reset_index()
+def write_labels(df,df_index,labels,outdir,n):
+    predict_column = pd.DataFrame(labels,index=df_index.index,columns=['KMedoids_Cluster']).reset_index()
     df = df.reset_index()
-    df = df.merge(predict_column, on = ['family','node'])
+    df = df.merge(predict_column, on = ['basecluster'])
     df = df.set_index('pair')
     fname = os.path.join(outdir,'AnchorKs_KMedoids_Clustering_{}components_prediction.tsv'.format(n))
     df.to_csv(fname,header=True,index=True,sep='\t')
@@ -517,10 +517,22 @@ def get_totalH(Hs):
     for i in Hs: CHF = CHF + i
     return CHF
 
+def kde_method(kdemethod,bw,X,kde_x,w=None):
+    if kdemethod == 'scipy':
+        kde = stats.gaussian_kde(X,weights=w,bw_method=bw)
+        bw_modifier = 1
+        kde.set_bandwidth(kde.factor * bw_modifier)
+        kde_y = kde(kde_x)
+    if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
+    if kdemethod == 'treekde': kde_y = TreeKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
+    if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
+    return kde_y
+
 def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50):
     fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components.pdf".format(n))
     f, ax = plt.subplots()
-    kde_x = np.linspace(0,5,num=bins*10)
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
     modes = {i:[] for i in range(n)}
     orig_modes = []
     css = []
@@ -533,10 +545,11 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
                 df = df.dropna(subset=['weightoutlierexcluded'])
                 X = getX(df,'dS')
                 w = getX(df,'weightoutlierexcluded')
-                if kdemethod == 'scipy': kde_y=stats.gaussian_kde(X,weights=w,bw_method=bin_width).pdf(kde_x)
-                if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
-                if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
-                if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
+                kde_y = kde_method(kdemethod,bin_width,X,kde_x,w=w)
+                #if kdemethod == 'scipy': kde_y=stats.gaussian_kde(X,weights=w,bw_method=bin_width).pdf(kde_x)
+                #if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
+                #if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
+                #if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
                 #counts = 1/w
                 #counts = counts.astype('int')
                 #fv = np.repeat(X, counts)
@@ -545,16 +558,16 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
                 #mu, std = np.exp(mu), np.exp(std)
                 mode, maxim = kde_mode(kde_x, kde_y)
                 orig_modes.append(mode)
-                #CDF = get_totalP(kde_y,num=bins*10)
+                #CDF = get_totalP(kde_y,num=bins*kdesity)
                 #print(CDF)
-                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 50, num=51,dtype=int)/10,weights=w,color=c, alpha=0.7, rwidth=0.8)
+                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.7, rwidth=0.8)
                 CHF = get_totalH(Hs)
-                scale = CHF/10
+                scale = CHF*bin_width
                 #print(CHF)
                 #print(len(X))
-                plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4)
+                plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4, ls = '--')
                 plt.axvline(x = mode, color = c, alpha = 0.8, ls = ':', lw = 1)
-                i_low,i_upp = get_CDF_CI(Hs,alpha)
+                i_low,i_upp = get_CDF_CI(Hs,alpha,num=int(5/bin_width))
                 CIs[i]=[Bins[i_low],Bins[i_upp]]
                 #plt.axvline(x = Bins[i_low], color = c, alpha = 0.8, ls = '--', lw = 1)
                 #plt.axvline(x = Bins[i_upp], color = c, alpha = 0.8, ls = '--', lw = 1)
@@ -580,26 +593,31 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
             Xs = [getX(df,'dS') for df in dfs]
             ws = [getX(df,'weightoutlierexcluded') for df in dfs]
             #sns.distplot(Xs,bins = np.linspace(0, 50, num=51,dtype=int)/10,hist_kws={"rwidth": 0.8, "color": cs, "alpha": 0.7, "weights":ws,"stacked":True},kde_kws={"bw": 0.2})
-            plt.hist(Xs,bins = np.linspace(0, 50, num=51,dtype=int)/10,weights=ws,color=cs,alpha=0.7,rwidth=0.8,stacked=True)
-            #if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
+            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.7,rwidth=0.8,stacked=True)
+            df = dfo.dropna(subset=['weightoutlierexcluded'])
+            X = getX(df,'dS')
+            w = getX(df,'weightoutlierexcluded')
+            Hs, Bins, patches =plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='white',alpha=0.0,rwidth=0.8)
+            kde_y = kde_method(kdemethod,bin_width,X,kde_x,w=w)
+            #CHF = get_totalH(Hs[0])+get_totalH(Hs[1])+get_totalH(Hs[2])
+            CHF = get_totalH(Hs)
+            scale = CHF*bin_width
+            plt.plot(kde_x, kde_y*scale, color = 'black',alpha=0.4,ls = '--')
     elif plot == 'identical':
         for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
             css.append(c)
             dfo = dfo.drop_duplicates(subset=['family', 'node'])
             df = dfo[dfo['KMedoids_Cluster']==i]
-            X = getX(df,'dS')
-            if kdemethod == 'scipy': kde_y=stats.gaussian_kde(X,bw_method=bin_width).pdf(kde_x)
-            if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(X).evaluate(kde_x)
-            if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(X).evaluate(kde_x)
-            if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(X).evaluate(kde_x)
+            X = getX(df,'node_averaged_dS_outlierexcluded')
+            kde_y = kde_method(kdemethod,bin_width,X,kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
             plt.axvline(x = mode, color = c, alpha = 0.8, ls = ':', lw = 1)
             orig_modes.append(mode)
-            Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 50, num=51,dtype=int)/10,color = c, alpha=0.7, rwidth=0.8)
+            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.7, rwidth=0.8)
             CHF = get_totalH(Hs)
-            scale = CHF/10
-            plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4)
-            i_low,i_upp = get_CDF_CI(Hs,alpha)
+            scale = CHF*bin_width
+            plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4,ls = '--')
+            i_low,i_upp = get_CDF_CI(Hs,alpha,num=int(5/bin_width))
             CIs[i]=[Bins[i_low],Bins[i_upp]]
             #plt.axvline(x = Bins[i_upp], color = c, alpha = 0.8, ls = '--', lw = 1)
             #plt.axvline(x = Bins[i_low], color = c, alpha = 0.8, ls = '--', lw = 1)
@@ -623,8 +641,14 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
         dfo = dfo.drop_duplicates(subset=['family', 'node'])
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
         cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
-        Xs = [getX(df,'dS') for df in dfs]
-        plt.hist(Xs,bins = np.linspace(0, 50, num=51,dtype=int)/10,color=cs,alpha=0.7,rwidth=0.8,stacked=True)
+        Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
+        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.7,rwidth=0.8,stacked=True)
+        X = getX(dfo,'node_averaged_dS_outlierexcluded')
+        Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color='white',alpha=0.0,rwidth=0.8)
+        kde_y = kde_method(kdemethod,bin_width,X,kde_x)
+        CHF = get_totalH(Hs)
+        scale = CHF*bin_width
+        plt.plot(kde_x, kde_y*scale, color = 'black',alpha=0.4,ls = '--')
     #if plot == 'identical':
     #    for i,mode in modes.items():
     #        kde_x = np.linspace(0,5,num=512)
@@ -638,9 +662,10 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
     #        plt.axvline(x = lower, color = 'black', alpha = 0.8, ls = '--', lw = 1)
     #        plt.axvline(x = upper, color = 'black', alpha = 0.8, ls = '--', lw = 1)
     #for c in centers: plt.axvline(x = c, color = 'black', alpha = 0.8, ls = ':', lw = 1)
-    props = dict(boxstyle='round', facecolor='grey', alpha=0.1)
-    text = "\n".join(["\n".join(["Clusters: {}".format(i),"Mode: {:4.4f}".format(orig_modes[i]),"CI: {:4.4f}-{:4.4f}".format(CIs[i][0],CIs[i][1])]) for i in range(n)])
-    plt.text(0.75,0.95,text,transform=ax.transAxes,fontsize=8,verticalalignment='top',bbox=props)
+    if plot == 'identical':
+        props = dict(boxstyle='round', facecolor='grey', alpha=0.1)
+        text = "\n".join(["\n".join(["Clusters: {}".format(i),"Mode: {:2.2f}".format(orig_modes[i]),"CI: {:2.2f}-{:2.2f}".format(CIs[i][0],CIs[i][1])]) for i in range(n)])
+        plt.text(0.75,0.95,text,transform=ax.transAxes,fontsize=8,verticalalignment='top',bbox=props)
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
     #plt.yticks(ticks=plt.yticks()[0][1:], labels=10 * np.array(plt.yticks()[0][1:], dtype=np.float64))
@@ -652,23 +677,78 @@ def getX(df,column):
     X = np.array(df.loc[:,column].dropna())
     return X
 
-def fit_kmedoids(fn_ksdf, boots, kdemethod, bin_width, weighted, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5):
+def Elbow_lossf(X_log,cluster_centers,labels):
+    D = []
+    for i,c in enumerate(cluster_centers):
+        sum_d = 0
+        for x,l in zip(X_log,labels):
+            if l == i:
+                sum_d = sum_d + (x - c)**2
+        D.append(sum_d)
+    Loss = sum(D)
+    return Loss
+
+def plot_Elbow_loss(Losses,outdir):
+    fname = os.path.join(outdir,'Elbow-Loss Function.pdf')
+    x_range = list(range(1, len(Losses) + 1))
+    fig, axes = plt.subplots()
+    axes.plot(np.arange(1, len(Losses) + 1), Losses, color='k', marker='o')
+    axes.set_xticks(list(range(1, len(Losses) + 1)))
+    axes.set_xticklabels(x_range)
+    axes.grid(ls=":")
+    axes.set_ylabel("Elbow-loss")
+    axes.set_xlabel("# Medoids")
+    fig.tight_layout()
+    fig.savefig(fname,format ='pdf')
+    plt.close()
+
+def get_anchors(anchor):
+    anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+    anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+    df = anchors[["pair", "basecluster"]].drop_duplicates("pair").set_index("pair")
+    return df
+
+def get_anchor_ksd(ksdf, apdf):
+    return ksdf.join(apdf)
+
+def bc_group_anchor(df):
+    median_df = df.groupby(["basecluster"]).median()
+    X = getX(median_df,'dS')
+    return median_df,X
+
+def fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5):
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
-    df = df.dropna(subset=['node_averaged_dS_outlierexcluded'])
-    logging.info("KMedoids clustering with {} component".format(n))
-    df_rmdup = df.drop_duplicates(subset=['family', 'node'])
-    X = getX(df_rmdup,'node_averaged_dS_outlierexcluded')
+    if anchor == None:
+        logging.error('Please proved anchorpoints.txt file for Anchor Ks KMedoids Clustering')
+        exit(0)
+    df_ap = get_anchors(anchor)
+    df = get_anchor_ksd(df, df_ap)
+    df_withindex,X = bc_group_anchor(df)
+    #df = df.dropna(subset=['node_averaged_dS_outlierexcluded'])
+    #df_rmdup = df.drop_duplicates(subset=['family', 'node'])
+    #X = getX(df_rmdup,'node_averaged_dS_outlierexcluded')
     X_log = np.log(X).reshape(-1, 1)
+    logging.info("KMedoids clustering with {} component".format(n))
     if n > 1: kmedoids = KMedoids(n_clusters=n,metric=metric,method=method,init=init,max_iter=em_iter,random_state=seed).fit(X_log)
     else: kmedoids = KMedoids(n_clusters=n,metric=metric,method='alternate',init=init,max_iter=em_iter,random_state=seed).fit(X_log)
     cluster_centers = kmedoids.cluster_centers_
     centers = info_centers(cluster_centers)
-    #labels = kmedoids.labels_
-    labels = kmedoids.predict(X_log)
+    labels = kmedoids.labels_
+    #labels = kmedoids.predict(X_log)
+    Losses = []
+    for p in range(1,n_kmedoids+1):
+        if p == 1: kmedoids = KMedoids(n_clusters=p,metric=metric,method='alternate',init=init,max_iter=em_iter,random_state=seed).fit(X_log)
+        else: kmedoids = KMedoids(n_clusters=p,metric=metric,method=method,init=init,max_iter=em_iter,random_state=seed).fit(X_log)
+        Cluster_centers = kmedoids.cluster_centers_
+        Labels = kmedoids.labels_
+        loss = Elbow_lossf(X_log,Cluster_centers,Labels)
+        Losses.append(loss)
+    plot_Elbow_loss(Losses,outdir)
+    #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
-    df_c = write_labels(df,fn_ksdf,labels,outdir,n)
+    df_c = write_labels(df,df_withindex,labels,outdir,n)
     plot_kmedoids(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha)
 
 def Getanchor_Ksdf(anchor,ksdf,multiplicon):
