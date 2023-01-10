@@ -1477,10 +1477,10 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
         pro = ss.pro_sequence[ss.idmap[k]]
         if fam_table.get(v) == None:
             fam_table[v] = k
-        #    represent_seqs[v] = k
+            represent_seqs[v] = k
         else:
             fam_table[v] = ", ".join([fam_table[v],k])
-        #    if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
+            if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
         count_table[v] = count_table[v] + 1
         #sumcount = sumcount + 1
         with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
@@ -1551,9 +1551,14 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     memory_reporter()
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(gsmaps[i],ss,i,ftmp) for i in range(sh))
     #for i in range(sh):
-    r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(first_tsv_genecounts)(gsmaps[i],slist,ss,msogcut) for i in range(sh))
+    #r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(first_tsv_genecounts)(gsmaps[i],slist,ss,msogcut) for i in range(sh))
+    for i in range(sh):
+        fam_df,count_df,rep_df = first_tsv_genecounts(gsmaps[i],slist,ss,msogcut)
+        fams_df.append(fam_df)
+        counts_df.append(count_df)
+        reps_df.append(rep_df)
     Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
-    fam_dfs,count_dfs,rep_dfs=zip(*r)
+    #fam_dfs,count_dfs,rep_dfs=zip(*r)
     #    sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,msogcut)
     #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
     #for i in range(txt.shape[0]): sgdict(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df)
@@ -1561,9 +1566,9 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     #fams_coc = pd.concat(fams_df,ignore_index=True)
     #counts_coc = pd.concat(counts_df,ignore_index=True)
     #reps_coc = pd.concat(reps_df,ignore_index=True)
-    fams_coc = pd.concat([i for i in fam_dfs],ignore_index=True)
-    counts_coc = pd.concat([i for i in count_dfs],ignore_index=True)
-    reps_coc = pd.concat([i for i in rep_dfs],ignore_index=True)
+    fams_coc = pd.concat([i for i in fams_df],ignore_index=True)
+    counts_coc = pd.concat([i for i in counts_df],ignore_index=True)
+    reps_coc = pd.concat([i for i in reps_df],ignore_index=True)
     #fams_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
     #counts_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
     #reps_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
@@ -1600,6 +1605,45 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
         memory_reporter()
+
+def get_sog_multiplicons(df,species_num):
+    sp_counted = df.groupby(["multiplicon"])["genome"].aggregate(lambda x: len(set(x)))
+    level = df.groupby(["multiplicon"])["genome"].aggregate(lambda x: len(x))
+    FullCoverage_Multiplicons = sp_counted[sp_counted==species_num]
+    RightLevel_Multiplicons = level[level==species_num]
+    FullCoverage_Multiplicons = FullCoverage_Multiplicons.to_frame()
+    RightLevel_Multiplicons = RightLevel_Multiplicons.to_frame()
+    SOG_Multiplicons = FullCoverage_Multiplicons.merge(RightLevel_Multiplicons,left_index=True,right_index=True)
+    SOG_Multiplicons_ids = list(SOG_Multiplicons.index)
+    return SOG_Multiplicons_ids
+
+def Allratio(profile,Ratios):
+    sps = profile.columns
+    text = ":".join(sps)
+    ratios = []
+    for i in range(profile.shape[0]):
+        ratio = ":".join([str(int(j)) for j in profile.iloc[i,:]])
+        ratios.append(ratio)
+        if Ratios.get(ratio) == None: Ratios[ratio] = 1
+        else: Ratios[ratio] = Ratios[ratio] + 1
+    profile['ratio'] = ratios
+
+def multipliconid2aps(Multiplicons_ids,anchorpoints):
+    df = pd.read_csv(anchorpoints, sep="\t", index_col=0, header=0)
+    df.set_index("multiplicon")
+def processap(segments,sequences,msogcut):
+    Ratios = {}
+    species_num = len(sequences)
+    df = pd.read_csv(segments, sep="\t", index_col=0)
+    #SOG_Multiplicons_ids = get_sog_multiplicons(df,species_num)
+    df["segment"] = df.index
+    counted = df.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = counted.unstack(level=-1).fillna(0)
+    Allratio(profile,Ratios)
+    SOG_symbol = ":".join([str(1) for i in range(species_num)])
+    SOG_Multiplicons_ids = list(profile[profile['ratio']==SOG_symbol].index)
+    y = lambda x : [i.count('1')/species_num >= msogcut for i in x]
+    MSOG_Multiplicons_ids = list(profile["ratio"].where(y(profile["ratio"])).dropna().index)
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?

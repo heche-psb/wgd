@@ -54,6 +54,8 @@ def cli(verbosity):
     help="Species whose WGD is to be dated")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True,
     help='anchorpoints.txt file from i-adhore')
+@click.option('--segments', '-sm', default=None, show_default=True,
+    help='segments.txt file from i-adhore')
 @click.option('--keepfasta','-kf', is_flag=True,
     help="keep the fasta file of homologs family")
 @click.option('--keepduplicates','-kd', is_flag=True,
@@ -66,7 +68,7 @@ def cli(verbosity):
 @click.option('--getsog','-gs', is_flag=True,help="get nested single-copy gene families")
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
 @click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
-@click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family ')
+@click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family')
 @click.option('--geneassign','-ga', is_flag=True,help="assign genes to given gene families")
 @click.option('--assign_method', '-am',type=click.Choice(['hmmer', 'diamond']),default='hmmer',show_default=True,help="gene assignment method")
 @click.option('--seq2assign', '-sa', multiple=True, default= None, show_default=True, help='sequences to be assigned')
@@ -99,7 +101,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter
     memory_reporter()
     start = timer()
