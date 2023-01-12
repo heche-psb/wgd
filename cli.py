@@ -56,6 +56,8 @@ def cli(verbosity):
     help='anchorpoints.txt file from i-adhore')
 @click.option('--segments', '-sm', default=None, show_default=True,
     help='segments.txt file from i-adhore')
+@click.option('--listsegments', '-ls', default=None, show_default=True,
+    help='list_elements.txt file from i-adhore')
 @click.option('--keepfasta','-kf', is_flag=True,
     help="keep the fasta file of homologs family")
 @click.option('--keepduplicates','-kd', is_flag=True,
@@ -74,6 +76,7 @@ def cli(verbosity):
 @click.option('--seq2assign', '-sa', multiple=True, default= None, show_default=True, help='sequences to be assigned')
 @click.option('--fam2assign', '-fa',default= None, show_default=True, help='families to be assigned upon')
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
+@click.option('--microsyntenycoalescence','-msc', is_flag=True,help="micro-synteny coalescence inference of phylogeny and WGD")
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -101,12 +104,15 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence):
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps
     memory_reporter()
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
+    if microsyntenycoalescence:
+        segmentsaps(listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset)
+        endt(tmpdir,start,s)
     if geneassign:
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
