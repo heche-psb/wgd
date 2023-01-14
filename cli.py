@@ -77,6 +77,7 @@ def cli(verbosity):
 @click.option('--fam2assign', '-fa',default= None, show_default=True, help='families to be assigned upon')
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
 @click.option('--microsyntenycoalescence','-msc', is_flag=True,help="micro-synteny coalescence inference of phylogeny and WGD")
+@click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -104,7 +105,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps
     memory_reporter()
     start = timer()
@@ -117,7 +118,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
         logging.info("Infering orthologous gene families")
-        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat)
+        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog)
         if onlyortho: endt(tmpdir,start,s)
     if len(s) == 0:
         logging.error("No sequences provided!")

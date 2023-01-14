@@ -1217,9 +1217,10 @@ def hmmerscan(outdir,querys,hmmf,eval,nthreads):
     Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     return outs
 
-def modifydf(df,outs,outdir,fam2assign):
+def modifydf(df,outs,outdir,fam2assign,sogtest = False):
     fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
     yb = lambda i:os.path.basename(i).strip('.tbl')
+    if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
     outdict = {yb(i):{} for i in outs}
     for out in outs:
         dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
@@ -1233,7 +1234,11 @@ def modifydf(df,outs,outdir,fam2assign):
     for k,v in outdict.items():
         yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
         df.insert(0, k, pd.Series(yg, index=yf))
-    df.to_csv(fname,header = True, index = True,sep = '\t')
+    if sogtest:
+        l = int(len(df.columns)/2)
+        df2 = df.iloc[:,:l]
+        df2.to_csv(fname,header = True, index = True,sep = '\t')
+    else: df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
 def getassignfasta(df,s,querys,outdir):
@@ -1318,7 +1323,7 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat):
+def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog):
     if concat:
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
@@ -1336,7 +1341,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
     slist = []
     for seq in s: sgmaps.update(seq.spgenemap())
     for seq in s: slist.append(seq.prefix)
-    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut)
+    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval)
     if concat:
         if tmpdir is None: ss.remove_tmp(prompt=False)
         sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
@@ -1542,7 +1547,59 @@ def rmtsv(ftmp):
     sp.run(['rm','rm.sh'],stdout=sp.PIPE, stderr=sp.PIPE)
     os.chdir(cwd)
 
-def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut):
+def phmmbuild(fp):
+    fpaln,o,fhmm = fp + '.aln','--auto',fp + '.hmm'
+    mafft_cmd(fp,o,fpaln)
+    cmd = ['hmmbuild'] + [fhmm] + [fpaln]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
+def concatehmm(outd,famids):
+    hmmconcatf = os.path.join(outd,'Full.hmm')
+    gids = map(lambda i:os.path.join(outd,i+'.pep.hmm'),famids)
+    cmd = ['cat'] + [i for i in gids]
+    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    return hmmconcatf
+
+def assigngenes2fams(ss,fam2assign,outdir,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
+    logging.info("Testing strict single-copy gene families")
+    hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
+
+def testassign(df):
+    col_assign = [i for i in df.columns if i.endswith('_assigned')]
+    for i in df.index:
+        assigned_genes = map(lambda j:df.loc[i,j].split(', '),col_assign)
+        if all([len(j) == 1 for j in assigned_genes]):
+            logging.info("{} passed the strict single-copy test".format(i))
+        else:
+            logging.info("{} failed the strict single-copy test".format(i))
+
+def mvassignf(pepf):
+    cwd = os.getcwd()
+    os.chdir(pepf)
+    with open('rmv.sh','w') as f: f.write('rm *.dom *.pfam *.tbl *.txt *.hmm* *.aln;mv Orthogroups_single_copy.tsv.assigned ../..')
+    cmd = ['sh'] + ['rmv.sh']
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    cmd = ['rm'] + ['rmv.sh']
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+
+def unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval):
+    sog_famids = counts_coc[counts_coc['CopyType'] == 'single-copy'].index
+    if len(sog_famids) == 0: logging.info("No single-copy gene families delineated, skipping unbiased test")
+    else:
+        sog_fams = fams_coc[fams_coc.index.isin(sog_famids)]
+        fn_sog = os.path.join(outdir,'Orthogroups_single_copy.tsv')
+        sog_fams.to_csv(fn_sog,header = True,index =True,sep = '\t')
+        pepf = os.path.join(fsog,'pep')
+        yp = lambda i: os.path.join(pepf,'{}.pep'.format(i))
+        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(phmmbuild)(yp(i)) for i in sog_famids)
+        hmmf = concatehmm(pepf,sog_famids)
+        outs = hmmerscan(pepf,s,hmmf,eval,nthreads)
+        df = modifydf(sog_fams,outs,pepf,fn_sog,sogtest = True)
+        testassign(df)
+        mvassignf(pepf)
+
+def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval):
     fname_fam = os.path.join(outdir,'Orthogroups.sp.tsv')
     fname_count = os.path.join(outdir,'Orthogroups.genecount.tsv')
     fname_rep = os.path.join(outdir,'Orthogroups.representives.tsv')
@@ -1612,6 +1669,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
         memory_reporter()
+    if testsog: unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval)
 
 def get_sog_multiplicons(df,species_num):
     sp_counted = df.groupby(["multiplicon"])["genome"].aggregate(lambda x: len(set(x)))
@@ -1634,6 +1692,8 @@ def Allratio(profile,Ratios):
         if Ratios.get(ratio) == None: Ratios[ratio] = 1
         else: Ratios[ratio] = Ratios[ratio] + 1
     profile['ratio'] = ratios
+    profile[text] = ratios
+    return text
 
 def multipliconid2aps(Multiplicons_ids,anchorpoints):
     df = pd.read_csv(anchorpoints, sep="\t", index_col=0, header=0)
@@ -1805,6 +1865,7 @@ def writegsmap(gsmap,gsmapf):
         for k,v in gsmap.items(): f.write("{0} {1}\n".format(k,v))
 
 def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_method,treeset):
+    Ratios={}
     for s in seqs[1:]: seqs[0].merge_seqs(s)
     seqs = seqs[0]
     df = pd.read_csv(anchorpoints, sep="\t", index_col=0, header=0)
@@ -1816,10 +1877,15 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     segs_anchors = le.groupby('segment')['anchors'].aggregate(lambda x: ", ".join([i for i in x])).to_frame()
     df = pd.read_csv(segments, sep="\t", index_col=0)
     df['segment'] = df.index
+    counted = df.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     df = df.loc[:,['multiplicon','segment','genome']]
+    profile = counted.unstack(level=-1).fillna(0)
+    text = Allratio(profile,Ratios)
+    profile = profile.loc[:,text]
     mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
-    fname_msa = os.path.join(outdir, "Mlts_Segs_Ancs.tsv")
-    mlts_segs_anchors.to_csv(fname_msa,header = True,index =True,sep = '\t')
+    mlts_segs_anchors_ratios = mlts_segs_anchors.join(profile)
+    fname_msar = os.path.join(outdir, "Mlts_Segs_Ancs_Ratios.tsv")
+    mlts_segs_anchors_ratios.to_csv(fname_msar,header = True,index =True,sep = '\t')
     MFs_coc,MFs_order_coc = msap2mf(mlts_segs_anchors,g_x_y_inorder)
     MF_fname = os.path.join(outdir, "Multiplicon_Families.tsv")
     MFs_coc.to_csv(MF_fname,header = True,index =True,sep = '\t')
@@ -1834,6 +1900,7 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     #for i in range(len(fcs)):
     #    aln_2tree(fps[i],fcs[i],seqs,tree_method,treeset,outd,findex[i],CDS)
     tree_famsf,tree_fams=[],{}
+    #map(getMultipliconstrees(fps[i],fcs[i],findex[i],outd,tree_method,tree_famsf,tree_fams),range(len(fcs)))
     for i in range(len(fcs)): getMultipliconstrees(fps[i],fcs[i],findex[i],outd,tree_method,tree_famsf,tree_fams)
     Astral_infer(tree_famsf,gsmapf,outdir)
     # segs_anchors indexed by segment, only one column as anchors
@@ -1964,7 +2031,7 @@ class GeneFamily:
 
     def run_fasttree(self):
         tree_pth = self.pro_alnf + ".nw"
-        cmd = ["fasttree", '-out', tree_pth, self.pro_alnf]
+        cmd = ["FastTree", '-out', tree_pth, self.pro_alnf]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out, program="fasttree")
         return _process_unrooted_tree(self.pro_alnf + ".nw")
