@@ -1866,8 +1866,9 @@ def writegsmap(gsmap,gsmapf):
     with open(gsmapf,'w') as f:
         for k,v in gsmap.items(): f.write("{0} {1}\n".format(k,v))
 
-def hierarchy_dendrogram(X,labels,outdir):
-    fname = os.path.join(outdir, "Hierarchical_Clustering_Multiplicons.pdf")
+def hierarchy_dendrogram(X,labels,outdir,label=True):
+    fname = os.path.join(outdir, "Hierarchical_Clustering_Multiplicons_Index.pdf")
+    if label: fname = os.path.join(outdir, "Hierarchical_Clustering_Multiplicons_SpeciesID.pdf")
     Z = linkage(X, 'ward')
     fig, ax = plt.subplots()
     plt.rcParams['lines.linewidth'] = 10
@@ -1876,8 +1877,8 @@ def hierarchy_dendrogram(X,labels,outdir):
     plt.xlabel('Species',fontsize = 24)
     plt.ylabel('Distance',fontsize = 24)
     plt.yticks(fontsize = 20)
-    dendrogram(Z,labels=labels,leaf_font_size=20,orientation='top')
-    #plt.setp(ax.collections,linewidth=10,linestyle=":")
+    if label: dendrogram(Z,labels=labels,leaf_font_size=20,orientation='top')
+    else: dendrogram(Z,leaf_font_size=20,orientation='top')
     plt.savefig(fname,format ='pdf')
 
 def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_method,treeset):
@@ -1899,6 +1900,7 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     text,MP_matrix = Allratio(profile,Ratios)
     MP_matrix_array = np.transpose(MP_matrix)
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir)
+    hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir,label=False)
     profile = profile.loc[:,text]
     mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
     mlts_segs_anchors_ratios = mlts_segs_anchors.join(profile)
