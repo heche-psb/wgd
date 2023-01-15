@@ -1903,7 +1903,7 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir,label=False)
     profile = profile.loc[:,text]
     mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
-    mlts_segs_anchors_ratios = mlts_segs_anchors.join(profile)
+    mlts_segs_anchors_ratios = mlts_segs_anchors.reset_index().set_index('multiplicon').join(profile).reset_index().set_index('segment')
     fname_msar = os.path.join(outdir, "Mlts_Segs_Ancs_Ratios.tsv")
     mlts_segs_anchors_ratios.to_csv(fname_msar,header = True,index =True,sep = '\t')
     MFs_coc,MFs_order_coc = msap2mf(mlts_segs_anchors,g_x_y_inorder)
