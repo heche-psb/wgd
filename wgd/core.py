@@ -23,6 +23,8 @@ from wgd.beast import beast
 from timeit import default_timer as timer
 import copy
 import psutil
+from scipy.cluster.hierarchy import dendrogram, linkage
+import matplotlib.pyplot as plt
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
@@ -1561,10 +1563,6 @@ def concatehmm(outd,famids):
     with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return hmmconcatf
 
-def assigngenes2fams(ss,fam2assign,outdir,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
-    logging.info("Testing strict single-copy gene families")
-    hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
-
 def testassign(df):
     col_assign = [i for i in df.columns if i.endswith('_assigned')]
     for i in df.index:
@@ -1686,14 +1684,18 @@ def Allratio(profile,Ratios):
     sps = profile.columns
     text = ":".join(sps)
     ratios = []
+    Multiplicons_matrix = []
+    scale = lambda x: 1 if x > 1 else x
     for i in range(profile.shape[0]):
         ratio = ":".join([str(int(j)) for j in profile.iloc[i,:]])
+        Multiplicon_matrix = [scale(int(j)) for j in profile.iloc[i,:]]
         ratios.append(ratio)
+        Multiplicons_matrix.append(Multiplicon_matrix)
         if Ratios.get(ratio) == None: Ratios[ratio] = 1
         else: Ratios[ratio] = Ratios[ratio] + 1
     profile['ratio'] = ratios
     profile[text] = ratios
-    return text
+    return text,Multiplicons_matrix
 
 def multipliconid2aps(Multiplicons_ids,anchorpoints):
     df = pd.read_csv(anchorpoints, sep="\t", index_col=0, header=0)
@@ -1864,6 +1866,20 @@ def writegsmap(gsmap,gsmapf):
     with open(gsmapf,'w') as f:
         for k,v in gsmap.items(): f.write("{0} {1}\n".format(k,v))
 
+def hierarchy_dendrogram(X,labels,outdir):
+    fname = os.path.join(outdir, "Hierarchical_Clustering_Multiplicons.pdf")
+    Z = linkage(X, 'ward')
+    fig, ax = plt.subplots()
+    plt.rcParams['lines.linewidth'] = 10
+    plt.figure(figsize=(25, 10))
+    plt.title('Hierarchical Clustering Dendrogram',fontdict={'fontsize': 28})
+    plt.xlabel('Species',fontsize = 24)
+    plt.ylabel('Distance',fontsize = 24)
+    plt.yticks(fontsize = 20)
+    dendrogram(Z,labels=labels,leaf_font_size=20,orientation='top')
+    #plt.setp(ax.collections,linewidth=10,linestyle=":")
+    plt.savefig(fname,format ='pdf')
+
 def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_method,treeset):
     Ratios={}
     for s in seqs[1:]: seqs[0].merge_seqs(s)
@@ -1880,7 +1896,9 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     counted = df.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     df = df.loc[:,['multiplicon','segment','genome']]
     profile = counted.unstack(level=-1).fillna(0)
-    text = Allratio(profile,Ratios)
+    text,MP_matrix = Allratio(profile,Ratios)
+    MP_matrix_array = np.transpose(MP_matrix)
+    hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir)
     profile = profile.loc[:,text]
     mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
     mlts_segs_anchors_ratios = mlts_segs_anchors.join(profile)
