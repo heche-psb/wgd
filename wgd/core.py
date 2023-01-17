@@ -24,6 +24,7 @@ from timeit import default_timer as timer
 import copy
 import psutil
 from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy import stats
 import matplotlib.pyplot as plt
 # Reconsider the renaming, more a pain than helpful?
 
@@ -93,6 +94,45 @@ def _process_unrooted_tree(treefile, fformat="newick"):
     _label_internals(tree)
     return tree
 
+def linearfit(df):
+    bit_score = np.array(df[11])
+    gene_length = np.array(df[12])
+
+def fit_linregress(df):
+    cutoff = np.percentile(df[11], 90)
+    #here I used top 10% bit-score for fitting
+    filtered_bsb = df[df[11]>=cutoff]
+    slope, intercept, r, p, se = stats.linregress(np.log(filtered_bsb[12]), np.log(filtered_bsb[11]))
+    normalized = [round(j/(pow(10, intercept)*(l**slope)),1) for j,l in zip(df[11],df[12])]
+    for j,l in zip(df[11],df[12]): print(round(j/(pow(10, intercept)*(l**slope)),1))
+    return normalized
+
+def normalizebitscore(gene_length,df,outpath):
+    y = lambda x : gene_length[x[0]] * gene_length[x[1]]
+    df[12] = [y(df.loc[i,0:1]) for i in df.index]
+    df = df.sort_values(12,ascending=False).reset_index(drop=True)
+    bins = 10
+    bin_interval = []
+    if len(df)%bins == 0: bin_size = len(df)/bins
+    else: bin_size = (len(df)-(len(df)%bins))/bins
+    normalized_bitscores = []
+    for i in range(bins):
+        if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12]
+        else: bit_score_bins = df.loc[int((i*bin_size)):,11:12]
+        normalized = fit_linregress(bit_score_bins)
+        #cutoff = np.percentile(bit_score_bins[11], 95)
+        #filtered_bsb = bit_score_bins[bit_score_bins[11]>=cutoff]
+        #slope, intercept, r, p, se = stats.linregress(filtered_bsb[12], filtered_bsb[11])
+        #normalized = [l**slope*j/pow(10, intercept) for j,l in zip(bit_score_bins[11],bit_score_bins[12])]
+        normalized_bitscores = normalized_bitscores + normalized
+    #if len(df)%bins != 0:
+    #    print(50*bin_size)
+    #    bit_score_bins = df.loc[int(50*bin_size):,11:12]
+    #    normalized = fit_linregress(bit_score_bins)
+    #    normalized_bitscores = normalized_bitscores + normalized
+    df[13] = normalized_bitscores
+    df.to_csv(outpath,sep="\t", header=False, index=False)
+    return df
 
 class SequenceData:
     """
@@ -117,6 +157,7 @@ class SequenceData:
         self.mcl       = {}
         self.cds_sequence  = {}
         self.pro_sequence  = {}
+        self.gene_length = {}
         self.idmap     = {}  # map from the new safe id to the input seq id
         self.read_cds(to_stop=to_stop, cds=cds)
         self.threads = threads
@@ -144,6 +185,7 @@ class SequenceData:
             self.cds_sequence[gid] = na_sequence
             self.pro_sequence[gid] = aa_sequence
             self.idmap[record.id] = gid
+            self.gene_length[gid] = len(na_sequence)
         return
 
     def orig_profasta(self):
@@ -174,6 +216,9 @@ class SequenceData:
         self.pro_sequence.update(other.pro_sequence)
         self.idmap.update(other.idmap)
 
+    def merge_gene_length(self,other):
+        self.gene_length.update(other.gene_length)
+
     def merge_dmd_hits(self,other):
         self.dmd_hits.update(other.dmd_hits)
 
@@ -184,7 +229,8 @@ class SequenceData:
             logging.debug(out.stderr.decode())
             if out.returncode == 1: logging.error(out.stderr.decode())
 
-    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False):
+    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False, normalize = True):
+        self.merge_gene_length(seqs)
         self.make_diamond_db()
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
         outfile = os.path.join(self.tmp_path, run)
@@ -192,10 +238,14 @@ class SequenceData:
             cmd = ["diamond", "blastp", "-d", self.pro_db, "-q", seqs.pro_fasta, "-o", outfile, "-p", str(self.threads)]
             out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             logging.debug(out.stderr.decode())
-        if savememory: df = pd.read_csv(outfile, sep="\t", header=None,usecols=[0,1,10])
+        if savememory: df = pd.read_csv(outfile, sep="\t", header=None,usecols=[0,1,10,11])
         else: df = pd.read_csv(outfile, sep="\t", header=None)
         df = df.loc[df[0] != df[1]]
-        self.dmd_hits[seqs.prefix] = df = df.loc[df[10] <= eval]
+        df = df.loc[df[10] <= eval]
+        outpath = os.path.join(self.tmp_path, 'hits_gene_length.tsv')
+        #df = normalizebitscore(self.gene_length,df,outpath)
+        if normalize: df = normalizebitscore(self.gene_length,df,outpath).drop(columns=[11,12]).rename(columns={13:11})
+        self.dmd_hits[seqs.prefix] = df
         return df
 
     def get_rbh_orthologs(self, seqs, cscore, orthoinfer, eval=1e-10):
@@ -203,13 +253,19 @@ class SequenceData:
             raise ValueError("RBH orthologs only defined for distinct species")
         df = self.run_diamond(seqs, orthoinfer, eval=eval)
         if cscore == None:
-            df1 = df.sort_values(10).drop_duplicates([0])
-            df2 = df.sort_values(10).drop_duplicates([1])
+            #df1 = df.sort_values(10).drop_duplicates([0])
+            # originally sorted by e-value in ascending, but it flaws due to the e-value has a lower threshold below which it will become 0
+            df1 = df.sort_values(11,ascending=False).drop_duplicates([0])
+            # now sorted by bit-score in descending which avoids the issue of e-value
+            #df2 = df.sort_values(10).drop_duplicates([1])
+            df2 = df.sort_values(11,ascending=False).drop_duplicates([1])
             self.rbh[seqs.prefix] = df1.merge(df2)
         else:
             cscore = float(cscore)
-            df_species1_best=df.sort_values(10).drop_duplicates([0])
-            df_species2_best=df.sort_values(10).drop_duplicates([1])
+            #df_species1_best=df.sort_values(10).drop_duplicates([0])
+            df_species1_best=df.sort_values(11,ascending=False).drop_duplicates([0])
+            #df_species2_best=df.sort_values(10).drop_duplicates([1])
+            df_species2_best=df.sort_values(11,ascending=False).drop_duplicates([1])
             df_Tomerge_species1=df_species1_best[[0,11]]
             df_Tomerge_species2=df_species2_best[[1,11]]
             df_Tomerge_species1_rn = df_Tomerge_species1.rename(columns={11: 'species1_best'})
@@ -235,7 +291,7 @@ class SequenceData:
         with open(mcl_out, "r") as f:
             for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
-    def get_paranome(self, inflation=1.5, eval=1e-10, savememory=False):
+    def get_paranome(self, inflation=2.0, eval=1e-10, savememory=False):
         df = self.run_diamond(self, False, eval=eval, savememory=savememory)
         gf = self.get_mcl_graph(self.prefix)
         mcl_out = gf.run_mcl(inflation=inflation)
@@ -247,6 +303,7 @@ class SequenceData:
         gf = os.path.join(self.tmp_path, "_".join([self.prefix] + list(args)))
         #ysave = lambda i:i.iloc[:,[0,1,10]]
         df = pd.concat([self.dmd_hits[x] for x in args])
+        df = df[[0,1,11]]
         df.to_csv(gf, sep="\t", header=False, index=False)
         return SequenceSimilarityGraph(gf)
 
@@ -308,6 +365,7 @@ class SequenceData:
         logging.debug(out.stderr.decode())
 
 class SequenceSimilarityGraph:
+    #Only the column 0,1,10 are in use
     def __init__(self, graph_file):
         self.graph_file = graph_file
 
@@ -317,8 +375,9 @@ class SequenceSimilarityGraph:
         g3 = g1 + ".mci"
         g4 = g2 + ".I{}".format(inflation*10)
         outfile = g1 + ".mcl"
-        command = ['mcxload', '-abc', g1, '--stream-mirror',
-            '--stream-neg-log10', '-o', g3, '-write-tab', g2]
+        #command = ['mcxload', '-abc', g1, '--stream-mirror', '--stream-neg-log10', '-o', g3, '-write-tab', g2]
+        #here I removed the '--stream-neg-log10' option to fit the bit-score calculation
+        command = ['mcxload', '-abc', g1, '--stream-mirror', '-o', g3, '-write-tab', g2]
         logging.debug(" ".join(command))
         out = sp.run(command, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out)
