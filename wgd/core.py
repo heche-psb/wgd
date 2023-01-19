@@ -100,15 +100,26 @@ def linearfit(df):
     gene_length = np.array(df[12])
 
 def fit_linregress(df):
-    cutoff = np.percentile(df[11], 90)
+    cutoff = np.percentile(df[11], 95)
     #here I used top 10% bit-score for fitting
     filtered_bsb = df[df[11]>=cutoff]
-    slope, intercept, r, p, se = stats.linregress(np.log(filtered_bsb[12]), np.log(filtered_bsb[11]))
+    #filtered_bsb = df
+    slope, intercept, r, p, se = stats.linregress(np.log10(filtered_bsb[12]), np.log10(filtered_bsb[11]))
     normalized = [j/(pow(10, intercept)*(l**slope)) for j,l in zip(df[11],df[12])]
     #for j,l in zip(df[11],df[12]): print(j/(pow(10, intercept)*(l**slope)))
     return normalized
 
-def normalizebitscore(gene_length,df,outpath,hicluster=False):
+def fit_linear(df,orig_df):
+    slope, intercept, r, p, se = stats.linregress(np.log10(df[12]), np.log10(df[11]))
+    normalized = [j/(pow(10, intercept)*(l**slope)) for j,l in zip(orig_df[11],orig_df[12])]
+    return normalized
+
+def genelengthpercentile5(df):
+    cutoff = np.percentile(df[11], 95)
+    df = df[df[11]>=cutoff]
+    return df
+
+def normalizebitscore(gene_length,df,outpath,hicluster=False,nonbins = False,allbins = True):
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
@@ -127,26 +138,36 @@ def normalizebitscore(gene_length,df,outpath,hicluster=False):
         df = df.join(df_index_norm)
         df = df.drop(columns=[13]).rename(columns={14:13})
         df.to_csv(outpath,sep="\t", header=False, index=False)
+    elif nonbins:
+        df[13] = fit_linregress(df.loc[:,11:12])
     else:
-        bin_interval = []
         if len(df)%bins == 0: bin_size = len(df)/bins
         else: bin_size = (len(df)-(len(df)%bins))/bins
-        normalized_bitscores = []
-        for i in range(bins):
-            if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12]
-            else: bit_score_bins = df.loc[int((i*bin_size)):,11:12]
+        if allbins:
+            data_per_bin = []
+            for i in range(bins):
+                if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12]
+                else: bit_score_bins = df.loc[int((i*bin_size)):,11:12]
+                data_per_bin.append(genelengthpercentile5(bit_score_bins))
+            merged_data = pd.concat(data_per_bin)
+            df[13] = fit_linear(merged_data,df)
+        else:
+            normalized_bitscores = []
+            for i in range(bins):
+                if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12]
+                else: bit_score_bins = df.loc[int((i*bin_size)):,11:12]
             #normalized = fit_linregress(bit_score_bins)
         #cutoff = np.percentile(bit_score_bins[11], 95)
         #filtered_bsb = bit_score_bins[bit_score_bins[11]>=cutoff]
         #slope, intercept, r, p, se = stats.linregress(filtered_bsb[12], filtered_bsb[11])
         #normalized = [l**slope*j/pow(10, intercept) for j,l in zip(bit_score_bins[11],bit_score_bins[12])]
-            normalized_bitscores = normalized_bitscores + fit_linregress(bit_score_bins)
+                normalized_bitscores = normalized_bitscores + fit_linregress(bit_score_bins)
     #if len(df)%bins != 0:
     #    print(50*bin_size)
     #    bit_score_bins = df.loc[int(50*bin_size):,11:12]
     #    normalized = fit_linregress(bit_score_bins)
     #    normalized_bitscores = normalized_bitscores + normalized
-        df[13] = normalized_bitscores
+            df[13] = normalized_bitscores
     df.to_csv(outpath,sep="\t", header=False, index=False)
     return df
 
@@ -201,7 +222,7 @@ class SequenceData:
             self.cds_sequence[gid] = na_sequence
             self.pro_sequence[gid] = aa_sequence
             self.idmap[record.id] = gid
-            self.gene_length[gid] = len(na_sequence)
+            self.gene_length[gid] = len(aa_sequence)
         return
 
     def orig_profasta(self):
