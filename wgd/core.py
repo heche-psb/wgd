@@ -170,21 +170,24 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                     for j in range(int(i),len(species_list)):
                         m,n = species_list[int(i)],species_list[int(j)]
                         df_spair = df.loc[(df[13]==m) & (df[14]==n)].copy()
+                        if len(df_spair)%bins == 0: bin_size = len(df_spair)/bins
+                        else: bin_size = (len(df_spair)-(len(df_spair)%bins))/bins
                         data_per_bin = []
                         a=list(df_spair.loc[:,13])
                         b=list(df_spair.loc[:,14])
-                        #print(a[1])
-                        #print(b[1])
+                        print(a[1])
+                        print(b[1])
+                        df_spair = df_spair.reset_index(drop=True)
                         for k in range(bins):
                             if k != bins-1: bit_score_bins = df_spair.loc[int((k*bin_size)):int(((k+1)*bin_size-1)),11:12].copy()
                             else: bit_score_bins = df_spair.loc[int((k*bin_size)):,11:12].copy()
-                            #print(bit_score_bins.shape)
+                            print(bit_score_bins.shape)
                             data_per_bin.append(genelengthpercentile5(bit_score_bins))
                         merged_data = pd.concat(data_per_bin)
                         df_spair.loc[:,15] = fit_linear(merged_data,df_spair)
                         dfs.append(df_spair)
                         #print(df_spair.shape)
-                df = pd.concat(dfs)
+                df = pd.concat(dfs,ignore_index=True)
                 df.loc[:,13] = df[0].apply(lambda x:gids_records[x])
                 df.loc[:,14] = df[1].apply(lambda x:gids_records[x])
                 df.to_csv(outpath+'.withorigid',sep="\t", header=False, index=False)
