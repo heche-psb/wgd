@@ -119,11 +119,11 @@ def genelengthpercentile5(df):
     df = df[df[11]>=cutoff]
     return df
 
-def normalizebitscore(gene_length,df,outpath,hicluster=False,nonbins = False,allbins = True):
+def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True):
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
-    bins = 10
+    bins = 100
     if hicluster:
         X = [[i] for i in df[12]]
         df[13] = AgglomerativeClustering(n_clusters=bins).fit(X).labels_
@@ -144,13 +144,51 @@ def normalizebitscore(gene_length,df,outpath,hicluster=False,nonbins = False,all
         if len(df)%bins == 0: bin_size = len(df)/bins
         else: bin_size = (len(df)-(len(df)%bins))/bins
         if allbins:
-            data_per_bin = []
-            for i in range(bins):
-                if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12]
-                else: bit_score_bins = df.loc[int((i*bin_size)):,11:12]
-                data_per_bin.append(genelengthpercentile5(bit_score_bins))
-            merged_data = pd.concat(data_per_bin)
-            df[13] = fit_linear(merged_data,df)
+            if sgidmaps is None:
+                data_per_bin = []
+                for i in range(bins):
+                    if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12].copy()
+                    else: bit_score_bins = df.loc[int((i*bin_size)):,11:12].copy()
+                    data_per_bin.append(genelengthpercentile5(bit_score_bins))
+                merged_data = pd.concat(data_per_bin)
+                df.loc[:,13] = fit_linear(merged_data,df)
+                combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()}
+                df.loc[:,14] = df[0].apply(lambda x:combinedidmaps[x])
+                df.loc[:,15] = df[1].apply(lambda x:combinedidmaps[x])
+                df.to_csv(outpath+'_withoriglabel',sep="\t", header=False, index=False)
+                df = df.drop(columns=[14,15])
+            else:
+                gids_records = {v:k for k,v in idmap.items()}
+                df.loc[:,13] = df[0].apply(lambda x:sgidmaps[gids_records[x]])
+                df.loc[:,14] = df[1].apply(lambda x:sgidmaps[gids_records[x]])
+                #print(df[13])
+                #print(df[14])
+                species_list = list(set(sgidmaps.values()))
+                dfs = []
+                #print(species_list)
+                for i in range(len(species_list)):
+                    for j in range(int(i),len(species_list)):
+                        m,n = species_list[int(i)],species_list[int(j)]
+                        df_spair = df.loc[(df[13]==m) & (df[14]==n)].copy()
+                        data_per_bin = []
+                        a=list(df_spair.loc[:,13])
+                        b=list(df_spair.loc[:,14])
+                        #print(a[1])
+                        #print(b[1])
+                        for k in range(bins):
+                            if k != bins-1: bit_score_bins = df_spair.loc[int((k*bin_size)):int(((k+1)*bin_size-1)),11:12].copy()
+                            else: bit_score_bins = df_spair.loc[int((k*bin_size)):,11:12].copy()
+                            #print(bit_score_bins.shape)
+                            data_per_bin.append(genelengthpercentile5(bit_score_bins))
+                        merged_data = pd.concat(data_per_bin)
+                        df_spair.loc[:,15] = fit_linear(merged_data,df_spair)
+                        dfs.append(df_spair)
+                        #print(df_spair.shape)
+                df = pd.concat(dfs)
+                df.loc[:,13] = df[0].apply(lambda x:gids_records[x])
+                df.loc[:,14] = df[1].apply(lambda x:gids_records[x])
+                df.to_csv(outpath+'.withorigid',sep="\t", header=False, index=False)
+                df = df.drop(columns=[13,14]).rename(columns={15:13})
         else:
             normalized_bitscores = []
             for i in range(bins):
@@ -266,7 +304,7 @@ class SequenceData:
             logging.debug(out.stderr.decode())
             if out.returncode == 1: logging.error(out.stderr.decode())
 
-    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False, normalize = True):
+    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False, normalize = True,sgidmaps=None):
         self.merge_gene_length(seqs)
         self.make_diamond_db()
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
@@ -279,9 +317,9 @@ class SequenceData:
         else: df = pd.read_csv(outfile, sep="\t", header=None)
         df = df.loc[df[0] != df[1]]
         df = df.loc[df[10] <= eval]
-        outpath = os.path.join(self.tmp_path, 'hits_gene_length.tsv')
+        outpath = os.path.join(self.tmp_path, '{0}_{1}_hits_gene_length_normalizedBitscore.tsv'.format(self.prefix,seqs.prefix))
         #df = normalizebitscore(self.gene_length,df,outpath)
-        if normalize: df = normalizebitscore(self.gene_length,df,outpath).drop(columns=[11,12]).rename(columns={13:11})
+        if normalize: df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap).drop(columns=[11,12]).rename(columns={13:11})
         self.dmd_hits[seqs.prefix] = df
         return df
 
@@ -328,8 +366,8 @@ class SequenceData:
         with open(mcl_out, "r") as f:
             for i, line in enumerate(f.readlines()): self.mcl[i] = line.strip().split()
 
-    def get_paranome(self, inflation=2.0, eval=1e-10, savememory=False):
-        df = self.run_diamond(self, False, eval=eval, savememory=savememory)
+    def get_paranome(self, inflation=2.0, eval=1e-10, savememory=False, sgidmaps = None):
+        df = self.run_diamond(self, False, eval=eval, savememory=savememory, sgidmaps=sgidmaps)
         gf = self.get_mcl_graph(self.prefix)
         mcl_out = gf.run_mcl(inflation=inflation)
         with open(mcl_out, "r") as f:
@@ -712,14 +750,14 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
         for i in range(len(s)-1):
             tables = []
-            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[i],s[j],cscore,eval) for j in range(i+1,len(s)))
+            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[i],s[k],cscore,eval) for k in range(i+1,len(s)))
             for j in range(i+1,len(s)):
-                df = getrbhf(s[i],s[j],outdir)
+                df = getrbhf(s[int(i)],s[int(j)],outdir)
                 if table.empty: table = df
                 else:
                     table = table.merge(df)
                     if not keepduplicates:
-                        for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
+                        for c in table.columns: table.drop_duplicates(subset=[c],inplace=True)
         gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
         table.insert(0,'GF', gfid)
         #if not keepduplicates:
@@ -1423,11 +1461,13 @@ def concatcdss(sequences,outdir):
 
 def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog):
     if concat:
+        sgidmaps = {}
+        for x in s : sgidmaps.update(x.spgenemap())
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         memory_reporter()
-        ss.get_paranome(inflation=inflation, eval=eval, savememory = True)
+        ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
     #ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore)
@@ -1715,7 +1755,10 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         fams_df.append(fam_df)
         counts_df.append(count_df)
         reps_df.append(rep_df)
-    Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
+    fams_coc = pd.concat([i for i in fams_df],ignore_index=True)
+    counts_coc = pd.concat([i for i in counts_df],ignore_index=True)
+    reps_coc = pd.concat([i for i in reps_df],ignore_index=True)
+    #Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
     #fam_dfs,count_dfs,rep_dfs=zip(*r)
     #    sgdict(gsmaps[i],slist,fams_df,counts_df,reps_df,ss,ftmp,frep,fsog,i,msogcut)
     #Parallel(n_jobs=nthreads)(delayed(sgdict)(y(txt.iloc[i,0].split(', ')),slist,fams_df,counts_df,ss,ftmpc,ftmpp,i) for i in range(txt.shape[0]))
@@ -1724,9 +1767,9 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     #fams_coc = pd.concat(fams_df,ignore_index=True)
     #counts_coc = pd.concat(counts_df,ignore_index=True)
     #reps_coc = pd.concat(reps_df,ignore_index=True)
-    fams_coc = pd.concat([i for i in fams_df],ignore_index=True)
-    counts_coc = pd.concat([i for i in counts_df],ignore_index=True)
-    reps_coc = pd.concat([i for i in reps_df],ignore_index=True)
+    #fams_coc = pd.concat([i for i in fams_df],ignore_index=True)
+    #counts_coc = pd.concat([i for i in counts_df],ignore_index=True)
+    #reps_coc = pd.concat([i for i in reps_df],ignore_index=True)
     #fams_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
     #counts_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_count.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
     #reps_coc = pd.concat([pd.read_csv(os.path.join(ftmp,'GF{:0>8}_rep.tsv'.format(i)),header=0,index_col=0,sep='\t') for i in range(sh)],ignore_index=True)
@@ -1740,6 +1783,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
     mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
     logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
+    Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
     memory_reporter()
     if getsog:
         fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
