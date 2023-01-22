@@ -181,6 +181,10 @@ def get_anchors(out_path):
     # there are duplicates, due to anchors being in multiple multiplicons
     return df
 
+def get_multi(out_path):
+    multi = pd.read_csv(os.path.join(out_path, "multiplicons.txt"), sep="\t", index_col=None)
+    return multi
+
 def get_anchor_ksd(ks_distribution, anchors):
     return ks_distribution.join(anchors).dropna()
 
@@ -191,7 +195,7 @@ def get_segments_profile(out_path):
     segs["segment"] = segs.index
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
-    return profile
+    return profile,segs
 
 
 

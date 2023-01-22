@@ -434,6 +434,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
+@click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -441,12 +442,12 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options):
+        minlen, maxsize, ks_range, iadhore_options, segments):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
-    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile
+    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi
     from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, Ks_dotplots, syntenic_dotplot_ks_colored
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
@@ -476,13 +477,14 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     # general post-processing
     logging.info("Processing I-ADHoRe output")
     anchors = get_anchors(out_path)
+    multi = get_multi(out_path)
     if anchors is None:
         logging.warning("No anchors found, terminating! Please inspect your input files "
                 "and the I-ADHoRe results in `{}`".format(out_path))
         exit(1)
 
     anchors.to_csv(os.path.join(outdir, "anchors.csv"))
-    segprofile = get_segments_profile(out_path)
+    segprofile,segs = get_segments_profile(out_path)
     segprofile.to_csv(os.path.join(outdir, "segprofile.csv"))
     fig = syntenic_depth_plot(segprofile)
     fig.savefig(os.path.join(outdir, "{}.syndepth.svg".format(prefix)))
@@ -490,7 +492,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
     # dotplot
     logging.info("Generating dot plots")
-    figs = all_dotplots(table, anchors, maxsize=maxsize, minlen=minlen) 
+    figs = all_dotplots(table, segs, multi, anchors, maxsize=maxsize, minlen=minlen, outdir=outdir) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
@@ -523,7 +525,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
                 max_ks=ks_range[1], output_file=dotplot_out,
                 min_length=minlen
         )
-        figs2=Ks_dotplots(multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen)
+        figs2=Ks_dotplots(segs,multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen,outdir = outdir)
         for k, v in figs2.items():
             v.savefig(os.path.join(outdir, "{}.ks.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.ks.dot.pdf".format(k)))

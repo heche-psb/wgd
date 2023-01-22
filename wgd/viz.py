@@ -8,7 +8,8 @@ import logging
 import numpy as np
 import seaborn as sns
 import pandas as pd
-
+import os
+from matplotlib.patches import Rectangle
 
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -124,9 +125,96 @@ def dupratios(col1, col2, by="first"):
     kys = sorted(d, key=keyfun)
     return kys, [d[k] for k in kys]
 
+def sankey_plot(sp, df, minlen,outdir, seg, multi):
+    lens = df.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1 = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if minlen < 0: minlen = df1.len.max() * 0.1
+    noriginal = len(df1.index)
+    df1 = df1.loc[df1.len > minlen]
+    seg = seg.loc[seg['genome']==sp].copy()
+    segs = list(seg.groupby('list'))
+    scaflabels = list(map(lambda x: x[0],segs))
+    #for i in scaflabels:
+    #    print(i)
+    #    print(type(i))
+    patchescoordif = list(map(lambda x: list(x[1].loc[:,'first']),segs))
+    patchescoordil = list(map(lambda x: list(x[1].loc[:,'last']),segs))
+    patchessegid = list(map(lambda x: list(x[1].index),segs))
+    #for i,j in zip(patchescoordif,patchescoordil):
+    #    print(i)
+    #    print(j)
+    gene_start = {gene:start for gene,start in zip(df.index,list(df['start']))}
+    #for pco in patchescoordi:
+    #    print(pco.index)
+        #for index in pco.index: print(str(pco.loc[index,'first']))
+        #for index in pco.index: print(gene_start[pco.loc[index,'first']])
+    multi = multi.loc[:,['id','level']].copy()
+    seg_with_level = seg.merge(multi,left_on='multiplicon', right_on='id').drop(columns='id')
+    segs_levels = {scafflabel:level for scafflabel,level in zip(list(seg_with_level.index),list(seg_with_level['level']))}
+    highest_level = max(segs_levels.values())
+    plothlines(highest_level,segs_levels,sp,gene_start,df1.len,df1.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid)
+
+def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,outdir,patchedscaflabels,patchescoordif,patchescoordil,patchessegid):
+    scafflength_normalized = [i/max(scafflength) for i in scafflength]
+    fname = os.path.join(outdir, "{}_multiplicons_level.png".format(sp))
+    fig, ax = plt.subplots(1, 1, figsize=(10,20))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, (3*len(scafflength))+1)
+    common = list(set(scafflabel) & set(patchedscaflabels))
+    #levelcolortable = {2:black,3:green,4:}
+    for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
+        #ax.hlines(i, xmin=0, xmax=le,linestyles='solid',label=la)
+        #ax.add_patch(Rectangle((0, i+1),le,0.5,fc ='black',ec ='none',lw = 1, zorder=0, alpha=0.3))
+        lower = (3*i)+0.5+0.1
+        upper = (3*i)+3-0.75-0.1
+        height_increment = (upper-lower)/highest_level
+        #print(highest_level)
+        #print(height_increment)
+        ax.add_patch(Rectangle((0, (3*i)+1),le,0.5,fc ='black',ec ='none',lw = 1, zorder=0, alpha=0.3))
+        ax.text(0, (3*i)+0.25,la)
+        #if la in patchedscaflabels:
+        if la in common:
+            idc = patchedscaflabels.index(la)
+            #for pla,pcof,pcol in zip(patchedscaflabels,patchescoordif,patchescoordil):
+            #if la == pla:
+            #    for f,l in zip(pcof,pcol):
+            #        left = gene_start[f]/max(scafflength)
+            #        right = gene_start[l]/max(scafflength)
+            #        ple = right - left
+            #intervals,height = np.linspace((3*i)+1.6, (3*i)+3.15, num=segs_levels[la],retstep=True,endpoint=False)
+            #for inte in intervals: print(inte)
+            #hscaled = 0.75*height
+            for f,l,segid in zip(patchescoordif[idc],patchescoordil[idc],patchessegid[idc]):
+                left = gene_start[f]/max(scafflength)
+                right = gene_start[l]/max(scafflength)
+                ple = right - left
+                level = segs_levels[segid]
+                #intervals,height = np.linspace((3*i)+1.6, (3*i)+3.15, num=level-1,retstep=True,endpoint=False)
+                #lower = (3*i)+0.5+0.05
+                #upper = (3*i)+3-0.75-0.05
+                #height = (lower-upper)/(level-1)
+                #hscaled = 0.75*height
+                #height_increment = (upper-lower)/highest_level
+                #height_increment = 0.2
+                hscaled = 0.75*height_increment
+                if ple > 0:
+                    ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
+                    for lev in range(level-1): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                    #for i in range(level):
+                    #    inter = intervals[i]
+                    #    ax.add_patch(Rectangle((left, inter),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                else:
+                    ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
+                    for i in range(level):
+                        inter = intervals[i]
+                        ax.add_patch(Rectangle((left, inter),-ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                    print('find inversion')
+    fig.savefig(fname)
+    plt.close()
 
 # dot plot stuff
-def all_dotplots(df, anchors=None, **kwargs):
+def all_dotplots(df, segs, multi, anchors=None, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
@@ -136,36 +224,51 @@ def all_dotplots(df, anchors=None, **kwargs):
     for i in range(n):
         for j in range(i, n):
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
+            ax2 = ax.twinx()
+            ax3 = ax.twiny()
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys = get_dots(dfx, dfy, **kwargs)
+            df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, **kwargs)
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
-            ax.scatter(df.x, df.y, s=0.1, color="k", alpha=0.5)
+            ax.scatter(df.x, df.y, s=1, color="k", alpha=0.01)
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
-                ax.scatter(andf.x, andf.y, s=0.2, color="red", alpha=0.9)
-            ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.1, color="k")
-            ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.1, color="k")
+                ax.scatter(andf.x, andf.y, s=1, color="red", alpha=0.9)
+            ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.8, color="k")
+            ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.8, color="k")
             ax.set_xlim(0, xs[-1])
             ax.set_ylim(0, ys[-1])
-            ax.set_xlabel("${}$ (Mb)".format(spx))
-            ax.set_ylabel("${}$ (Mb)".format(spy))
+            #ax.set_xlabel("${}$ (Mb)".format(spx))
+            #ax.set_ylabel("${}$ (Mb)".format(spy))
+            ax.set_xlabel("{}".format(spx))
+            ax.set_ylabel("{}".format(spy))
+            ax2.set_ylabel("{} (Mb)".format(spy))
+            ax2.yaxis.label.set_fontsize(18)
+            ax2.set_yticklabels(ax.get_yticks() / 1e6)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+            ax3.set_xlabel("{} (Mb)".format(spx))
+            ax3.xaxis.label.set_fontsize(18)
+            ax3.set_xticklabels(ax.get_xticks() / 1e6)
+            ax3.tick_params(axis='both', which='major', labelsize=16)
             ax.xaxis.label.set_fontsize(18)
             ax.yaxis.label.set_fontsize(18)
             ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.set_xticklabels(ax.get_xticks() / 1e6)  # in Mb
-            ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
+            ax.set_xticks(scaffxtick)
+            ax.set_xticklabels(scaffxlabels,rotation=45)
+            #ax.set_xticklabels(ax.get_xticks() / 1e6)  # in Mb
+            #ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
+            ax.set_yticks(scaffytick)
+            ax.set_yticklabels(scaffylabels,rotation=45)
             figs[spx + "-vs-" + spy] = fig
     return figs
 
-def Ks_dotplots(dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25):
+def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25, **kwargs):
     """
     Generate Ks colored dot plots for all pairs of species in `df`.
     """
     cmap = plt.get_cmap(color_map)
-
     if len(an["gene_x"]) == 0:
         logging.warning("No multiplicons found!")
         return
@@ -215,7 +318,7 @@ def Ks_dotplots(dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05,
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys = get_dots(dfx, dfy, minlen, maxsize)
+            df, xs, ys, scafflabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, minlen=minlen, maxsize=maxsize, outdir = outdir)
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
             ax.scatter(df.x, df.y, s=0.1, color="k", alpha=0.5)
@@ -250,9 +353,11 @@ def Ks_dotplots(dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05,
 
     return figs
 
-def get_dots(dfx, dfy, minlen=-1, maxsize=50):
-    dfx = filter_data_dotplot(dfx, minlen)
-    dfy = filter_data_dotplot(dfy, minlen)
+def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=50, outdir = ''):
+    sp=dfx.loc[:,'species'][0]
+    sankey_plot(sp, dfx, minlen, outdir, seg, multi)
+    dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
+    dfy,scaffytick = filter_data_dotplot(dfy, minlen)
     dx = {k: list(v.index) for k, v in dfx.groupby("family")}
     dy = {k: list(v.index) for k, v in dfy.groupby("family")}
     xs = []
@@ -269,11 +374,15 @@ def get_dots(dfx, dfy, minlen=-1, maxsize=50):
             xs.append({"pair":pair, "x": dfx.loc[x]["x"], "y": dfy.loc[y]["x"]})
     #ax.scatter(xs, ys)
     if len(xs) == 0:  # HACK
-        return None, None, None
+        return None, None, None, None
     df = pd.DataFrame.from_dict(xs).set_index("pair")
-    xl = list(np.unique(dfx["scaffstart"])) + [max(df.x)]
-    yl = list(np.unique(dfy["scaffstart"])) + [max(df.y)]
-    return df, xl, yl
+    scaffxlabels = list(dfx['scaffold'].drop_duplicates())
+    scaffylabels = list(dfy['scaffold'].drop_duplicates())
+    #xl = list(np.unique(dfx["scaffstart"])) + [max(df.x)]
+    xl = list(dfx["scaffstart"].drop_duplicates()) + [max(df.x)]
+    #yl = list(np.unique(dfy["scaffstart"])) + [max(df.y)]
+    yl = list(dfy["scaffstart"].drop_duplicates()) + [max(df.y)]
+    return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick
     
 
 def filter_data_dotplot(df, minlen):
@@ -281,6 +390,7 @@ def filter_data_dotplot(df, minlen):
     lens.name = "len"
     lens = pd.DataFrame(lens).sort_values("len", ascending=False)
     scaffstart = [0] + list(np.cumsum(lens.len))[0:-1]
+    scafftick = list(np.cumsum(lens.len))
     lens["scaffstart"] = scaffstart
     df = df.join(lens, on="scaffold").sort_values("len", ascending=False)
     # df now contains scaffold lengths
@@ -292,7 +402,7 @@ def filter_data_dotplot(df, minlen):
     logging.info("Dropped {} genes because they are on scaffolds shorter "
             "than {}".format(noriginal - len(df.index), minlen))
     df["x"] = df["scaffstart"] + df["start"]
-    return df
+    return df,scafftick
 
 
 def syntenic_dotplot_ks_colored(
