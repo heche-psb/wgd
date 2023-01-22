@@ -232,6 +232,12 @@ def all_dotplots(df, segs, multi, anchors=None, **kwargs):
     n = len(gdf)
     figs = {}
     for i in range(n):
+        for j in range(n):
+            spx, dfx = gdf[i]
+            spy, dfy = gdf[j]
+            logging.info("{} vs. {}".format(spx, spy))
+            df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, dupStack = True, **kwargs)
+    for i in range(n):
         for j in range(i, n):
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
             ax2 = ax.twinx()
@@ -239,7 +245,7 @@ def all_dotplots(df, segs, multi, anchors=None, **kwargs):
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, **kwargs)
+            df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, dupStack = False, **kwargs)
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
             ax.scatter(df.x, df.y, s=1, color="k", alpha=0.01)
@@ -363,10 +369,10 @@ def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=
 
     return figs
 
-def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=50, outdir = ''):
+def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=50, outdir = '', dupStack = False):
     spx=dfx.loc[:,'species'][0]
     spy=dfy.loc[:,'species'][0]
-    sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi)
+    if dupStack: sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi)
     dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
     dfy,scaffytick = filter_data_dotplot(dfy, minlen)
     dx = {k: list(v.index) for k, v in dfx.groupby("family")}
