@@ -125,91 +125,101 @@ def dupratios(col1, col2, by="first"):
     kys = sorted(d, key=keyfun)
     return kys, [d[k] for k in kys]
 
-def sankey_plot(sp, df, minlen,outdir, seg, multi):
+def sankey_plot_self(sp, df, minlen,outdir, seg, multi):
     lens = df.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
     df1 = pd.DataFrame(lens).sort_values("len", ascending=False)
     if minlen < 0: minlen = df1.len.max() * 0.1
-    noriginal = len(df1.index)
     df1 = df1.loc[df1.len > minlen]
     seg = seg.loc[seg['genome']==sp].copy()
     segs = list(seg.groupby('list'))
     scaflabels = list(map(lambda x: x[0],segs))
-    #for i in scaflabels:
-    #    print(i)
-    #    print(type(i))
     patchescoordif = list(map(lambda x: list(x[1].loc[:,'first']),segs))
     patchescoordil = list(map(lambda x: list(x[1].loc[:,'last']),segs))
     patchessegid = list(map(lambda x: list(x[1].index),segs))
-    #for i,j in zip(patchescoordif,patchescoordil):
-    #    print(i)
-    #    print(j)
     gene_start = {gene:start for gene,start in zip(df.index,list(df['start']))}
-    #for pco in patchescoordi:
-    #    print(pco.index)
-        #for index in pco.index: print(str(pco.loc[index,'first']))
-        #for index in pco.index: print(gene_start[pco.loc[index,'first']])
     multi = multi.loc[:,['id','level']].copy()
     seg_with_level = seg.merge(multi,left_on='multiplicon', right_on='id').drop(columns='id')
-    segs_levels = {scafflabel:level for scafflabel,level in zip(list(seg_with_level.index),list(seg_with_level['level']))}
+    segs_levels = {seglabel:level for seglabel,level in zip(list(seg_with_level.index+1),list(seg_with_level['level']))}
     highest_level = max(segs_levels.values())
     plothlines(highest_level,segs_levels,sp,gene_start,df1.len,df1.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid)
 
-def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,outdir,patchedscaflabels,patchescoordif,patchescoordil,patchessegid):
+def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
+    lens = dfx.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if minlen < 0: minlen = df1x.len.max() * 0.1
+    df1x = df1x.loc[df1x.len > minlen]
+    seg.loc[:,"segment"] = seg.index
+    seg_unfilterded = seg.loc[seg['genome']==spx].copy()
+    segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = segs_info.unstack(level=-1).fillna(0)
+    if spy not in profile.columns:
+        logging.info('No collinear segments were found involving genome of {}'.format(spy))
+    elif spx not in profile.columns:
+        logging.info('No collinear segments were found involving genome of {}'.format(spx))
+    else:
+        multi_goodinuse = profile.loc[profile[spy]>0,spy].copy()
+    #if len(multi_goodinuse) == 0:
+    #    logging.info('No collinear segments were found involving genome of {}'.format(spy))
+    #else:
+        spy_multl_level = {m:int(l) for m,l in zip(multi_goodinuse.index,list(multi_goodinuse))}
+    #segs_multi = {s:m for s,m in zip(list(seg['segment']),list(seg['multiplicon']))}
+    #segs_level = {s:spy_multl_level[m] for s,m in segs_multi.items()}
+    #print(seg_unfilterded.shape)
+        seg_filterded = seg_unfilterded.set_index('multiplicon').merge(multi_goodinuse,left_index=True, right_index=True).drop(columns=spy)
+        if len(seg_filterded) == 0:
+            logging.info('No collinear segments contained both genome of {0} and {1}'.format(spx,spy))
+    #print(seg_filterded.shape)
+        else:
+            segs_multi_good = {s:m for s,m in zip(list(seg_filterded['segment']),list(seg_filterded.index))}
+            segs_levels = {s:spy_multl_level[m] for s,m in segs_multi_good.items()}
+            segs = list(seg_filterded.groupby('list'))
+            scaflabels = list(map(lambda x: x[0],segs))
+            patchescoordif = list(map(lambda x: list(x[1].loc[:,'first']),segs))
+            patchescoordil = list(map(lambda x: list(x[1].loc[:,'last']),segs))
+            patchessegid = list(map(lambda x: list(x[1].loc[:,'segment']),segs))
+            gene_start = {gene:start for gene,start in zip(dfx.index,list(dfx['start']))}
+    #mul_level = seg_filterded.groupby('multiplicon')['segment'].aggregate(lambda x: len(set(x)))
+    #segs_levels = {m:l for m,l in zip(mul_level.index,list(mul_level))}
+            highest_level = max(segs_levels.values())
+            plothlines(highest_level,segs_levels,spx,gene_start,df1x.len,df1x.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid,spy = spy)
+    #multi = multi.loc[:,['id','level']].copy()
+    #seg_with_level = seg.merge(multi,left_on='multiplicon', right_on='id').drop(columns='id')
+    #segs_levels = {seglabel:level for seglabel,level in zip(list(seg_with_level.index+1),list(seg_with_level['level']))}
+
+def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,outdir,patchedscaflabels,patchescoordif,patchescoordil,patchessegid,spy = None):
     scafflength_normalized = [i/max(scafflength) for i in scafflength]
     fname = os.path.join(outdir, "{}_multiplicons_level.png".format(sp))
+    if spy != None: fname = os.path.join(outdir, "{0}_{1}_multiplicons_level.png".format(sp,spy))
     fig, ax = plt.subplots(1, 1, figsize=(10,20))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, (3*len(scafflength))+1)
     common = list(set(scafflabel) & set(patchedscaflabels))
-    #levelcolortable = {2:black,3:green,4:}
     for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
-        #ax.hlines(i, xmin=0, xmax=le,linestyles='solid',label=la)
-        #ax.add_patch(Rectangle((0, i+1),le,0.5,fc ='black',ec ='none',lw = 1, zorder=0, alpha=0.3))
         lower = (3*i)+0.5+0.1
         upper = (3*i)+3-0.75-0.1
         height_increment = (upper-lower)/highest_level
-        #print(highest_level)
-        #print(height_increment)
         ax.add_patch(Rectangle((0, (3*i)+1),le,0.5,fc ='black',ec ='none',lw = 1, zorder=0, alpha=0.3))
         ax.text(0, (3*i)+0.25,la)
-        #if la in patchedscaflabels:
         if la in common:
             idc = patchedscaflabels.index(la)
-            #for pla,pcof,pcol in zip(patchedscaflabels,patchescoordif,patchescoordil):
-            #if la == pla:
-            #    for f,l in zip(pcof,pcol):
-            #        left = gene_start[f]/max(scafflength)
-            #        right = gene_start[l]/max(scafflength)
-            #        ple = right - left
-            #intervals,height = np.linspace((3*i)+1.6, (3*i)+3.15, num=segs_levels[la],retstep=True,endpoint=False)
-            #for inte in intervals: print(inte)
-            #hscaled = 0.75*height
             for f,l,segid in zip(patchescoordif[idc],patchescoordil[idc],patchessegid[idc]):
                 left = gene_start[f]/max(scafflength)
                 right = gene_start[l]/max(scafflength)
                 ple = right - left
                 level = segs_levels[segid]
-                #intervals,height = np.linspace((3*i)+1.6, (3*i)+3.15, num=level-1,retstep=True,endpoint=False)
-                #lower = (3*i)+0.5+0.05
-                #upper = (3*i)+3-0.75-0.05
-                #height = (lower-upper)/(level-1)
-                #hscaled = 0.75*height
-                #height_increment = (upper-lower)/highest_level
-                #height_increment = 0.2
                 hscaled = 0.75*height_increment
                 if ple > 0:
                     ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
-                    for lev in range(level-1): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
-                    #for i in range(level):
-                    #    inter = intervals[i]
-                    #    ax.add_patch(Rectangle((left, inter),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                    iternum = level-1 if sp == spy else level
+                    #if iternum == 0:
+                    #    print((f,l,segid))
+                    for lev in range(iternum): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
                 else:
                     ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
-                    for i in range(level):
-                        inter = intervals[i]
-                        ax.add_patch(Rectangle((left, inter),-ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
-                    print('find inversion')
+                    iternum = level-1 if sp == spy else level
+                    for lev in range(iternum): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
     fig.savefig(fname)
     plt.close()
 
@@ -354,8 +364,9 @@ def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=
     return figs
 
 def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=50, outdir = ''):
-    sp=dfx.loc[:,'species'][0]
-    sankey_plot(sp, dfx, minlen, outdir, seg, multi)
+    spx=dfx.loc[:,'species'][0]
+    spy=dfy.loc[:,'species'][0]
+    sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi)
     dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
     dfy,scaffytick = filter_data_dotplot(dfy, minlen)
     dx = {k: list(v.index) for k, v in dfx.groupby("family")}
