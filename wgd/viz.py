@@ -159,19 +159,14 @@ def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
     elif spx not in profile.columns:
         logging.info('No collinear segments were found involving genome of {}'.format(spx))
     else:
-        multi_goodinuse = profile.loc[profile[spy]>0,spy].copy()
-    #if len(multi_goodinuse) == 0:
-    #    logging.info('No collinear segments were found involving genome of {}'.format(spy))
-    #else:
-        spy_multl_level = {m:int(l) for m,l in zip(multi_goodinuse.index,list(multi_goodinuse))}
-    #segs_multi = {s:m for s,m in zip(list(seg['segment']),list(seg['multiplicon']))}
-    #segs_level = {s:spy_multl_level[m] for s,m in segs_multi.items()}
-    #print(seg_unfilterded.shape)
+        if spx != spy: multi_goodinuse = profile.loc[profile[spy]>0,[spy,spx]].copy()
+        else: multi_goodinuse = profile.loc[profile[spy]>0,[spy]].copy()
         seg_filterded = seg_unfilterded.set_index('multiplicon').merge(multi_goodinuse,left_index=True, right_index=True).drop(columns=spy)
         if len(seg_filterded) == 0:
             logging.info('No collinear segments contained both genome of {0} and {1}'.format(spx,spy))
-    #print(seg_filterded.shape)
         else:
+            segs_levels_spx = None
+            spy_multl_level = {m:int(l) for m,l in zip(multi_goodinuse.index,list(multi_goodinuse[spy]))}
             segs_multi_good = {s:m for s,m in zip(list(seg_filterded['segment']),list(seg_filterded.index))}
             segs_levels = {s:spy_multl_level[m] for s,m in segs_multi_good.items()}
             segs = list(seg_filterded.groupby('list'))
@@ -180,47 +175,97 @@ def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
             patchescoordil = list(map(lambda x: list(x[1].loc[:,'last']),segs))
             patchessegid = list(map(lambda x: list(x[1].loc[:,'segment']),segs))
             gene_start = {gene:start for gene,start in zip(dfx.index,list(dfx['start']))}
-    #mul_level = seg_filterded.groupby('multiplicon')['segment'].aggregate(lambda x: len(set(x)))
-    #segs_levels = {m:l for m,l in zip(mul_level.index,list(mul_level))}
             highest_level = max(segs_levels.values())
-            plothlines(highest_level,segs_levels,spx,gene_start,df1x.len,df1x.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid,spy = spy)
-    #multi = multi.loc[:,['id','level']].copy()
-    #seg_with_level = seg.merge(multi,left_on='multiplicon', right_on='id').drop(columns='id')
-    #segs_levels = {seglabel:level for seglabel,level in zip(list(seg_with_level.index+1),list(seg_with_level['level']))}
+            if spx != spy:
+                spx_multl_level = {m:int(l) for m,l in zip(multi_goodinuse.index,list(multi_goodinuse[spx]))}
+                segs_levels_spx = {s:spx_multl_level[m] for s,m in segs_multi_good.items()}
+                highest_level = max([ly+segs_levels_spx[seg] for seg,ly in segs_levels.items()])
+            plothlines(highest_level,segs_levels,spx,gene_start,df1x.len,df1x.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid,spy = spy,spx_level = segs_levels_spx)
 
-def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,outdir,patchedscaflabels,patchescoordif,patchescoordil,patchessegid,spy = None):
+def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,outdir,patchedscaflabels,patchescoordif,patchescoordil,patchessegid,spy = None, spx_level = None):
     scafflength_normalized = [i/max(scafflength) for i in scafflength]
     fname = os.path.join(outdir, "{}_multiplicons_level.png".format(sp))
-    if spy != None: fname = os.path.join(outdir, "{0}_{1}_multiplicons_level.png".format(sp,spy))
+    if spy != None:
+        fname = os.path.join(outdir, "{0}_{1}_multiplicons_level.png".format(sp,spy))
+        fnamep = os.path.join(outdir, "{0}_{1}_multiplicons_level.pdf".format(sp,spy))
+        fnames = os.path.join(outdir, "{0}_{1}_multiplicons_level.svg".format(sp,spy))
     fig, ax = plt.subplots(1, 1, figsize=(10,20))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, (3*len(scafflength))+1)
     common = list(set(scafflabel) & set(patchedscaflabels))
+    yticks = []
+    yticklabels = []
     for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
         lower = (3*i)+0.5+0.1
         upper = (3*i)+3-0.75-0.1
         height_increment = (upper-lower)/highest_level
+        yticks.append((3*i)+1.25)
+        yticklabels.append(la)
         ax.add_patch(Rectangle((0, (3*i)+1),le,0.5,fc ='black',ec ='none',lw = 1, zorder=0, alpha=0.3))
-        ax.text(0, (3*i)+0.25,la)
+        #ax.text(0, (3*i)+0.25,la)
         if la in common:
             idc = patchedscaflabels.index(la)
             for f,l,segid in zip(patchescoordif[idc],patchescoordil[idc],patchessegid[idc]):
                 left = gene_start[f]/max(scafflength)
                 right = gene_start[l]/max(scafflength)
                 ple = right - left
-                level = segs_levels[segid]
+                if spx_level is None: level = segs_levels[segid]
+                else: level = segs_levels[segid] + spx_level[segid] - 1
                 hscaled = 0.75*height_increment
+                iternum = level-1 if sp == spy else level
+                color = 'green' if sp == spy else 'blue'
+                hatchs = '//////' if color == 'green' else '\\\\\\\\\\\\'
                 if ple > 0:
-                    ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
-                    iternum = level-1 if sp == spy else level
-                    #if iternum == 0:
-                    #    print((f,l,segid))
-                    for lev in range(iternum): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                    ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.5))
+                    if spx_level is None:
+                        for lev in range(iternum):
+                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5, hatch=hatchs))
+                    else:
+                        spx_times = 0
+                        level_x = spx_level[segid] - 1
+                        if level_x == 0:
+                            for lev in range(iternum):
+                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5, hatch=hatchs))
+                        else:
+                            for lev in range(iternum):
+                                if spx_times < level_x:
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//'))
+                                else:
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
+                                spx_times = spx_times + 1
                 else:
-                    ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.9))
-                    iternum = level-1 if sp == spy else level
-                    for lev in range(iternum): ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='blue',ec ='none',lw = 1, zorder=1,alpha=0.9))
+                    ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc = 'green',ec ='none',lw = 1, zorder=2,alpha=0.5))
+                    if spx_level is None:
+                        for lev in range(iternum):
+                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                    else:
+                        spx_times = 0
+                        level_x = spx_level[segid] - 1
+                        if level_x == 0:
+                            for lev in range(iternum):
+                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                        else:
+                            for lev in range(iternum):
+                                if spx_times < level_x:
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5))
+                                else:
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                                spx_times = spx_times + 1
+    y = lambda x : ["{:.2f}".format(i) for i in x]
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticklabels)
+    ax.set_xticklabels(y(ax.get_xticks()*max(scafflength)/1e6))
+    ax.xaxis.label.set_fontsize(18)
+    ax.set_xlabel("{} (Mb)".format(sp))
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    fig.tight_layout()
     fig.savefig(fname)
+    if spy != None:
+        fig.savefig(fnamep)
+        fig.savefig(fnames)
     plt.close()
 
 # dot plot stuff
