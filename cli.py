@@ -78,6 +78,7 @@ def cli(verbosity):
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
 @click.option('--microsyntenycoalescence','-msc', is_flag=True,help="micro-synteny coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
+@click.option('--bins', '-bs', type=int, default=10, show_default=True, help='bins for gene length normalization')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -105,11 +106,11 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps
     memory_reporter()
     start = timer()
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in sequences]
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if microsyntenycoalescence:
         segmentsaps(listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset)
@@ -118,7 +119,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
     if orthoinfer:
         logging.info("Infering orthologous gene families")
-        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog)
+        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,bins=bins)
         if onlyortho: endt(tmpdir,start,s)
     if len(s) == 0:
         logging.error("No sequences provided!")
@@ -427,7 +428,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
 @click.option('--minlen', '-ml', default=250, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
-@click.option('--maxsize', '-ms', default=25, show_default=True,
+@click.option('--maxsize', '-ms', default=50, show_default=True,
     help="maximum family size to include in analysis.")
 @click.option('--ks_range', '-r', nargs=2, default=(0.05, 5), show_default=True,
     type=float, help='Ks range to use for colored dotplot')
@@ -491,7 +492,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     fig.savefig(os.path.join(outdir, "{}.syndepth.pdf".format(prefix)))
 
     # dotplot
-    logging.info("Generating dot plots")
+    #logging.info("Generating dot plots")
     figs = all_dotplots(table, segs, multi, anchors, maxsize=maxsize, minlen=minlen, outdir=outdir) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))

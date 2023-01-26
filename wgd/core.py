@@ -119,11 +119,12 @@ def genelengthpercentile5(df):
     df = df[df[11]>=cutoff]
     return df
 
-def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True):
+def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True,bins = 100):
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
-    bins = 100
+    bins = bins
+    print(bins)
     if hicluster:
         X = [[i] for i in df[12]]
         df[13] = AgglomerativeClustering(n_clusters=bins).fit(X).labels_
@@ -172,6 +173,9 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                         df_spair = df.loc[(df[13]==m) & (df[14]==n)].copy()
                         if len(df_spair)%bins == 0: bin_size = len(df_spair)/bins
                         else: bin_size = (len(df_spair)-(len(df_spair)%bins))/bins
+                        if bin_size == 0:
+                            logging.info('number of hits are less than bins')
+                            bit_score  = df_spair.loc[:,11:12].copy()
                         data_per_bin = []
                         a=list(df_spair.loc[:,13])
                         b=list(df_spair.loc[:,14])
@@ -219,7 +223,7 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None,threads = 4):
+            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
         self.tmp_path  = _mkdir(tmp_path)
@@ -239,6 +243,7 @@ class SequenceData:
         self.idmap     = {}  # map from the new safe id to the input seq id
         self.read_cds(to_stop=to_stop, cds=cds)
         self.threads = threads
+        self.bins = bins
         _write_fasta(self.pro_fasta, self.pro_seqs)
 
     def read_cds(self, to_stop=True, cds=True):
@@ -322,7 +327,7 @@ class SequenceData:
         df = df.loc[df[10] <= eval]
         outpath = os.path.join(self.tmp_path, '{0}_{1}_hits_gene_length_normalizedBitscore.tsv'.format(self.prefix,seqs.prefix))
         #df = normalizebitscore(self.gene_length,df,outpath)
-        if normalize: df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap).drop(columns=[11,12]).rename(columns={13:11})
+        if normalize: df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap,bins = self.bins).drop(columns=[11,12]).rename(columns={13:11})
         self.dmd_hits[seqs.prefix] = df
         return df
 
@@ -1462,12 +1467,12 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog):
+def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,bins=100):
     if concat:
         sgidmaps = {}
         for x in s : sgidmaps.update(x.spgenemap())
         Concat_cdsf = concatcdss(sequences,outdir)
-        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)

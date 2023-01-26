@@ -10,6 +10,9 @@ import seaborn as sns
 import pandas as pd
 import os
 from matplotlib.patches import Rectangle
+from matplotlib.path import Path
+import matplotlib.patches as patches
+from matplotlib.pyplot import cm
 
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -229,7 +232,7 @@ def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,ou
                         else:
                             for lev in range(iternum):
                                 if spx_times < level_x:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//'))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//////'))
                                 else:
                                     ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
                                 spx_times = spx_times + 1
@@ -237,19 +240,19 @@ def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,ou
                     ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc = 'green',ec ='none',lw = 1, zorder=2,alpha=0.5))
                     if spx_level is None:
                         for lev in range(iternum):
-                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
                     else:
                         spx_times = 0
                         level_x = spx_level[segid] - 1
                         if level_x == 0:
                             for lev in range(iternum):
-                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
                         else:
                             for lev in range(iternum):
                                 if spx_times < level_x:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//////'))
                                 else:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
                                 spx_times = spx_times + 1
     y = lambda x : ["{:.2f}".format(i) for i in x]
     ax.set_yticks(yticks)
@@ -268,6 +271,216 @@ def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,ou
         fig.savefig(fnames)
     plt.close()
 
+def get_marco_whole(dfs,seg, multi, maxsize=None, minlen=None, outdir=None):
+    #species = [i.loc[:,'species'][0] for i in dfs]
+    sp_scaffla_scaffle = {}
+    gene_start = {}
+    for df in dfs:
+        gene_start.update({gene:start for gene,start in zip(df.index,list(df['start']))})
+        species = df.loc[:,'species'][0]
+        lens = df.groupby("scaffold")["start"].agg(max)
+        lens.name = "len"
+        df_tmp = pd.DataFrame(lens).sort_values("len", ascending=False)
+        if minlen < 0: minlen = df_tmp.len.max() * 0.1
+        df_tmp = df_tmp.loc[df_tmp.len > minlen]
+        sp_scaffla_scaffle[species] = [list(df_tmp.index),list(df_tmp['len'])]
+    seg.loc[:,"segment"] = seg.index
+    segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = segs_info.unstack(level=-1).fillna(0)
+    if len(profile.columns) == 0: logging.info('No collinear segments were found')
+    elif len(profile.columns) == 1 and len(dfs) > 1:
+        logging.info('No inter-specific collinear segments were found')
+    else:
+        y_filter = lambda x: sum([i>0 for i in x])
+        profile.loc[:,'num_species'] = [y_filter(profile.loc[i,:]) for i in profile.index]
+        profile = profile.loc[profile['num_species'] == len(dfs),['num_species']]
+        if len(profile) == 0:
+            logging.info('No collinear segments contained all species')
+        else:
+            seg_filtered = seg.set_index('multiplicon').merge(profile,left_index=True, right_index=True).drop(columns='num_species')
+            #seg_filtered.loc[:,'multiplicon'] = seg_filtered.index
+            plot_marco_whole(sp_scaffla_scaffle,seg_filtered,gene_start,outdir)
+
+def get_vertices(dic,order):
+    sps = list(dic.keys())
+    vertices = []
+    for i in range(len(sps)):
+        for j in range(i+1,len(sps)):
+            spi,spj = sps[i],sps[j]
+            spi_indice,spj_indice = order.index(spi),order.index(spj)
+            if spi_indice-spj_indice==1 or spj_indice-spi_indice==1:
+                for coordi in dic[spi]:
+                    for coordj in dic[spj]:
+                        f1,l1,f2,l2 = coordi[0],coordi[1],coordj[0],coordj[1]
+                        if spi_indice-spj_indice==1:
+                            f2,l2 = (f2[0],f2[1]+0.75), (l2[0],l2[1]+0.75)
+                        else:
+                            f1,l1 = (f1[0],f1[1]+0.75), (l1[0],l1[1]+0.75)
+                        vertices.append([f1,l1,l2,f2])
+    return vertices
+
+
+def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
+    fig, ax = plt.subplots(1, 1, figsize=(100,10))
+    fname = os.path.join(outdir, "All_species_marcosynteny.png")
+    num_sp = len(scaf_info)
+    colors = cm.rainbow(np.linspace(0, 1, num_sp))
+    sp_wholelengths = {sp:sum(info[1]) for sp,info in scaf_info.items()}
+    sp_segs_starts = {sp:{} for sp in scaf_info.keys()}
+    sp_segs_y = {}
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1+(num_sp-1)*10+1)
+    sp_bottom_up = []
+    for indice,sp_info in enumerate(scaf_info.items()):
+        sp,info = sp_info[0],sp_info[1]
+        sp_bottom_up.append(sp)
+        scaled_le = [i/sp_wholelengths[sp] for i in info[1]]
+        color = colors[indice]
+        leng_done = 0
+        for lb,le in zip(info[0],scaled_le):
+            le_scaled = le * 0.75
+            ax.add_patch(Rectangle((leng_done, 1+indice*10),le_scaled,0.75,fc = color,ec ='none',lw = 1, zorder=0, alpha=0.3))
+            ax.text(leng_done+(le_scaled/2),1+indice*10+0.75/2,lb,size=5,zorder=1,color="w",ha="center",va="center")
+            sp_segs_y[sp] = 1+indice*10
+            sp_segs_starts[sp].update({lb:leng_done})
+            leng_done = leng_done + le
+    multis = list(seg_f.reset_index().groupby('multiplicon'))
+    multi_indices = list(map(lambda x: x[0],multis))
+    coordi = list(map(lambda x: x[1].loc[:,['genome','first','last','list']],multis))
+    #coordi = {sp:list(map(lambda x: x[1].loc[x[1]['genome']==sp,['first','last','list']],multis)) for sp in scaf_info.keys()}
+    #coordi_x = list(map(lambda x: x[1].loc[x[1]['genome']==sp1,['first','last','list']],multis))
+    #coordi_y = list(map(lambda x: x[1].loc[x[1]['genome']==sp2,['first','last','list']],multis))
+    for coord in coordi:
+        sp_occur = set(coord['genome'])
+        coord_sp = {sp:[] for sp in sp_occur}
+        for sp in sp_occur:
+            df = coord.loc[coord['genome']==sp,['first','last','list']]
+            for i in df.index:
+                f,l,li = df.loc[i,'first'],df.loc[i,'last'],df.loc[i,'list']
+                f,l = 0.75*gene_start[f]/sp_wholelengths[sp]+sp_segs_starts[sp][li],0.75*gene_start[l]/sp_wholelengths[sp]+sp_segs_starts[sp][li]
+                coord_sp[sp].append([(f,sp_segs_y[sp]),(l,sp_segs_y[sp])])
+        vertices = get_vertices(coord_sp,sp_bottom_up)
+        codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+        for vertice in vertices:
+            pp = patches.PathPatch(Path(vertice,codes),fc='gray',alpha=0.1,zorder=1,lw=0.1)
+            ax.add_patch(pp)
+                #coord_sp[sp].append((f,sp_segs_y[sp]))
+                #coord_sp[sp].append((l,sp_segs_y[sp]))
+    #for cix,ciy in zip(coordi_x,coordi_y):
+    #    for i in cix.index:
+    #        f,l,li1 = cix.loc[i,'first'],cix.loc[i,'last'],cix.loc[i,'list']
+    #        f1,l1 = 0.75*genex_start[f]/sum(sp1_scafflength)+segs1_starts[li1],0.75*genex_start[l]/sum(sp1_scafflength)+segs1_starts[li1]
+    #        for j in ciy.index:
+    #            f2,l2,li2 = ciy.loc[j,'first'],ciy.loc[j,'last'],ciy.loc[j,'list']
+    #            if f==f2 and l==l2:
+    #                continue
+    #            ratio = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
+    fig.tight_layout()
+    fig.savefig(fname)
+
+def get_marco(dfx, dfy, seg, multi, maxsize=None, minlen=None, outdir=None):
+    spx=dfx.loc[:,'species'][0]
+    spy=dfy.loc[:,'species'][0]
+    lens = dfx.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if minlen < 0: minlen = df1x.len.max() * 0.1
+    df1x = df1x.loc[df1x.len > minlen]
+    lens = dfy.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1y = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if minlen < 0: minlen = df1y.len.max() * 0.1
+    df1y = df1y.loc[df1y.len > minlen]
+    seg.loc[:,"segment"] = seg.index
+    seg_unfilterded = seg.loc[(seg['genome']==spx) | (seg['genome']==spy)].copy()
+    segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = segs_info.unstack(level=-1).fillna(0)
+    if spy not in profile.columns: logging.info('No collinear segments were found involving genome of {}'.format(spy))
+    elif spx not in profile.columns: logging.info('No collinear segments were found involving genome of {}'.format(spx))
+    else:
+        if spx == spy: multi_goodinuse = profile.loc[profile[spx]>0,[spy]].copy()
+        else: multi_goodinuse = profile.loc[(profile[spy]>0) & (profile[spx]>0),[spx,spy]].copy()
+        seg_filterded = seg_unfilterded.set_index('multiplicon').merge(multi_goodinuse,left_index=True, right_index=True).drop(columns=spy)
+        if len(seg_filterded) == 0: logging.info('No collinear segments contained both genome of {0} and {1}'.format(spx,spy))
+        else:
+            seg_filterded.loc[:,'multiplicon'] = seg_filterded.index
+            genex_start = {gene:start for gene,start in zip(dfx.index,list(dfx['start']))}
+            geney_start = {gene:start for gene,start in zip(dfy.index,list(dfy['start']))}
+            plot_marco(spx,spy,df1x.index,df1x.len,df1y.index,df1y.len,outdir,genex_start,geney_start,seg_filterded)
+
+def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scafflength,outdir,genex_start,geney_start,seg_f):
+    ## Only consider inter-specific links
+    fname = os.path.join(outdir, "{0}_{1}_marcosynteny.png".format(sp1,sp2))
+    fnamep = os.path.join(outdir, "{0}_{1}_marcosynteny.pdf".format(sp1,sp2))
+    fnames = os.path.join(outdir, "{0}_{1}_marcosynteny.svg".format(sp1,sp2))
+    fig, ax = plt.subplots(1, 1, figsize=(100,10))
+    sp1_wholelength = sum(sp1_scafflength)
+    sp2_wholelength = sum(sp2_scafflength)
+    sp1_length_scaled = [i/sp1_wholelength for i in sp1_scafflength]
+    sp2_length_scaled = [i/sp2_wholelength for i in sp2_scafflength]
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 12)
+    colors = cm.rainbow(np.linspace(0, 1, 2))
+    sp1_leng_done = 0
+    segs1_starts = {}
+    yticks = [1+0.75/2,1+10+0.75/2]
+    yticklabels = [sp1,sp2]
+    sp1_scafflabel_length = {lb:le for lb,le in zip(sp1_scafflabel,sp1_scafflength)}
+    sp2_scafflabel_length = {lb:le for lb,le in zip(sp2_scafflabel,sp2_scafflength)}
+    for i,le,lb in zip(range(len(sp1_length_scaled)),sp1_length_scaled,sp1_scafflabel):
+        le_scaled = le * 0.75
+        ax.add_patch(Rectangle((sp1_leng_done, 1),le_scaled,0.75,fc =colors[0],ec ='none',lw = 1, zorder=0, alpha=0.3))
+        ax.text(sp1_leng_done+(le_scaled/2),1+0.75/2,lb,size=20,zorder=1,color="w",ha="center",va="center")
+        segs1_starts[lb]= sp1_leng_done
+        sp1_leng_done = sp1_leng_done + le
+    sp2_leng_done = 0
+    segs2_starts = {}
+    for i,le,lb in zip(range(len(sp2_length_scaled)),sp2_length_scaled,sp2_scafflabel):
+        le_scaled = le * 0.75
+        ax.add_patch(Rectangle((sp2_leng_done, 1 + 10),le_scaled,0.75,fc =colors[1],ec ='none',lw = 1, zorder=0, alpha=0.3))
+        ax.text(sp2_leng_done+le_scaled/2,1+10+0.75/2,lb,size=20,zorder=1,color="w",ha="center",va="center")
+        segs2_starts[lb] = sp2_leng_done
+        sp2_leng_done = sp2_leng_done + le
+    multis = list(seg_f.reset_index(drop=True).groupby('multiplicon'))
+    multi_indices = list(map(lambda x: x[0],multis))
+    coordi_x = list(map(lambda x: x[1].loc[x[1]['genome']==sp1,['first','last','list']],multis))
+    coordi_y = list(map(lambda x: x[1].loc[x[1]['genome']==sp2,['first','last','list']],multis))
+    for cix,ciy in zip(coordi_x,coordi_y):
+        for i in cix.index:
+            f,l,li1 = cix.loc[i,'first'],cix.loc[i,'last'],cix.loc[i,'list']
+            f1,l1 = 0.75*genex_start[f]/sum(sp1_scafflength)+segs1_starts[li1],0.75*genex_start[l]/sum(sp1_scafflength)+segs1_starts[li1]
+            for j in ciy.index:
+                f2,l2,li2 = ciy.loc[j,'first'],ciy.loc[j,'last'],ciy.loc[j,'list']
+                if f==f2 and l==l2:
+                    continue
+                ratio = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
+                if ratio > 0.05:
+                    if len(cix) == 1 and len(ciy) == 1: color = 'gray'
+                    elif len(cix) == 2 or len(ciy) == 2: color = 'green'
+                    elif len(cix) == 3 or len(ciy) == 3: color = 'blue'
+                    elif len(cix) == 4 or len(ciy) == 4: color = 'red'
+                    else: color = 'yellow'
+                else: color = 'gray'
+                f2,l2 = 0.75*geney_start[f2]/sum(sp2_scafflength)+segs2_starts[li2],0.75*geney_start[l2]/sum(sp2_scafflength)+segs2_starts[li2]
+                vertices = [(f1,1+0.75),(l1,1+0.75),(l2,11),(f2,11)]
+                codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+                pp = patches.PathPatch(Path(vertices,codes),fc=color,alpha=0.1,zorder=1,lw=0.1)
+                ax.add_patch(pp)
+    # Second the links
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticklabels)
+    ax.yaxis.set_ticks_position('none')
+    ax.tick_params(axis='both', which='major', labelsize=30, labelbottom = False, bottom = False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(fname)
+    fig.savefig(fnamep)
+    fig.savefig(fnames)
+    plt.close()
+
 # dot plot stuff
 def all_dotplots(df, segs, multi, anchors=None, **kwargs):
     """
@@ -276,12 +489,15 @@ def all_dotplots(df, segs, multi, anchors=None, **kwargs):
     gdf = list(df.groupby("species"))
     n = len(gdf)
     figs = {}
+    logging.info("Making dupStack plot")
     for i in range(n):
         for j in range(n):
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, dupStack = True, **kwargs)
+            get_dots(dfx, dfy, segs, multi, dupStack = True, **kwargs)
+    logging.info("Making dotplots and marco-synteny plots")
+    if n > 1: get_marco_whole(list(map(lambda x:x[1],gdf)),segs, multi,**kwargs)
     for i in range(n):
         for j in range(i, n):
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
@@ -290,6 +506,7 @@ def all_dotplots(df, segs, multi, anchors=None, **kwargs):
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
+            get_marco(dfx, dfy, segs, multi, **kwargs)
             df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, dupStack = False, **kwargs)
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
@@ -297,10 +514,22 @@ def all_dotplots(df, segs, multi, anchors=None, **kwargs):
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
                 ax.scatter(andf.x, andf.y, s=1, color="red", alpha=0.9)
-            ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.8, color="k")
-            ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.8, color="k")
-            ax.set_xlim(0, xs[-1])
-            ax.set_ylim(0, ys[-1])
+            xlim = max(scaffxtick)
+            ylim = max(scaffytick)
+            ax.set_xlim(0, xlim)
+            ax.set_ylim(0, ylim)
+            ymin, ymax = ax.get_ylim()
+            xmin, xmax = ax.get_xlim()
+            #ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.8, color="k")
+            ax.vlines(xs, ymin=0, ymax=ylim, alpha=0.8, color="k")
+            #ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.8, color="k")
+            ax.hlines(ys, xmin=0, xmax=xlim, alpha=0.8, color="k")
+            #xlim = max(scaffxtick)
+            #ax.set_xlim(0, xs[-1])
+            #ax.set_xlim(0, xlim)
+            #ylim = max(scaffytick)
+            #ax.set_ylim(0, ys[-1])
+            #ax.set_ylim(0, ylim)
             #ax.set_xlabel("${}$ (Mb)".format(spx))
             #ax.set_ylabel("${}$ (Mb)".format(spy))
             ax.set_xlabel("{}".format(spx))
@@ -414,38 +643,38 @@ def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=
 
     return figs
 
-def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=50, outdir = '', dupStack = False):
+def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=200, outdir = '', dupStack = False):
     spx=dfx.loc[:,'species'][0]
     spy=dfy.loc[:,'species'][0]
     if dupStack: sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi)
-    dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
-    dfy,scaffytick = filter_data_dotplot(dfy, minlen)
-    dx = {k: list(v.index) for k, v in dfx.groupby("family")}
-    dy = {k: list(v.index) for k, v in dfy.groupby("family")}
-    xs = []
-    for family in dx.keys():
-        if not family in dy:
-            continue
-        if len(dx[family]) > maxsize or len(dy[family]) > maxsize:  
-            # large TE families for instance...
-            continue
-        for (x, y) in itertools.product(dx[family], dy[family]):
-            if x == y:
+    else:
+        dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
+        dfy,scaffytick = filter_data_dotplot(dfy, minlen)
+        dx = {k: list(v.index) for k, v in dfx.groupby("family")}
+        dy = {k: list(v.index) for k, v in dfy.groupby("family")}
+        xs = []
+        for family in dx.keys():
+            if not family in dy:
                 continue
-            pair = "__".join(sorted([x,y]))
-            xs.append({"pair":pair, "x": dfx.loc[x]["x"], "y": dfy.loc[y]["x"]})
-    #ax.scatter(xs, ys)
-    if len(xs) == 0:  # HACK
-        return None, None, None, None
-    df = pd.DataFrame.from_dict(xs).set_index("pair")
-    scaffxlabels = list(dfx['scaffold'].drop_duplicates())
-    scaffylabels = list(dfy['scaffold'].drop_duplicates())
-    #xl = list(np.unique(dfx["scaffstart"])) + [max(df.x)]
-    xl = list(dfx["scaffstart"].drop_duplicates()) + [max(df.x)]
-    #yl = list(np.unique(dfy["scaffstart"])) + [max(df.y)]
-    yl = list(dfy["scaffstart"].drop_duplicates()) + [max(df.y)]
-    return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick
-    
+            if len(dx[family]) > maxsize or len(dy[family]) > maxsize:  
+                # large TE families for instance...
+                continue
+            for (x, y) in itertools.product(dx[family], dy[family]):
+                if x == y:
+                    continue
+                pair = "__".join(sorted([x,y]))
+                xs.append({"pair":pair, "x": dfx.loc[x]["x"], "y": dfy.loc[y]["x"]})
+        #ax.scatter(xs, ys)
+        if len(xs) == 0:  # HACK
+            return None, None, None, None
+        df = pd.DataFrame.from_dict(xs).set_index("pair")
+        scaffxlabels = list(dfx['scaffold'].drop_duplicates())
+        scaffylabels = list(dfy['scaffold'].drop_duplicates())
+        #xl = list(np.unique(dfx["scaffstart"])) + [max(df.x)]
+        xl = list(dfx["scaffstart"].drop_duplicates()) + [max(df.x)]
+        #yl = list(np.unique(dfy["scaffstart"])) + [max(df.y)]
+        yl = list(dfy["scaffstart"].drop_duplicates()) + [max(df.y)]
+        return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick 
 
 def filter_data_dotplot(df, minlen):
     lens = df.groupby("scaffold")["start"].agg(max)
