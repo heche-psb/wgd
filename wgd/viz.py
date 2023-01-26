@@ -304,6 +304,12 @@ def get_marco_whole(dfs,seg, multi, maxsize=None, minlen=None, outdir=None):
 def get_vertices(dic,order):
     sps = list(dic.keys())
     vertices = []
+    sp_levels = {sp:len(dic[sp]) for sp in sps}
+    if max(sp_levels.values())==1: color = 'gray'
+    elif max(sp_levels.values())==2: color = 'green'
+    elif max(sp_levels.values())==3: color = 'blue'
+    elif max(sp_levels.values())==4: color = 'red'
+    else: color = 'yellow'
     for i in range(len(sps)):
         for j in range(i+1,len(sps)):
             spi,spj = sps[i],sps[j]
@@ -317,12 +323,14 @@ def get_vertices(dic,order):
                         else:
                             f1,l1 = (f1[0],f1[1]+0.75), (l1[0],l1[1]+0.75)
                         vertices.append([f1,l1,l2,f2])
-    return vertices
+    return vertices,color
 
 
 def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
     fig, ax = plt.subplots(1, 1, figsize=(100,10))
     fname = os.path.join(outdir, "All_species_marcosynteny.png")
+    fnamep = os.path.join(outdir, "All_species_marcosynteny.pdf")
+    fnames = os.path.join(outdir, "All_species_marcosynteny.svg")
     num_sp = len(scaf_info)
     colors = cm.rainbow(np.linspace(0, 1, num_sp))
     sp_wholelengths = {sp:sum(info[1]) for sp,info in scaf_info.items()}
@@ -331,6 +339,8 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1+(num_sp-1)*10+1)
     sp_bottom_up = []
+    yticks = []
+    yticklabels = []
     for indice,sp_info in enumerate(scaf_info.items()):
         sp,info = sp_info[0],sp_info[1]
         sp_bottom_up.append(sp)
@@ -339,8 +349,10 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
         leng_done = 0
         for lb,le in zip(info[0],scaled_le):
             le_scaled = le * 0.75
-            ax.add_patch(Rectangle((leng_done, 1+indice*10),le_scaled,0.75,fc = color,ec ='none',lw = 1, zorder=0, alpha=0.3))
+            ax.add_patch(Rectangle((leng_done, 1+indice*10),le_scaled,0.75,fc = color,ec ='none',lw = 1, zorder=0, alpha=0.5))
             ax.text(leng_done+(le_scaled/2),1+indice*10+0.75/2,lb,size=5,zorder=1,color="w",ha="center",va="center")
+            yticks.append(1+indice*10+0.75/2)
+            yticklabels.append(sp)
             sp_segs_y[sp] = 1+indice*10
             sp_segs_starts[sp].update({lb:leng_done})
             leng_done = leng_done + le
@@ -359,10 +371,10 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
                 f,l,li = df.loc[i,'first'],df.loc[i,'last'],df.loc[i,'list']
                 f,l = 0.75*gene_start[f]/sp_wholelengths[sp]+sp_segs_starts[sp][li],0.75*gene_start[l]/sp_wholelengths[sp]+sp_segs_starts[sp][li]
                 coord_sp[sp].append([(f,sp_segs_y[sp]),(l,sp_segs_y[sp])])
-        vertices = get_vertices(coord_sp,sp_bottom_up)
+        vertices,color = get_vertices(coord_sp,sp_bottom_up)
         codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
         for vertice in vertices:
-            pp = patches.PathPatch(Path(vertice,codes),fc='gray',alpha=0.1,zorder=1,lw=0.1)
+            pp = patches.PathPatch(Path(vertice,codes),fc=color,alpha=0.5,zorder=1,lw=0.1)
             ax.add_patch(pp)
                 #coord_sp[sp].append((f,sp_segs_y[sp]))
                 #coord_sp[sp].append((l,sp_segs_y[sp]))
@@ -376,7 +388,18 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
     #                continue
     #            ratio = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
     fig.tight_layout()
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticklabels)
+    ax.yaxis.set_ticks_position('none')
+    ax.tick_params(axis='both', which='major', labelsize=30, labelbottom = False, bottom = False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    fig.tight_layout()
     fig.savefig(fname)
+    fig.savefig(fnamep)
+    fig.savefig(fnames)
 
 def get_marco(dfx, dfy, seg, multi, maxsize=None, minlen=None, outdir=None):
     spx=dfx.loc[:,'species'][0]
