@@ -79,6 +79,8 @@ def cli(verbosity):
 @click.option('--microsyntenycoalescence','-msc', is_flag=True,help="micro-synteny coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
 @click.option('--bins', '-bs', type=int, default=10, show_default=True, help='bins for gene length normalization')
+@click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
+@click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='hmm profile of given busco dataset')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -106,13 +108,18 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins, buscosog, buscohmm):
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
+    if buscosog:
+        logging.info("Constructing busco-guided families")
+        bsog(s,buscohmm,outdir,eval,nthreads)
+        endt(tmpdir,start,s)
     if microsyntenycoalescence:
+        logging.info("Analyzing micro-synteny coalescence")
         segmentsaps(listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset)
         endt(tmpdir,start,s)
     if geneassign:

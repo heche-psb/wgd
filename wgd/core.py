@@ -1367,11 +1367,26 @@ def hmmerscan(outdir,querys,hmmf,eval,nthreads):
         cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, s.orig_pro_fasta]
         cmds.append(cmd)
         outs.append('{}.tbl'.format(pf))
-    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(sp.run)(cmd,stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     return outs
 
-def modifydf(df,outs,outdir,fam2assign,sogtest = False):
-    fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
+def buildbfam(fname,outdict):
+    indexs = []
+    for v in outdict.values():
+        for f in v.keys():
+            indexs.append(f)
+    indexs = set(indexs)
+    dic = {indice:['' for i in range(len(outdict))] for indice in indexs}
+    df = pd.DataFrame.from_dict(dic, orient='index',columns=list(outdict.keys()))
+    for f in df.index:
+        for sp in df.columns:
+            if f in list(outdict[sp].keys()):
+                df.loc[f,sp] = outdict[sp][f][0]
+    df.to_csv(fname,header = True, index = True,sep = '\t')
+    return df
+
+def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False):
+    if not bhmm: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
     yb = lambda i:os.path.basename(i).strip('.tbl')
     if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
     outdict = {yb(i):{} for i in outs}
@@ -1380,18 +1395,25 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False):
         end = dfo.shape[0] - 10
         for i in range(3,end):
             pair = dfo.iloc[i,0].split()
-            f = pair[0][:-4]
-            g = pair[2]
-            if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:g})
-            else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
-    for k,v in outdict.items():
-        yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
-        df.insert(0, k, pd.Series(yg, index=yf))
-    if sogtest:
-        l = int(len(df.columns)/2)
-        df2 = df.iloc[:,:l]
-        df2.to_csv(fname,header = True, index = True,sep = '\t')
-    else: df.to_csv(fname,header = True, index = True,sep = '\t')
+            if bhmm:
+                f,g,score = pair[0],pair[2],float(pair[5])
+                if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:(g,score)})
+                elif outdict[yb(out)][f][1] < score: outdict[yb(out)][f] = (g,score)
+            else:   
+                f = pair[0][:-4]
+                g = pair[2]
+                if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:g})
+                else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
+    if bhmm: df = buildbfam(df,outdict)
+    else:
+        for k,v in outdict.items():
+            yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
+            df.insert(0, k, pd.Series(yg, index=yf))
+        if sogtest:
+            l = int(len(df.columns)/2)
+            df2 = df.iloc[:,:l]
+            df2.to_csv(fname,header = True, index = True,sep = '\t')
+        else: df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
 def getassignfasta(df,s,querys,outdir):
@@ -1725,10 +1747,13 @@ def testassign(df):
         else:
             logging.info("{} failed the strict single-copy test".format(i))
 
-def mvassignf(pepf):
+def mvassignf(pepf,bhmm = False):
     cwd = os.getcwd()
     os.chdir(pepf)
-    with open('rmv.sh','w') as f: f.write('rm *.dom *.pfam *.tbl *.txt *.hmm* *.aln;mv Orthogroups_single_copy.tsv.assigned ../..')
+    if bhmm:
+        with open('rmv.sh','w') as f: f.write('rm *.dom *.pfam *.tbl *.txt')
+    else:
+        with open('rmv.sh','w') as f: f.write('rm *.dom *.pfam *.tbl *.txt *.hmm* *.aln;mv Orthogroups_single_copy.tsv.assigned ../..')
     cmd = ['sh'] + ['rmv.sh']
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     cmd = ['rm'] + ['rmv.sh']
@@ -2081,6 +2106,29 @@ def segmentsaps(listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_met
     for i in range(len(fcs)): getMultipliconstrees(fps[i],fcs[i],findex[i],outd,tree_method,tree_famsf,tree_fams)
     Astral_infer(tree_famsf,gsmapf,outdir)
     # segs_anchors indexed by segment, only one column as anchors
+
+def bget_seq(s, fid, gene, tmp_pathc, tmp_pathp):
+    fc = os.path.join(tmp_pathc,'{}.cds'.format(fid))
+    fp = os.path.join(tmp_pathp,'{}.pep'.format(fid))
+    for ge in gene:
+        with open (fc,'a') as f: f.write(">{0}\n{1}\n".format(ge,s[0].cds_sequence[s[0].idmap[ge]]))
+        with open (fp,'a') as f: f.write(">{0}\n{1}\n".format(ge,s[0].pro_sequence[s[0].idmap[ge]]))
+
+def bgetseq(df,outdir,s,nthreads):
+    for i,seq in enumerate(s):
+        if i != 0: s[0].merge_seqs(seq)
+    tmp_path = _mkdir(os.path.join(outdir,'Sequences'))
+    tmp_pathc = _mkdir(os.path.join(tmp_path,'cds'))
+    tmp_pathp = _mkdir(os.path.join(tmp_path,'pep'))
+    genes = map(lambda x:list(df.loc[x,:]),df.index)
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(bget_seq)(s, fid, gene, tmp_pathc, tmp_pathp) for fid, gene in zip(df.index,genes))
+
+def bsog(s,buscohmm,outdir,eval,nthreads):
+    outs = hmmerscan(outdir,s,buscohmm,eval,nthreads)
+    fn = os.path.join(outdir,'BUSCO_fam.tsv')
+    df = modifydf(fn,outs,outdir,'',bhmm = True)
+    bgetseq(df,outdir,s,nthreads)
+    mvassignf(outdir,bhmm = True)
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?
