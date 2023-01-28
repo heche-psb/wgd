@@ -81,6 +81,7 @@ def cli(verbosity):
 @click.option('--bins', '-bs', type=int, default=10, show_default=True, help='bins for gene length normalization')
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
 @click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='hmm profile of given busco dataset')
+@click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO ')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -108,7 +109,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins, buscosog, buscohmm):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins, buscosog, buscohmm, buscocutoff):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
@@ -116,7 +117,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if buscosog:
         logging.info("Constructing busco-guided families")
-        bsog(s,buscohmm,outdir,eval,nthreads)
+        bsog(s,buscohmm,outdir,eval,nthreads,buscocutoff)
         endt(tmpdir,start,s)
     if microsyntenycoalescence:
         logging.info("Analyzing micro-synteny coalescence")

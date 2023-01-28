@@ -1385,7 +1385,8 @@ def buildbfam(fname,outdict):
     df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
-def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False):
+def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = None):
+    if cutoff != None: ctf = pd.read_csv(cutoff, header = None,index_col = 0,sep='\t')
     if not bhmm: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
     yb = lambda i:os.path.basename(i).strip('.tbl')
     if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
@@ -1397,6 +1398,9 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False):
             pair = dfo.iloc[i,0].split()
             if bhmm:
                 f,g,score = pair[0],pair[2],float(pair[5])
+                ctf_v = ctf.loc[f,1]
+                if score < ctf_v:
+                    continue
                 if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:(g,score)})
                 elif outdict[yb(out)][f][1] < score: outdict[yb(out)][f] = (g,score)
             else:   
@@ -2111,8 +2115,9 @@ def bget_seq(s, fid, gene, tmp_pathc, tmp_pathp):
     fc = os.path.join(tmp_pathc,'{}.cds'.format(fid))
     fp = os.path.join(tmp_pathp,'{}.pep'.format(fid))
     for ge in gene:
-        with open (fc,'a') as f: f.write(">{0}\n{1}\n".format(ge,s[0].cds_sequence[s[0].idmap[ge]]))
-        with open (fp,'a') as f: f.write(">{0}\n{1}\n".format(ge,s[0].pro_sequence[s[0].idmap[ge]]))
+        if ge != '':
+            with open (fc,'a') as f: f.write(">{0}\n{1}\n".format(ge,s.cds_sequence[s.idmap[ge]]))
+            with open (fp,'a') as f: f.write(">{0}\n{1}\n".format(ge,s.pro_sequence[s.idmap[ge]]))
 
 def bgetseq(df,outdir,s,nthreads):
     for i,seq in enumerate(s):
@@ -2121,12 +2126,12 @@ def bgetseq(df,outdir,s,nthreads):
     tmp_pathc = _mkdir(os.path.join(tmp_path,'cds'))
     tmp_pathp = _mkdir(os.path.join(tmp_path,'pep'))
     genes = map(lambda x:list(df.loc[x,:]),df.index)
-    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(bget_seq)(s, fid, gene, tmp_pathc, tmp_pathp) for fid, gene in zip(df.index,genes))
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(bget_seq)(s[0], fid, gene, tmp_pathc, tmp_pathp) for fid, gene in zip(df.index,genes))
 
-def bsog(s,buscohmm,outdir,eval,nthreads):
+def bsog(s,buscohmm,outdir,eval,nthreads,buscocutoff):
     outs = hmmerscan(outdir,s,buscohmm,eval,nthreads)
     fn = os.path.join(outdir,'BUSCO_fam.tsv')
-    df = modifydf(fn,outs,outdir,'',bhmm = True)
+    df = modifydf(fn,outs,outdir,'',bhmm = True, cutoff = buscocutoff)
     bgetseq(df,outdir,s,nthreads)
     mvassignf(outdir,bhmm = True)
 
