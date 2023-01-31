@@ -122,7 +122,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         endt(tmpdir,start,s)
     if microsyntenycoalescence:
         logging.info("Analyzing micro-synteny coalescence")
-        segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset)
+        segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)

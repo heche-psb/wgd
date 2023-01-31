@@ -2109,14 +2109,17 @@ def hierarchy_dendrogram(X,labels,outdir,label=True):
     else: dendrogram(Z,leaf_font_size=20,orientation='top')
     plt.savefig(fname,format ='pdf')
 
-def search_shared_aps(ap_filtered,num_sp,gene_sp_gl):
+def search_shared_aps(ap_filtered,num_sp,gene_sp_gl,cutoff):
     Mul_groups = list(ap_filtered.groupby('multiplicon'))
     Mids = list(map(lambda x:x[0],Mul_groups))
     Aps_per_Mul = list(map(lambda x:x[1].loc[:,['sp_x','gl_x','gene_x','gene_y','sp_y','gl_y','multiplicon','level']],Mul_groups))
     num = 0
     dfs_container = []
-    logging.info('Only consider multiplcons containing all species')
+    minimum_sp = num_sp*cutoff
+    if minimum_sp-int(minimum_sp) != 0: logging.info('Only consider multiplcons containing at least {} species'.format(int(minimum_sp)+1))
+    else: logging.info('Only consider multiplcons containing at least {} species'.format(int(minimum_sp)))
     for mid,df in zip(Mids,Aps_per_Mul):
+        df = df.drop_duplicates(subset=['gene_x', 'gene_y']).copy()
         level = list(df['level'])[0]
         occurs_gl = df.groupby('gene_y')[['gl_x','gene_x']].aggregate(lambda x:list(x))
         for gy in occurs_gl.index: occurs_gl.loc[gy,'gene_x'] = occurs_gl.loc[gy,'gene_x'] + [gy]
@@ -2129,7 +2132,7 @@ def search_shared_aps(ap_filtered,num_sp,gene_sp_gl):
         for gy in occurs_sp.index: occurs_sp.loc[gy,'sp_x_y'] = occurs_sp.loc[gy,'sp_x_y'] | set([gene_sp_gl[gy][0]])
         occurs_sp['num_sp_x_y'] = [len(i) for i in occurs_sp['sp_x_y']]
         df = df.drop_duplicates(subset=['gene_y']).merge(occurs_gl.reset_index(),on='gene_y').merge(occurs_sp.reset_index(),on='gene_y')
-        df = df[(df['num_gl_x_y']>=level) & (df['num_sp_x_y']>=num_sp)]
+        df = df[(df['num_gl_x_y']>=level) & (df['num_sp_x_y']>=minimum_sp)]
         #for x,y in zip(df['gene_xy'],df['num_gl_x_y']): print((x,y))
         if len(df) ==0: logging.info('Skip multiplicon {} due to no intersection of anchor pairs across all levels'.format(mid))
         else:
@@ -2203,7 +2206,7 @@ def writeog(df,outdir,sp_name,gene_sp_gl):
     #        sp = gene_sp_gl[gene][0]
     #        if table.get(sp) == None: table[sp] = 
 
-def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_method,treeset):
+def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthreads,tree_method,treeset,minimum_portion):
     Ratios={}
     num_sp = len(seqs)
     sp_name = []
@@ -2240,9 +2243,15 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir)
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir,label=False)
     #profile = profile.loc[:,text]
-    for sp in profile.columns[:-3]: profile = profile[profile[sp].astype('int')>0]
+    #minimum_portion = 0.75
+    species_ratio = []
+    for i in profile.index: species_ratio.append(sum(map(lambda x:int(x)!=0,profile.loc[i,profile.columns[:-3]]))/num_sp)
+    profile.loc[:,'species_ratio'] = species_ratio
+    #print(profile['species_ratio'])
+    profile = profile[profile['species_ratio']>=minimum_portion]
+    #for sp in profile.columns[:-3]: profile = profile[profile[sp].astype('int')>0]
     ap_filtered = ap.merge(profile.reset_index(),on='multiplicon')
-    dfs_coc = search_shared_aps(ap_filtered,num_sp,gene_sp_gl)
+    dfs_coc = search_shared_aps(ap_filtered,num_sp,gene_sp_gl,minimum_portion)
     fname_seq = _mkdir(os.path.join(outdir, "Multiplicons_Sequences"))
     assembled_df = writeog(dfs_coc,outdir,sp_name,gene_sp_gl)
     writemscseq(assembled_df,fname_seq,seqs,nthreads,tree_method,treeset,gsmapf,outdir)
