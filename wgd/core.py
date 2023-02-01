@@ -2145,6 +2145,37 @@ def search_shared_aps(ap_filtered,num_sp,gene_sp_gl,cutoff):
     #    print((mid,leve,glxy,i))
     return dfs
 
+def concat_per_mlt(ind,df,fname_seq_pep,tree_method,treeset,mlt_ap,gene_sp_gl,gene_start,mlts_seq,sg_glsmap):
+    df_tmp = df.loc[[ind],:].copy().dropna(axis=1)
+    #sp_gl_level = {sp_gl:level for sp_gl,level in map(lambda x:(x,len(df_tmp.loc[ind,x].split(', '))),df_tmp.columns)}
+    sp_gl_genes = {sp_gl:df_tmp.loc[ind,sp_gl].split(', ') for sp_gl in df_tmp.columns}
+    sp_gl_level = {sp_gl:len(df_tmp.loc[ind,sp_gl].split(', ')) for sp_gl in df_tmp.columns}
+    fname_aln = os.path.join(fname_seq_pep,ind+'.aln')
+    aln_object = AlignIO.read(fname_aln,'fasta')
+    gene_start_order = {seq.id:gene_start[seq.id] for seq in aln_object}
+    aln_gene = {sequ.id:sequ.seq for sequ in aln_object}
+    sorted_sg_gl = sorted(df_tmp.columns)
+    #gene_id_order = []
+    #for concat_order,sg_gl in enumerate(sorted_sg_gl):
+    for sg_gl in sorted_sg_gl:
+        #ap_id = '{0}_{1}'.format(concat_order+1,sg_gl)
+        ap_id = 'Multiplicon{0}_{1}'.format(mlt_ap[ind],sg_gl)
+        genes = sp_gl_genes[sg_gl]
+        if len(genes) > 1: genes = [x for _,x in sorted(zip([gene_start_order[g] for g in genes],genes),key=lambda y:y[0])]
+        for go,gene in enumerate(genes):
+            gene_id = '{0}_{1}'.format(ap_id,go+1)
+            #gene_id_order.append(gene_id)
+            sg_glsmap[gene_id] = gene_sp_gl[gene][0]
+            if mlts_seq[mlt_ap[ind]].get(gene_id) == None: mlts_seq[mlt_ap[ind]][gene_id] = aln_gene[gene]
+            else: mlts_seq[mlt_ap[ind]][gene_id] = mlts_seq[mlt_ap[ind]][gene_id] + aln_gene[gene]
+    #mlt_gid_order[mlt_ap[ind]] = gene_id_order
+    #text = ' '.join(gene_id_order)
+    #logging.info('The concatenation order of {0} is {1}'.format(ind,text))
+            #with open(,'a') as f: f.write('>{}\n{}\n'.format(gene_id,aln_gene[gene]))
+    #for seq in aln_object:
+    #    sp_gl = gene_sp_gl[seq.id][1]
+    #    level = sp_gl_level[sp_gl]
+    #    if level > 1:
 def getseq_para(ind,df,s,fname_seq_pep,tree_method,treeset):
     fname = os.path.join(fname_seq_pep,ind)
     fname_aln = fname + '.aln'
@@ -2157,25 +2188,42 @@ def getseq_para(ind,df,s,fname_seq_pep,tree_method,treeset):
     mafft_cmd(fname,'--auto',fname_aln)
     run_tree_msc(fname_aln,tree_method,treeset)
 
-def writemscseq(df,fname_seq,s,nthreads,tree_method,treeset,gsmapf,outdir):
+def writeconcatseq(mlt,seq_per_ap,f,tree_method,tree_famsf,tree_fams,treeset):
+    fn = os.path.join(f,'Multiplicon'+str(mlt)+'_concatenation.aln')
+    with open(fn,'w') as f:
+        for gene_id,seq in seq_per_ap.items(): f.write('>{}\n{}\n'.format(gene_id,seq))
+    run_tree_msc(fn,tree_method,treeset)
+    getmsctree(fn,'Multiplicon'+str(mlt),tree_method,tree_famsf,tree_fams,outd = f)
+
+def writemscseq(df,fname_seq,s,nthreads,tree_method,treeset,gsmapf,outdir,mlt_ap,gene_sp_gl,gene_start):
     fname_seq_pep = _mkdir(os.path.join(fname_seq,'pep'))
-    tree_famsf,tree_fams=[],{}
+    fname_seq_pep_concat = _mkdir(os.path.join(fname_seq,'pep_concatenation_per_multiplicon'))
+    mlts_seq = {mlt_ap[ind]:{} for ind in df.index}
+    tree_famsf,tree_fams,sg_glsmap=[],{},{}
     #Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=5)(delayed(getseq_para)(ind,df,s,fname_seq_pep,tree_method,treeset) for ind in df.index)
     for ind in df.index:
         getseq_para(ind,df,s,fname_seq_pep,tree_method,treeset)
         getmsctree(os.path.join(fname_seq_pep,ind+'.aln'),ind,tree_method,tree_famsf,tree_fams,outd = fname_seq_pep)
-    Astral_infer(tree_famsf,gsmapf,outdir)
+    Astral_infer(tree_famsf,gsmapf,fname_seq_pep)
+    tree_famsf,tree_fams=[],{}
+    for ind in df.index: concat_per_mlt(ind,df,fname_seq_pep,tree_method,treeset,mlt_ap,gene_sp_gl,gene_start,mlts_seq,sg_glsmap)
+    sg_glsmapf = os.path.join(outdir,'gl_sp.map')
+    writegsmap(sg_glsmap,sg_glsmapf)
+    for mlt,seq_per_ap in mlts_seq.items(): writeconcatseq(mlt,seq_per_ap,fname_seq_pep_concat,tree_method,tree_famsf,tree_fams,treeset)
+    Astral_infer(tree_famsf,sg_glsmapf,fname_seq_pep_concat)
 
 def writeog(df,outdir,sp_name,gene_sp_gl):
     ap_per_mlt_counts = df.pivot_table(index = ['multiplicon'], aggfunc ='size').to_frame(name = 'num_ap')
     aps_mlts = {}
     num_ap_total = 0
     ap_mul_dfs = []
+    mlt_ap = {}
     for mlt in ap_per_mlt_counts.index:
         num = ap_per_mlt_counts.loc[mlt,'num_ap']
         for i in range(num):
             num_ap_total = num_ap_total + 1
             label = "Multiplicon{0}_Ap{1}".format(mlt,i+1)
+            mlt_ap[label] = mlt
             aps_mlts.update({label:{}})
     logging.info('In total {} anchor pairs are to be considered'.format(num_ap_total))
     group_mul = list(df.groupby('multiplicon'))
@@ -2198,7 +2246,7 @@ def writeog(df,outdir,sp_name,gene_sp_gl):
     assembled_df = pd.concat(ap_mul_dfs)
     fname = os.path.join(outdir,'Multiplicon_Ap.tsv')
     assembled_df.to_csv(fname,header=True,index=True,sep='\t')
-    return assembled_df
+    return assembled_df,mlt_ap
     #for leve,mid,genes in zip(df['level'],df['multiplicon'],df['gene_xy']):
     #    ap_num = ap_per_mlt_counts.loc[mid,'num_ap']
     #    table = {'multiplicon{0}_ap{1}'.format(mid,)}
@@ -2221,6 +2269,7 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     ap = ap.loc[:,['multiplicon','gene_x','gene_y']]
     genetable = pd.read_csv(genetable, sep=",", index_col=None, header=0)
     gene_sp_gl = {gene:(sp,'{0}_{1}'.format(sp,gl)) for gene,sp,gl in zip(genetable['gene'],genetable['species'],genetable['scaffold'])}
+    gene_start = {gene:start for gene,start in zip(genetable['gene'],genetable['start'])}
     ap['sp_x'] = [gene_sp_gl[gx][0] for gx in ap['gene_x']]
     ap['gl_x'] = [gene_sp_gl[gx][1] for gx in ap['gene_x']]
     ap['sp_y'] = [gene_sp_gl[gy][0] for gy in ap['gene_y']]
@@ -2253,8 +2302,8 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     ap_filtered = ap.merge(profile.reset_index(),on='multiplicon')
     dfs_coc = search_shared_aps(ap_filtered,num_sp,gene_sp_gl,minimum_portion)
     fname_seq = _mkdir(os.path.join(outdir, "Multiplicons_Sequences"))
-    assembled_df = writeog(dfs_coc,outdir,sp_name,gene_sp_gl)
-    writemscseq(assembled_df,fname_seq,seqs,nthreads,tree_method,treeset,gsmapf,outdir)
+    assembled_df,mlt_ap = writeog(dfs_coc,outdir,sp_name,gene_sp_gl)
+    writemscseq(assembled_df,fname_seq,seqs,nthreads,tree_method,treeset,gsmapf,outdir,mlt_ap,gene_sp_gl,gene_start)
     #mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
     #mlts_segs_anchors_ratios = mlts_segs_anchors.reset_index().set_index('multiplicon').join(profile).reset_index().set_index('segment')
     #fname_msar = os.path.join(outdir, "Mlts_Segs_Ancs_Ratios.tsv")
