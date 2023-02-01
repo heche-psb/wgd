@@ -1354,11 +1354,52 @@ def hmmerbuild(df,s,outdir,nthreads):
     yfnc = lambda i: os.path.join(outdir,'{}.cds'.format(i))
     yfnp = lambda i: os.path.join(outdir,'{}.pep'.format(i))
     #Parallel(n_jobs=nthreads)(delayed(run_hmmerb)(yids(i),yfnc(i),yfnp(i),s) for i in df.index)
-    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(run_hmmerbp)(yids(i),yfnp(i),s) for i in df.index)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=10)(delayed(run_hmmerbp)(yids(i),yfnp(i),s) for i in df.index)
 
-def hmmerscan(outdir,querys,hmmf,eval,nthreads):
+def writetmpseq(s,df,outdir):
+    fname_whole = os.path.join(outdir,'reference.pep')
+    for fid in df.index:
+        #fname = os.path.join(outdir,fid)
+        #tmp = df.loc[[fid],:].dropna(axis=1)
+        genes_genes = df.loc[[fid],:].dropna(axis=1).loc[fid,:]
+        for genes in genes_genes:
+            with open(fname_whole,'a') as f:
+                for gene in genes.split(', '): f.write('>{}\n{}\n'.format(gene,s.pro_sequence[s.idmap[gene]]))
+    return fname_whole
+
+def reference_hmmscan(df,s,hmmf,outdir,eval):
+    refer_fp = writetmpseq(s,df,outdir)
+    out = scanrefer(refer_fp,hmmf,outdir,eval)
+    f_g_score = {fid:{} for fid in df.index}
+    score_per_f = {fid:[] for fid in df.index}
+    cutoff_per_f = {fid:0 for fid in df.index}
+    dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
+    end = dfo.shape[0] - 10
+    for i in range(3,end):
+        pair = dfo.iloc[i,0].split()
+        f,g,score = pair[0][:-4],pair[2],float(pair[5])
+        f_g_score[f][g] = score
+    for fid in df.index:
+        genes_genes = df.loc[[fid],:].dropna(axis=1).loc[fid,:]
+        for genes in genes_genes:
+            for gene in genes.split(', '): score_per_f[fid].append(f_g_score[fid][gene])
+    for fid,vs in score_per_f.items(): cutoff_per_f[fid] = min(vs)*0.9
+    for fid,cutoff in cutoff_per_f.items(): logging.info('The cutoff score for family {} is {:.2f}'.format(fid,cutoff))
+    return cutoff_per_f
+
+def scanrefer(refer_fp,hmmf,outdir,eval):
     cmd = ['hmmpress'] + [hmmf]
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    pf = os.path.join(outdir,os.path.basename(refer_fp).strip('.pep'))
+    cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, refer_fp]
+    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    out = '{}.tbl'.format(pf)
+    return out
+
+def hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=False):
+    if not skipress:
+        cmd = ['hmmpress'] + [hmmf]
+        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     cmds = []
     outs = []
     yprefix = lambda i: os.path.join(outdir,os.path.basename(i).strip('.pep'))
@@ -1386,13 +1427,15 @@ def buildbfam(fname,outdict):
     df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
-def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = None):
+def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = None, use_cf = None):
     if cutoff != None: ctf = pd.read_csv(cutoff, header = None,index_col = 0,sep='\t')
     if not bhmm: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
     yb = lambda i:os.path.basename(i).strip('.tbl')
     if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
     outdict = {yb(i):{} for i in outs}
+    f_g_score = {fid:{} for fid in df.index}
     for out in outs:
+        #print(yb(out))
         dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
         end = dfo.shape[0] - 10
         for i in range(3,end):
@@ -1404,13 +1447,44 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = N
                     continue
                 if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:(g,score)})
                 elif outdict[yb(out)][f][1] < score: outdict[yb(out)][f] = (g,score)
-            else:   
-                f = pair[0][:-4]
-                g = pair[2]
-                if outdict[yb(out)].get(f) == None: outdict[yb(out)].update({f:g})
-                else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
+            else:
+                f,g,score = pair[0][:-4],pair[2],float(pair[5])
+                f_g_score[f][g] = score
+                #print((f,g,score))
+                if use_cf != None:
+                    if score >= use_cf[f]:
+                        if outdict[yb(out)].get(f) == None: outdict[yb(out)][f]=g
+                        else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
+                else:
+                    if outdict[yb(out)].get(f) == None: outdict[yb(out)][f]=g
+                    else: outdict[yb(out)][f] = ', '.join([outdict[yb(out)][f],g])
     if bhmm: df = buildbfam(df,outdict)
     else:
+        if sogtest:
+            #print(outdict)
+            #ks = outdict.keys()
+            #new_outdict = {yb(i):{} for i in outs}
+            #for k in ks:
+            #    v = outdict[k]
+            cutoff_fs = {}
+            for fid in df.index: cutoff_fs[fid] = min([f_g_score[fid][gene] for gene in list(df.loc[fid,:])])*0.9
+            for f,v in cutoff_fs.items():
+                logging.info('The cutoff score for single-copy gene family {} is {:.2f}'.format(f,v))
+            for k,v in outdict.items():
+                for f in v.keys():
+                    #orig_gene = df.loc[f,k[:-9]]
+                    #highest_score = g_score[orig_gene]
+                    #cutoff_score = highest_score*0.9
+                    #logging.info('The cutoff score for single-copy gene family {} is {:.2f}'.format(f,cutoff_fs[f]))
+                    genes_prefilter = outdict[k][f].split(', ')
+                    genes_afterfilter = ''
+                    for gene in genes_prefilter:
+                        ge_score = f_g_score[f][gene]
+                        if ge_score >= cutoff_fs[f]:
+                            genes_afterfilter = ', '.join([genes_afterfilter,gene]) if genes_afterfilter != '' else gene
+                    outdict[k][f] = genes_afterfilter
+                    #new_outdict[k][f] = genes_afterfilter
+            #outdict = new_outdict
         for k,v in outdict.items():
             yf,yg = (lambda v:(list(v.keys()),list(v.values())))(v)
             df.insert(0, k, pd.Series(yg, index=yf))
@@ -1437,8 +1511,9 @@ def getassignfasta(df,s,querys,outdir):
 def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign):
     hmmerbuild(df,s,outdir,nthreads)
     hmmf = concathmm(outdir,df)
-    outs = hmmerscan(outdir,querys,hmmf,eval,nthreads)
-    df = modifydf(df,outs,outdir,fam2assign)
+    c_f = reference_hmmscan(df,s,hmmf,outdir,eval)
+    outs = hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=True)
+    df = modifydf(df,outs,outdir,fam2assign,use_cf=c_f)
     getassignfasta(df,s,querys,outdir)
 
 def rmtmp(tmpdir,outdir,querys):
@@ -1504,6 +1579,7 @@ def concatcdss(sequences,outdir):
     return Concat_cdsf
 
 def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,bins=100):
+    s0_orig = copy.deepcopy(s[0])
     if concat:
         sgidmaps = {}
         for x in s : sgidmaps.update(x.spgenemap())
@@ -1523,7 +1599,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
     slist = []
     for seq in s: sgmaps.update(seq.spgenemap())
     for seq in s: slist.append(seq.prefix)
-    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval)
+    txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval,s0_orig)
     if concat:
         if tmpdir is None: ss.remove_tmp(prompt=False)
         sp.run(['rm'] + [Concat_cdsf], stdout=sp.PIPE,stderr=sp.PIPE)
@@ -1764,7 +1840,7 @@ def mvassignf(pepf,bhmm = False):
     cmd = ['rm'] + ['rmv.sh']
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
 
-def unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval):
+def unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval,s0_orig):
     sog_famids = counts_coc[counts_coc['CopyType'] == 'single-copy'].index
     if len(sog_famids) == 0: logging.info("No single-copy gene families delineated, skipping unbiased test")
     else:
@@ -1773,14 +1849,14 @@ def unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval):
         sog_fams.to_csv(fn_sog,header = True,index =True,sep = '\t')
         pepf = os.path.join(fsog,'pep')
         yp = lambda i: os.path.join(pepf,'{}.pep'.format(i))
-        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(phmmbuild)(yp(i)) for i in sog_famids)
+        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=10)(delayed(phmmbuild)(yp(i)) for i in sog_famids)
         hmmf = concatehmm(pepf,sog_famids)
-        outs = hmmerscan(pepf,s,hmmf,eval,nthreads)
+        outs = hmmerscan(pepf,[s0_orig]+s[1:],hmmf,eval,nthreads)
         df = modifydf(sog_fams,outs,pepf,fn_sog,sogtest = True)
         testassign(df)
         mvassignf(pepf)
 
-def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval):
+def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msogcut,s,testsog,eval,s0_orig):
     fname_fam = os.path.join(outdir,'Orthogroups.sp.tsv')
     fname_count = os.path.join(outdir,'Orthogroups.genecount.tsv')
     fname_rep = os.path.join(outdir,'Orthogroups.representives.tsv')
@@ -1854,7 +1930,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
         memory_reporter()
-    if testsog: unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval)
+    if testsog: unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval,s0_orig)
 
 def get_sog_multiplicons(df,species_num):
     sp_counted = df.groupby(["multiplicon"])["genome"].aggregate(lambda x: len(set(x)))
