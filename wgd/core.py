@@ -2204,13 +2204,14 @@ def writemscseq(df,fname_seq,s,nthreads,tree_method,treeset,gsmapf,outdir,mlt_ap
     for ind in df.index:
         getseq_para(ind,df,s,fname_seq_pep,tree_method,treeset)
         getmsctree(os.path.join(fname_seq_pep,ind+'.aln'),ind,tree_method,tree_famsf,tree_fams,outd = fname_seq_pep)
-    Astral_infer(tree_famsf,gsmapf,fname_seq_pep)
-    tree_famsf,tree_fams=[],{}
+    #Astral_infer(tree_famsf,gsmapf,fname_seq_pep)
+    tree_famsf_concat,tree_fams_concat=[],{}
     for ind in df.index: concat_per_mlt(ind,df,fname_seq_pep,tree_method,treeset,mlt_ap,gene_sp_gl,gene_start,mlts_seq,sg_glsmap)
     sg_glsmapf = os.path.join(outdir,'gl_sp.map')
     writegsmap(sg_glsmap,sg_glsmapf)
-    for mlt,seq_per_ap in mlts_seq.items(): writeconcatseq(mlt,seq_per_ap,fname_seq_pep_concat,tree_method,tree_famsf,tree_fams,treeset)
-    Astral_infer(tree_famsf,sg_glsmapf,fname_seq_pep_concat)
+    for mlt,seq_per_ap in mlts_seq.items(): writeconcatseq(mlt,seq_per_ap,fname_seq_pep_concat,tree_method,tree_famsf_concat,tree_fams_concat,treeset)
+    Astral_infer(tree_famsf,gsmapf,fname_seq_pep)
+    Astral_infer(tree_famsf_concat,sg_glsmapf,fname_seq_pep_concat)
 
 def writeog(df,outdir,sp_name,gene_sp_gl):
     ap_per_mlt_counts = df.pivot_table(index = ['multiplicon'], aggfunc ='size').to_frame(name = 'num_ap')
