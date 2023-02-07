@@ -13,7 +13,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.path import Path
 import matplotlib.patches as patches
 from matplotlib.pyplot import cm
-
+from scipy import stats
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
     # node in the gene family trees.
@@ -42,6 +42,101 @@ _labels = {
         "dS" : "$K_\mathrm{S}$",
         "dN" : "$K_\mathrm{A}$",
         "dN/dS": "$\omega$"}
+
+def getspair_ks(spair,df,spgenemap):
+    df_perspair = {}
+    allspair = []
+    for i in spair:
+        pair = '_'.join(sorted([j.strip() for j in i.split(';')]))
+        if pair not in allspair: allspair.append(pair)
+    #df['sp1'],df['sp2'] = [spgenemap[g] for g in df['gene1']],[spgenemap[g] for g in df['gene2']]
+    df['spair'] = ['_'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
+    for p in allspair: df_perspair[p] = df[df['spair']==p]
+    return df_perspair,allspair
+
+def get_totalH(Hs):
+    CHF = 0
+    for i in Hs: CHF = CHF + i
+    return CHF
+
+def writespgenemap(spgenemap,outdir):
+    fname = os.path.join(outdir,'gene_species.map')
+    with open(fname,'w') as f:
+        for gene,sp in spgenemap.items(): f.write('{0} {1}\n'.format(gene,sp))
+
+def getgsmap(gsmap):
+    spgenemap = {}
+    with open(gsmap,'r') as f:
+        lines = f.readlines()
+        for line in lines:
+           gs = [i.strip() for i in line.split(' ')]
+           spgenemap[gs[0]] = gs[1]
+    return spgenemap
+
+def kde_mode(kde_x, kde_y):
+    maxy_iloc = np.argmax(kde_y)
+    mode = kde_x[maxy_iloc]
+    return mode, max(kde_y)
+
+def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
+    fnames = os.path.join(outdir,'{}_per_spair.ksd.svg'.format(title))
+    fnamep = os.path.join(outdir,'{}_per_spair.ksd.pdf'.format(title))
+    if not viz: writespgenemap(spgenemap,outdir)
+    df_perspair,allspair = getspair_ks(spair,df,spgenemap)
+    cs = cm.rainbow(np.linspace(0, 1, len(allspair)))
+    keys = ["dS", "dS", "dN", "dN/dS"]
+    np.seterr(divide='ignore')
+    funs = [lambda x: x, np.log10, np.log10, np.log10]
+    #fig, axs = plt.subplots(2, 2)
+    fig, ax = plt.subplots()
+    df_pers = [df_perspair[i] for i in allspair]
+    bins = 50
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    #np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
+    for i,item in enumerate(df_perspair.items()):
+        pair,df_per = item[0],item[1]
+        #for ax, k, f in zip(axs.flatten(), keys, funs):
+        w = df_per['weightoutlierexcluded']
+        x = df_per['dS']
+        y = x[np.isfinite(x)]
+        w = w[np.isfinite(x)]
+        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
+        kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+        kde_y = kde(kde_x)
+        mode, maxim = kde_mode(kde_x, kde_y)
+        CHF = get_totalH(Hs)
+        scale = CHF*0.1
+        ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
+        ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
+            #if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
+            #else: ax.hist(y, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,bins=50,label=pair)
+        #w = [df_per['weightoutlierexcluded'] for df_per in df_pers]
+        #x = [f(df_per['dS']) for df_per in df_pers]
+        #y = [i[np.isfinite(i)] for i in x]
+        #w = [j[np.isfinite(n)] for j,n in zip(w,x)]
+        #if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs, alpha=0.3, rwidth=0.8,label=allspair)
+        #else: ax.hist(y, weights=w, color=cs, alpha=0.3, rwidth=0.8,bins=50,label=allspair)
+            #xlabel = _labels[k]
+            #if f == np.log10: xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
+            #ax.set_xlabel(xlabel)
+            #ax.legend(loc=1,bbox_to_anchor=(1.0, 0.9),fontsize='small')
+    ax.set_xlabel(_labels["dS"])
+    ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.9, 0.95))
+    #axs[0,0].set_ylabel(ylabel)
+    #axs[1,0].set_ylabel(ylabel)
+    #axs[0,0].set_xticks([0,1,2,3,4,5])
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    #fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
+    #plt.title(title,loc='center')
+    ax.set_title(title)
+    fig.tight_layout()
+    #plt.subplots_adjust(top=0.85)
+    fig.savefig(fnames)
+    fig.savefig(fnamep)
+    plt.close()
 
 def default_plot(
         *args, 
@@ -147,6 +242,102 @@ def sankey_plot_self(sp, df, minlen,outdir, seg, multi):
     highest_level = max(segs_levels.values())
     plothlines(highest_level,segs_levels,sp,gene_start,df1.len,df1.index,outdir,scaflabels,patchescoordif,patchescoordil,patchessegid)
 
+def AK_plot(spx,dfx,ancestor,backbone=False,colortable=None,seg=None,maxsize=0,minlen=0,outdir=None):
+    lens = dfx.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if minlen < 0: minlen = df1x.len.max() * 0.1
+    df1x = df1x.loc[df1x.len > minlen]
+    if backbone:
+        color_scaff = plot_ancestor(spx,df1x.len,df1x.index,outdir)
+        return color_scaff
+    elif spx != ancestor:
+        seg.loc[:,"segment"] = seg.index
+        #seg_unfilterded = seg.loc[seg['genome']==spx].copy()
+        segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+        profile = segs_info.unstack(level=-1).fillna(0)
+        profile_good = profile.loc[(profile[spx]>0) & (profile[ancestor]>0)]
+        if len(profile_good) == 0: logging.info('No multiplicon contained both genome of {0} and {1}'.format(spx,spy))
+        else:
+            seg_good = seg.merge(profile_good.reset_index(),on='multiplicon')
+            gl_tocolor = seg_good.loc[seg_good['genome']==spx,'list']
+            for gl in gl_tocolor: print(gl)
+        plot_descendant(spx,df1x.len,df1x.index,outdir,colortable,gl_tocolor,seg_good.loc[:,['genome','list','first','last']])
+
+def plot_descendant(sp,scafflength,scafflabel,outdir,colortable,gl_tocolor,segs_tocolor):
+    scafflength_normalized = [i/max(scafflength) for i in scafflength]
+    fname = os.path.join(outdir, "{}_descendant_karyotype.png".format(sp))
+    fnamep = os.path.join(outdir, "{}_descendant_karyotype.pdf".format(sp))
+    fnames = os.path.join(outdir, "{}_descendant_karyotype.svg".format(sp))
+    fig, ax = plt.subplots(1, 1, figsize=(10,20))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, (3*len(scafflength))+1)
+    yticks = []
+    yticklabels = []
+    for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
+        yticks.append((3*i)+1.25)
+        yticklabels.append(la)
+        ax.add_patch(Rectangle((0, (3*i)+1),le,0.5,fc ='gray',ec ='none',lw = 1, zorder=0, alpha=0.3))
+        #verts = [(0,(3*i)+1),(le,(3*i)+1+0.5)]
+        #codes = [Path.MOVETO,Path.LINETO]
+        #path = Path(verts, codes)
+        #ax.add_patch(patches.PathPatch(path,fc='none',ec ='black',lw = 1,zorder=1))
+        for f,l,segid in zip(patchescoordif[idc],patchescoordil[idc],patchessegid[idc]):
+            left = gene_start[f]/max(scafflength)
+            right = gene_start[l]/max(scafflength)
+            ple = right - left
+    y = lambda x : ["{:.2f}".format(i) for i in x]
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticklabels)
+    ax.set_xticklabels(y(ax.get_xticks()*max(scafflength)/1e6))
+    ax.xaxis.label.set_fontsize(18)
+    ax.set_xlabel("{} (Mb)".format(sp))
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(fname)
+    fig.savefig(fnamep)
+    fig.savefig(fnames)
+
+def plot_ancestor(sp,scafflength,scafflabel,outdir):
+    scafflength_normalized = [i/max(scafflength) for i in scafflength]
+    fname = os.path.join(outdir, "{}_ancestor_karyotype.png".format(sp))
+    fnamep = os.path.join(outdir, "{}_ancestor_karyotype.pdf".format(sp))
+    fnames = os.path.join(outdir, "{}_ancestor_karyotype.svg".format(sp))
+    fig, ax = plt.subplots(1, 1, figsize=(10,20))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, (3*len(scafflength))+1)
+    yticks = []
+    yticklabels = []
+    colors = cm.rainbow(np.linspace(0, 1, len(scafflength)))
+    color_scaff = {}
+    for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
+        yticks.append((3*i)+1.25)
+        yticklabels.append(la)
+        ax.add_patch(Rectangle((0, (3*i)+1),le,0.5,fc =colors[i],ec ='none',lw = 1, zorder=0, alpha=0.3))
+        color_scaff[la]=colors[i]
+        verts = [(0,(3*i)+1),(le,(3*i)+1+0.5)]
+        codes = [Path.MOVETO,Path.LINETO]
+        path = Path(verts, codes)
+        ax.add_patch(patches.PathPatch(path,fc='none',ec ='black',lw = 1,zorder=1))
+    y = lambda x : ["{:.2f}".format(i) for i in x]
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticklabels)
+    ax.set_xticklabels(y(ax.get_xticks()*max(scafflength)/1e6))
+    ax.xaxis.label.set_fontsize(18)
+    ax.set_xlabel("{} (Mb)".format(sp))
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(fname)
+    fig.savefig(fnamep)
+    fig.savefig(fnames)
+    return color_scaff
+
 def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
     lens = dfx.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
@@ -166,7 +357,7 @@ def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
         else: multi_goodinuse = profile.loc[profile[spy]>0,[spy]].copy()
         seg_filterded = seg_unfilterded.set_index('multiplicon').merge(multi_goodinuse,left_index=True, right_index=True).drop(columns=spy)
         if len(seg_filterded) == 0:
-            logging.info('No collinear segments contained both genome of {0} and {1}'.format(spx,spy))
+            logging.info('No multiplicon contained both genome of {0} and {1}'.format(spx,spy))
         else:
             segs_levels_spx = None
             spy_multl_level = {m:int(l) for m,l in zip(multi_goodinuse.index,list(multi_goodinuse[spy]))}
@@ -505,13 +696,20 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
     plt.close()
 
 # dot plot stuff
-def all_dotplots(df, segs, multi, anchors=None, **kwargs):
+def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
     gdf = list(df.groupby("species"))
     n = len(gdf)
     figs = {}
+    if ancestor != None:
+        logging.info("Making ancestral karyotype plot")
+        gdf_ances = df[df['species']==ancestor]
+        color_scaff = AK_plot(ancestor,gdf_ances,ancestor,backbone=True,**kwargs)
+        for i in range(n):
+            spx, dfx = gdf[i]
+            AK_plot(spx,dfx,ancestor,backbone=False,colortable=color_scaff,seg=segs,**kwargs)
     logging.info("Making dupStack plot")
     for i in range(n):
         for j in range(n):

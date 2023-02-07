@@ -314,7 +314,7 @@ def get_empirical_CI(alpha,data):
     upper = np.quantile(data, p)
     return lower, upper
 
-def get_kde(kdemethod,outdir,train_in,ksdf_filtered,weighted,ks_lower,ks_upper):
+def get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ks_lower,ks_upper):
     df = ksdf_filtered.dropna(subset=['weightoutlierexcluded'])
     kde_x = np.linspace(ks_lower,ks_upper, num=500)
     if weighted:
@@ -324,11 +324,12 @@ def get_kde(kdemethod,outdir,train_in,ksdf_filtered,weighted,ks_lower,ks_upper):
         if kdemethod == 'fftkde': kde_y = FFTKDE(bw=0.1).fit(df['dS'].tolist(),weights=df['weightoutlierexcluded'].tolist()).evaluate(kde_x)
         plt.hist(df['dS'], bins = np.linspace(0, 50, num=51,dtype=int)/10, color = 'black', weights=df['weightoutlierexcluded'], alpha=0.2, rwidth=0.8)
     else:
-        if kdemethod == 'scipy': kde_y=stats.gaussian_kde(train_in,bw_method='silverman').pdf(kde_x)
+        X = np.array(fn_ksdf["dS"].dropna())
+        if kdemethod == 'scipy': kde_y=stats.gaussian_kde(X,bw_method='silverman').pdf(kde_x)
         if kdemethod == 'naivekde': kde_y = NaiveKDE(bw='silverman').fit(train_in,weights=None).evaluate(kde_x)
         if kdemethod == 'treekde': kde_y = TreeKDE(bw='silverman').fit(train_in,weights=None).evaluate(kde_x)
         if kdemethod == 'fftkde': kde_y = FFTKDE(bw='silverman').fit(train_in,weights=None).evaluate(kde_x)
-        plt.hist(train_in, bins = np.linspace(0, 50, num=51,dtype=int)/10, color = 'black', alpha=0.2, rwidth=0.8)
+        plt.hist(X, bins = np.linspace(0, 50, num=51,dtype=int)/10, color = 'black', alpha=0.2, rwidth=0.8)
     plt.plot(kde_x, kde_y, color = 'black',alpha=0.4)
     plt.tight_layout()
     fname = os.path.join(outdir, "ksd_filtered.pdf")
@@ -478,8 +479,7 @@ def info_centers(cluster_centers):
 
 def write_labels(df,df_index,labels,outdir,n):
     predict_column = pd.DataFrame(labels,index=df_index.index,columns=['KMedoids_Cluster']).reset_index()
-    df = df.reset_index()
-    df = df.merge(predict_column, on = ['basecluster'])
+    df = df.reset_index().merge(predict_column, on = ['multiplicon'])
     df = df.set_index('pair')
     fname = os.path.join(outdir,'AnchorKs_KMedoids_Clustering_{}components_prediction.tsv'.format(n))
     df.to_csv(fname,header=True,index=True,sep='\t')
@@ -705,14 +705,15 @@ def plot_Elbow_loss(Losses,outdir):
 def get_anchors(anchor):
     anchors = pd.read_csv(anchor, sep="\t", index_col=0)
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
-    df = anchors[["pair", "basecluster"]].drop_duplicates("pair").set_index("pair")
+    df = anchors[["pair", "basecluster",'multiplicon']].drop_duplicates("pair").set_index("pair")
     return df
 
 def get_anchor_ksd(ksdf, apdf):
     return ksdf.join(apdf)
 
 def bc_group_anchor(df):
-    median_df = df.groupby(["basecluster"]).median()
+    #median_df = df.groupby(["basecluster"]).median()
+    median_df = df.groupby(["multiplicon"]).median()
     X = getX(median_df,'dS')
     return median_df,X
 

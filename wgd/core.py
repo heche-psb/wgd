@@ -519,10 +519,12 @@ def read_MultiRBH_gene_families(fname):
 
 def merge_seqs(seqs):
     if type(seqs) == list:
-        if len(seqs) > 2: raise ValueError("More than two sequence data objects?")
-        if len(seqs) == 2: seqs[0].merge(seqs[1])
-        seqs = seqs[0]
-    return seqs
+        #if len(seqs) > 2: raise ValueError("More than two sequence data objects?")
+        #if len(seqs) == 2: seqs[0].merge(seqs[1])
+        #seqs = seqs[0]
+        for i,s in enumerate(seqs):
+            if i!=0: seqs[0].merge(s)
+    return seqs[0]
 
 def mergeMultiRBH_seqs(seqs):
     if type(seqs) == list:

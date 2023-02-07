@@ -70,13 +70,13 @@ def cli(verbosity):
 @click.option('--getsog','-gs', is_flag=True,help="get nested single-copy gene families")
 @click.option('--tree_method', '-tree',type=click.Choice(['fasttree', 'iqtree', 'mrbayes']),default='fasttree',show_default=True,help="tree inference method")
 @click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
-@click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family')
+@click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference')
 @click.option('--geneassign','-ga', is_flag=True,help="assign genes to given gene families")
 @click.option('--assign_method', '-am',type=click.Choice(['hmmer', 'diamond']),default='hmmer',show_default=True,help="gene assignment method")
 @click.option('--seq2assign', '-sa', multiple=True, default= None, show_default=True, help='sequences to be assigned')
 @click.option('--fam2assign', '-fa',default= None, show_default=True, help='families to be assigned upon')
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
-@click.option('--microsyntenycoalescence','-msc', is_flag=True,help="micro-synteny coalescence inference of phylogeny and WGD")
+@click.option('--collinearcoalescence','-coc', is_flag=True,help="collinear coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
 @click.option('--bins', '-bs', type=int, default=10, show_default=True, help='bins for gene length normalization')
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
@@ -110,7 +110,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, microsyntenycoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
@@ -120,8 +120,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         logging.info("Constructing busco-guided families")
         bsog(s,buscohmm,outdir,eval,nthreads,buscocutoff)
         endt(tmpdir,start,s)
-    if microsyntenycoalescence:
-        logging.info("Analyzing micro-synteny coalescence")
+    if collinearcoalescence:
+        logging.info("Analyzing collinear coalescence")
         segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
@@ -300,7 +300,6 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
 @click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='identical', show_default=True, help="plotting method")
 @click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
-@click.option('--multiplicon', '-mp', default=None, show_default=True,help='multiplicon infomation if available')
 @click.option('--anchorks', '-ak', is_flag=True, help='anchor Ks distribution clustering')
 @click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
 @click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
@@ -312,7 +311,7 @@ def peak(**kwargs):
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method,multiplicon, anchorks, n_medoids, kdemethod, alpha, n_clusters):
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, anchorks, n_medoids, kdemethod, alpha, n_clusters):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
@@ -327,7 +326,7 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     if anchorks:
         fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
         exit()
-    get_kde(kdemethod,outdir,train_in,ksdf_filtered,weighted,ksrange[0],ksrange[1])
+    get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
         out_file = os.path.join(outdir, "AIC_BIC.pdf")
         models, aic, bic, besta, bestb, N = fit_gmm(out_file, train_in, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
@@ -369,6 +368,7 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     type=click.Choice(['cluster', 'fasttree', 'iqtree']), 
     default='cluster', show_default=True,
     help="Tree inference method for node weighting")
+@click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -387,10 +387,11 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, tree_method):
+        strip_gaps, tree_method,spair):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs
-    from wgd.viz import default_plot, apply_filters
+    from wgd.viz import default_plot, apply_filters,multi_sp_plot
+    start = timer()
     if len(sequences) == 0: 
         logging.error("Please provide at least one sequence file")
         exit(0)
@@ -398,6 +399,8 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         tree_method = "cluster"  # for RBH others don't make sense (and crash)
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,
             to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
+    spgenemap = {}
+    for i in seqs: spgenemap.update(i.spgenemap())
     s = merge_seqs(seqs)
     logging.info("tmpdir = {}".format(s.tmp_path))
     fams = read_gene_families(families)
@@ -416,13 +419,49 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     ylabel = "Duplications"
     if len(sequences) == 2:
         ylabel = "RBH orthologs"
+    elif len(sequences) > 2:
+        ylabel = "Orthologous pairs"
+    multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
+    plt.close()
     if tmpdir is None:
         [x.remove_tmp(prompt=False) for x in seqs]
+    end = timer()
+    logging.info("Total run time: {}s".format(int(end-start)))
     logging.info("Done")
     
+# Ks distribution construction
+@cli.command(context_settings={'help_option_names': ['-h', '--help']})
+@click.argument('datafile', type=click.Path(exists=True))
+@click.option('--nonks', '-nk', is_flag=True, help='datafile is not Ks file')
+@click.option('--outdir', '-o', default="wgd_viz", show_default=True, help='output directory')
+@click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
+@click.option('--gsmap', '-gs', default=None, show_default=True, help='gene name-species name map')
+def viz(**kwargs):
+    """
+    Visualization of Ks distribution or synteny
+    """
+    _viz(**kwargs)
+
+def _viz(datafile,nonks,spair,outdir,gsmap):
+    from wgd.viz import default_plot, apply_filters,multi_sp_plot,getgsmap
+    from wgd.core import _mkdir
+    prefix = os.path.basename(datafile)
+    _mkdir(outdir)
+    if nonks:
+        print('nonks')
+    else:
+        spgenemap = getgsmap(gsmap)
+        ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
+        df = apply_filters(ksdb_df, [("dS", 0., 5.)])
+        ylabel = "Duplications" if spair == None else "Orthologous pairs"
+        multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,viz=True)
+    fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
+    fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
+    fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
+    plt.close()
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))
@@ -445,6 +484,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
+@click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -452,7 +492,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, segments):
+        minlen, maxsize, ks_range, iadhore_options, segments, ancestor):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -502,7 +542,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, anchors, maxsize=maxsize, minlen=minlen, outdir=outdir) 
+    figs = all_dotplots(table, segs, multi, anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
