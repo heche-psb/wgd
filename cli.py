@@ -312,7 +312,7 @@ def peak(**kwargs):
     _peak(**kwargs)
 
 def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, anchorks, n_medoids, kdemethod, alpha, n_clusters):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
@@ -340,6 +340,10 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
         fig.savefig(fname + "_Ks.svg")
         fig.savefig(fname + "_Ks.pdf")
+        plt.close()
+        fig = default_plot_kde(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
+        fig.savefig(fname + "_Ks_kde.svg")
+        fig.savefig(fname + "_Ks_kde.pdf")
         plt.close()
         ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
         draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
@@ -420,7 +424,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     if len(sequences) == 2:
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
-        ylabel = "Orthologous pairs"
+        ylabel = "Homologous pairs"
     multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
@@ -439,29 +443,38 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--outdir', '-o', default="wgd_viz", show_default=True, help='output directory')
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--gsmap', '-gs', default=None, show_default=True, help='gene name-species name map')
+@click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
+@click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
+@click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
+@click.option('--em_initializations', '-init', type=int, default=200, show_default=True, help='maximum EM initializations')
+@click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,nonks,spair,outdir,gsmap):
-    from wgd.viz import default_plot, apply_filters,multi_sp_plot,getgsmap
+def _viz(datafile,nonks,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff):
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot
     from wgd.core import _mkdir
     prefix = os.path.basename(datafile)
     _mkdir(outdir)
     if nonks:
         print('nonks')
     else:
-        spgenemap = getgsmap(gsmap)
         ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
         df = apply_filters(ksdb_df, [("dS", 0., 5.)])
-        ylabel = "Duplications" if spair == None else "Orthologous pairs"
-        multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,viz=True)
+        ylabel = "Duplications" if spair == None else "Homologous pairs"
+        if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     plt.close()
+    logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
+    elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff)
+    logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
+    elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True)
+    logging.info('Done')
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))

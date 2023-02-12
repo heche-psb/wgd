@@ -13,7 +13,8 @@ from matplotlib.patches import Rectangle
 from matplotlib.path import Path
 import matplotlib.patches as patches
 from matplotlib.pyplot import cm
-from scipy import stats
+from scipy import stats,interpolate,signal
+
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
     # node in the gene family trees.
@@ -78,7 +79,11 @@ def kde_mode(kde_x, kde_y):
     mode = kde_x[maxy_iloc]
     return mode, max(kde_y)
 
-def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
+def reweighted(df_per):
+    return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
+
+def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=False,reweight=True):
+    spgenemap = getgsmap(gsmap)
     fnames = os.path.join(outdir,'{}_per_spair.ksd.svg'.format(title))
     fnamep = os.path.join(outdir,'{}_per_spair.ksd.pdf'.format(title))
     if not viz: writespgenemap(spgenemap,outdir)
@@ -93,11 +98,15 @@ def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
     bins = 50
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
+    if reweight: logging.info('Recalculating the weights per species pair')
+    else: logging.info('De-redundancy via the weights from overall species')
+    if plotkde: logging.info('Plotting kde curve over histogram')
+    else: logging.info('Plotting histogram without kde curve')
     #np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
         #for ax, k, f in zip(axs.flatten(), keys, funs):
-        w = df_per['weightoutlierexcluded']
+        w = reweighted(df_per) if reweight else df_per['weightoutlierexcluded']
         x = df_per['dS']
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
@@ -105,10 +114,11 @@ def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
         kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
         kde_y = kde(kde_x)
         mode, maxim = kde_mode(kde_x, kde_y)
+        logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
         CHF = get_totalH(Hs)
         scale = CHF*0.1
-        ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
-        ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
+        if plotkde: ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
+        if plotkde: ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
             #if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
             #else: ax.hist(y, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,bins=50,label=pair)
         #w = [df_per['weightoutlierexcluded'] for df_per in df_pers]
@@ -122,7 +132,7 @@ def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
             #ax.set_xlabel(xlabel)
             #ax.legend(loc=1,bbox_to_anchor=(1.0, 0.9),fontsize='small')
     ax.set_xlabel(_labels["dS"])
-    ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.9, 0.95))
+    ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
     #axs[0,0].set_ylabel(ylabel)
     #axs[1,0].set_ylabel(ylabel)
     #axs[0,0].set_xticks([0,1,2,3,4,5])
@@ -137,6 +147,423 @@ def multi_sp_plot(df,spair,spgenemap,outdir,title='',ylabel='',viz=False):
     fig.savefig(fnames)
     fig.savefig(fnamep)
     plt.close()
+
+def reflect_logks(ks,w):
+    cutoff = 1
+    right = []
+    max_ks = max(ks)
+    right_w = []
+    for i in range(len(ks)):
+        if ks[i] >= max_ks - cutoff and  ks[i] != max_ks:
+            right.append(max_ks + (max_ks-ks[i]))
+            right_w.append(w[i])
+    ks_refed,w_refed = np.hstack([ks,np.array(right)]),np.hstack([w,np.array(right_w)])
+    return ks_refed,cutoff,w_refed
+
+def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False):
+    if na:
+        df=df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df['weightoutlierexcluded'] = 1
+    df = df.dropna(subset=['dS','weightoutlierexcluded'])
+    df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
+    ks_or = np.array(df['dS'])
+    w = np.array(df['weightoutlierexcluded'])
+    if na: deconvoluted_data = ks_or.copy()
+    else: deconvoluted_data = get_deconvoluted_data(ks_or,w)
+    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
+    init_lambd = hist_property[0][0]
+    ks = np.log(ks_or)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(-5,2)
+    ax.set_title('KDE and spline of log-transformed $K_\mathrm{S}$ of species '+ '{}'.format(sp))
+    ax.set_xlabel("ln $K_\mathrm{S}$")
+    ax.set_ylabel("Density of retained duplicates")
+    max_ks,min_ks = ks.max(),ks.min()
+    ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    kde = stats.gaussian_kde(ks_refed, bw_method="scott", weights=w_refed)
+    bw_modifier = 0.4
+    kde.set_bandwidth(kde.factor * bw_modifier)
+    kde_x = np.linspace(min_ks-cutoff, max_ks+cutoff,num=500)
+    kde_y = kde(kde_x)
+    ax.plot(kde_x, kde_y, color="k", lw=1, label="KDE")
+    spl = interpolate.UnivariateSpline(kde_x, kde_y)
+    spl.set_smoothing_factor(0.01)
+    #here the round is equal to floor + 1
+    spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
+    spl_y = spl(spl_x)
+    ax.plot(kde_x, spl(kde_x), 'b', lw=1, label="Spline on KDE")
+    ax.hist(ks_refed, weights=w_refed, bins=np.arange(-5, 2.1, 0.1), color="gray", alpha=0.2, density=True,rwidth=0.8)
+    ax.axvline(x=max_ks, color="r", linestyle="--", lw=1, label=f"Reflection boundary")
+    ax.legend(loc=2,fontsize='large',frameon=False)
+    ax.set_ylim(0, ax.get_ylim()[1] * 1.1)
+    fig.tight_layout()
+    if na:
+        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.pdf".format(sp)))
+    else:
+        fig.savefig(os.path.join(outdir, "{}.spline_weighted.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}.spline_weighted.pdf".format(sp)))
+    plt.close(fig)
+    logging.info('Initiative detection of likely peaks')
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na)
+    logging.info('Found {} likely peak signals'.format(len(init_means)))
+    reduced_gaussians = False
+    # here I select the peak via prominence
+    if len(init_stdevs) > 4:
+        sor_by_prom = [(m,s) for m,s,_ in sorted(zip(init_means,init_stdevs,good_prominences), key=lambda y: y[2])]
+        init_means,init_stdevs = [i for i,j in sor_by_prom[:4]],[j for i,j in sor_by_prom[:4]]
+        reduced_gaussians = True
+        logging.info('Too many peak signals detected among which only 4 with highest prominences are retained')
+    buffer_maxks,buffer_std = 5,0.3
+    logging.info('An extra buffer lognormal component with mean {:.2f} and std 0.30 is appended'.format(np.log(buffer_maxks)))
+    init_means.append(np.log(buffer_maxks))
+    init_stdevs.append(buffer_std)
+    for m,s in zip(init_means,init_stdevs): logging.info('The initiative means and stds is {:.2f} {:.2f}'.format(m,s))
+    num_comp = len(init_means)+1
+    init_weights = [1/num_comp] * num_comp
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 16), sharey="row")
+    fig.suptitle("Exponential-Lognormal mixture model on {} ".format(sp)+"$K_\mathregular{S}$ " + "paranome\n\nInitialized from data",fontsize='x-large')
+    axes[0,0].set_title("Model 1")
+    axes[1,0].set_xlabel("$K_\mathregular{S}$")
+    axes[1,1].set_xlabel("ln $K_\mathregular{S}$")
+    for i in [0,1]: axes[i,0].set_xlim(0, 5)
+    for i in [0,1]: axes[i,1].set_xlim(-5, 2)
+    for i in [0,1]:
+        if na: axes[i,0].hist(ks_or, bins=np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray',rwidth=0.8, label='Whole-paranome (node averaged)',density=True)
+        else: axes[i,0].hist(ks_or, bins=np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray',rwidth=0.8, label='Whole-paranome (weighted)',density=True)
+        if na: axes[i,0].set_ylabel("Density of node-averaged retained paralogs",fontsize='x-large')
+        else: axes[i,0].set_ylabel("Density of weighted retained paralogs",fontsize='x-large')
+    for i in [0,1]: axes[i,1].hist(ks,weights=w,bins=np.arange(-10, 10 + 0.1, 0.1),density=True,color='gray',alpha=0.5,label='Log-transformed paranome',rwidth=0.8)
+    all_models_init_parameters,bic_dict,all_models_fitted_parameters = {},{},{}
+    all_models_init_parameters['Model1'] = [init_means, init_stdevs, init_lambd, init_weights]
+    plot_init_model(axes[0,0], axes[0,1],init_means, init_stdevs, init_lambd, init_weights)
+    num_comp = len(init_means) + 1
+    logging.info("Performing EM algorithm from initializated data (Model1)")
+    bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
+    if convergence: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
+    all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
+    bic_dict['Model1'] = bic
+    logging.info('BIC of Model1: {:.2f}'.format(bic))
+    plot_fitted_model(axes[0,0], axes[0,1],new_means, new_stdevs, new_lambd, new_weights)
+    logging.info("Performing EM algorithm from initializated data plus a random lognormal component (Model2)")
+    axes[1,0].set_title("Model 2")
+    bic_from_same_num_comp,start_parameters,final_parameters = [],[],[]
+    for i in range(num_EM_initializations):
+        if len(init_means) > 4:
+            updated_means,updated_stdevs = init_means[:4]+[init_means[-1]],init_stdevs[:4]+init_stdevs[-1]
+            reduced_gaussians = True
+        else:
+            updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
+            reduced_gaussians = False
+        updated_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)), 1))
+        updated_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)), 1))
+        num_comp = len(updated_means) + 1
+        updated_weights = [1/num_comp] * num_comp
+        start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
+        bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,updated_means, updated_stdevs, init_lambd, updated_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
+        #if convergence: logging.info('The EM algorithm has reached convergence at iteration {}'.format(i+1))
+        #else: logging.info("The EM algorithm hasn't reached convergence at iteration {}".format(i+1))
+        bic_from_same_num_comp.append(bic)
+        final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+    updated_means, updated_stdevs, init_lambd, updated_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+    all_models_init_parameters['Model2'] = [updated_means, updated_stdevs, init_lambd, updated_weights]
+    plot_init_model(axes[1,0], axes[1,1],updated_means, updated_stdevs, init_lambd, updated_weights)
+    final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
+    all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
+    plot_fitted_model(axes[1,0], axes[1,1],final_means, final_stdevs, final_lambd, final_weights)
+    bic_dict['Model2'] = min(bic_from_same_num_comp)
+    logging.info('BIC of Model2 : {:.2f}'.format(min(bic_from_same_num_comp)))
+    if na:
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_node_averaged.pdf".format(sp)),bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_node_averaged.svg".format(sp)),bbox_inches="tight")
+    else:
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_weighted.pdf".format(sp)),bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_weighted.svg".format(sp)),bbox_inches="tight")
+    plt.close()
+    elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na=na)
+    logging.info("Models are evaluated according to BIC scores")
+    model_bic = [(k,v) for k,v in bic_dict.items()]
+    modelist, bic_list = [k for k,v in model_bic],[v for k,v in model_bic]
+    best_model_id = modelist[np.argmin(bic_list)]
+    logging.info("The best fitted model via BIC is {}".format(best_model_id))
+    bic_info(modelist, bic_list)
+    model_bic_ordered = [(k,v) for k,v in sorted(bic_dict.items(), key=lambda y:y[0])]
+    model_ordered, bic_ordered = [k for k,v in model_bic_ordered],[v for k,v in model_bic_ordered]
+    plot_bic(model_ordered,bic_ordered,outdir,sp,na=na)
+    plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=na)
+
+def plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=False):
+    fig, ax = plt.subplots(1, 1, figsize=(10.0, 7.0))
+    fig.suptitle("$K_\mathregular{S}$" + " distribution for {}".format(sp))
+    if na: hist = ax.hist(ks_or,weights=w,bins=np.linspace(0, 50, num=51,dtype=int)/10,color='gray',label="Whole-paranome (node averaged)",rwidth=0.8)
+    else: hist = ax.hist(ks_or,weights=w,bins=np.linspace(0, 50, num=51,dtype=int)/10,color='gray',label="Whole-paranome (weighted)",rwidth=0.8)
+    ax.set_ylim(0, max(hist[0]) * 1.25)
+    final_means, final_stdevs, final_lambd, final_weights = all_models_fitted_parameters[best_model_id]
+    bin_width = 0.1
+    scaling = 0.1 * len(deconvoluted_data[deconvoluted_data <= 5])
+    plot_fitted_model(ax,None,final_means,final_stdevs,final_lambd,final_weights,scaling=scaling,final=True)
+    if na: ax.set_ylabel("Number of retained duplicates (node averaged)",fontsize='x-large')
+    else: ax.set_ylabel("Number of retained duplicates (weighted)",fontsize='x-large')
+    ax.set_xlabel("$K_\mathregular{S}$",fontsize='x-large')
+    sns.despine(offset=10)
+    ax.set_xlim(0, 5)
+    plt.setp(ax.yaxis.get_majorticklabels(), rotation=90, verticalalignment='center')
+    plt.tight_layout()
+    if na:
+        fig.savefig(os.path.join(outdir, "elmm_{}_best_models_node_averaged.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "elmm_{}_best_models_node_averaged.pdf".format(sp)))
+    else:
+        fig.savefig(os.path.join(outdir, "elmm_{}_best_models_weighted.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "elmm_{}_best_models_weighted.pdf".format(sp)))
+    plt.close()
+
+def bic_info(modelist, bic_list):
+    b_min = min(bic_list)
+    logging.info("Rules-of-thumb (Kass & Raftery, 1995) evaluates the outperformance of the BIC-best model over remaining:")
+    for m, b in zip(modelist, bic_list):
+        if b != b_min:
+            ABS = abs(b_min - b)
+            if ABS < 2: logging.info("Such outperformance is not worth more than a bare mention for {}".format(m))
+            elif 2<=ABS<6: logging.info("Such outperformance is positively evidenced for {}".format(m))
+            elif 6<=ABS<=10: logging.info("Such outperformance is strongly evidenced for {}".format(m))
+            else: logging.info("Such outperformance is very strongly evidenced for {}".format(m))
+
+def plot_bic(model,bic,outdir,sp,na=False):
+    fig, axes = plt.subplots(figsize=(6, 3))
+    axes.plot(np.arange(1, len(bic)+1), bic, color='k', marker='o')
+    axes.set_xticks(list(range(1, len(bic) + 1)))
+    axes.set_xticklabels(model)
+    axes.grid(ls=":")
+    axes.set_ylabel("BIC")
+    axes.set_xlabel("Model")
+    fig.tight_layout()
+    if na:
+        fig.savefig(os.path.join(outdir, "elmm_BIC_{}_node_averaged.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "elmm_BIC_{}_node_averaged.pdf".format(sp)))
+    else:
+        fig.savefig(os.path.join(outdir, "elmm_BIC_{}_weighted.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "elmm_BIC_{}_weighted.pdf".format(sp)))
+    plt.close()
+
+def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na):
+    min_num_comp,max_num_comp = 2,5
+    fig, axes = plt.subplots(nrows=((5-2+1)), ncols=2, figsize=(20, 8*(5-2+1)), sharey="row")
+    fig.suptitle("Exponential-Lognormal mixture model on {} ".format(sp)+"$K_\mathregular{S}$ " + "paranome\n\nInitialized randomly",fontsize='x-large')
+    num_comp_list = np.arange(min_num_comp, max_num_comp + 1)
+    axes_ids,model_ids = num_comp_list-min_num_comp,num_comp_list+1
+    for num_comp, ax_id, model_id in zip(num_comp_list, axes_ids, model_ids):
+        logging.info("Performing EM algorithm from random initialization with {0} components (Model{1})".format(num_comp,model_id))
+        ax0, ax1 = axes[ax_id][0], axes[ax_id][1]
+        if na: ax0.hist(ks_or, bins=np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray',rwidth=0.8, label='Whole-paranome (node averaged)',density=True)
+        else: ax0.hist(ks_or, bins=np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray',rwidth=0.8, label='Whole-paranome (weighted)',density=True)
+        ax1.hist(ks,weights=w,bins=np.arange(-10, 10 + 0.1, 0.1),density=True,color='gray',alpha=0.5,label='Log-transformed paranome',rwidth=0.8)
+        ax0.set_title("Model {}".format(model_id))
+        ax0.set_xlim(0, 5)
+        ax1.set_xlim(-5, 2)
+        if model_id == model_ids[-1]: ax0.set_xlabel("$K_\mathregular{S}$")
+        if model_id == model_ids[-1]: ax1.set_xlabel("ln $K_\mathregular{S}$")
+        bic_from_same_num_comp = []
+        start_parameters, final_parameters = [], []
+        for i in range(num_EM_initializations):
+            init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
+            init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
+            for j in range(num_comp-2):
+                init_means.append(np.random.choice(np.arange(-0.5, 1, 0.1)))
+                init_stdevs.append(np.random.choice(np.arange(0.3, 0.9, 0.1)))
+            init_means.append(np.log(5))
+            init_stdevs.append(0.3)
+            start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
+            bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5)
+            #if convergence: logging.info('The EM algorithm has reached convergence')
+            #else: logging.info("The EM algorithm hasn't reached convergence")
+            bic_from_same_num_comp.append(bic)
+            final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+        init_means, init_stdevs, init_lambd, init_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+        all_models_init_parameters["Model{}".format(model_id)] = [init_means, init_stdevs, init_lambd, init_weights]
+        plot_init_model(ax0, ax1, init_means, init_stdevs, init_lambd, init_weights)
+        final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
+        all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
+        plot_fitted_model(ax0, ax1, final_means, final_stdevs, final_lambd, final_weights)
+        bic_dict["Model{}".format(model_id)] = min(bic_from_same_num_comp)
+        logging.info('BIC of Model{} : {:.2f}'.format(model_id,min(bic_from_same_num_comp)))
+    if na:
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_random_node_averaged.pdf".format(sp)),bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_random_node_averaged.svg".format(sp)),bbox_inches="tight")
+    else:
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_random_weighted.pdf".format(sp)),bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, "elmm_{}_models_random_weighted.svg".format(sp)),bbox_inches="tight")
+    plt.close()
+
+def plot_fitted_model(ax1,ax2,means,stds,lambd,weights,scaling=1, final=False):
+    x_points = np.linspace(-5, 5, int((5 + 5) *100))
+    x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
+    total_pdf_log = 0
+    total_pdf = weights[0] * stats.expon.pdf(x_points_strictly_positive, scale=1/lambd)
+    #colors = cm.rainbow(np.linspace(0, 1, len(stds)))
+    ax1.plot(x_points_strictly_positive,scaling*weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
+    lognormal_peaks = {i:round(np.exp(means[i] - pow(stds[i], 2)), 2) for i in range(len(stds))}
+    lognormals_sorted_by_peak = [k for k,v in sorted(lognormal_peaks.items(), key=lambda y:y[1])]
+    letter_dict = dict(zip(lognormals_sorted_by_peak, [ "a", "b", "c", "d", "e", "f", "g"][:len(stds)]))
+    colors = ["b", "r", "c", "m", "k"][:len(stds)-1] + ["y"]
+    for comp, color in zip(lognormals_sorted_by_peak, colors):
+        ax1.plot(x_points_strictly_positive,scaling*weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(means[comp]),s=stds[comp]), c=color, ls='-', lw=1.5, alpha=0.8, label=f'Lognormal {letter_dict[comp]} optimized (mode {lognormal_peaks[comp]})')
+        if ax2!=None: ax2.plot(x_points,weights[comp+1]*stats.norm.pdf(x_points,means[comp],stds[comp]),c=color,ls='-',lw=1.5,alpha=0.8, label=f'Norm {letter_dict[comp]} optimized')
+        total_pdf_log = total_pdf_log + weights[comp+1]*stats.norm.pdf(x_points,means[comp],stds[comp])
+        total_pdf = total_pdf + weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive,scale=np.exp(means[comp]),s=stds[comp])
+    ax1.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
+    ax1.legend(loc=1,frameon=False)
+    if final: ax1.legend(loc=1,bbox_to_anchor=(0.95, 0.90),frameon=False)
+    if ax2!=None: ax2.plot(x_points, total_pdf_log, "k-", lw=1.5, label=f'Total PDF')
+    if ax2!=None: ax2.legend(loc=2,frameon=False)
+
+def get_deconvoluted_data(ks,w):
+    tail_length = 0.5
+    bin_list_for_deconvoluted_data = np.arange(0, 5 + 0.01, 0.01)
+    hist_data = np.histogram(ks, bins=bin_list_for_deconvoluted_data, weights=w)
+    d = np.array([])
+    for i in range(len(hist_data[0])):
+        midpoint = round((hist_data[1][i+1] - 0.01 / 2), 3)
+        d = np.append(d,np.repeat(midpoint,round(hist_data[0][i])))
+    max_ks_tail = 5 + tail_length
+    for i in np.arange(5+0.01, max_ks_tail + 0.01, 0.01):
+        midpoint = round((i - 0.01 / 2), 3)
+        d = np.append(d,np.repeat(midpoint,round(np.mean(hist_data[0][-51:]))))
+    return d
+
+def e_step(num_comp, ks, means, stdevs, weights, lambd):
+    products = []
+    #print(ks.shape)
+    for k in range(num_comp):
+        # at the very beginning, the weight are randomly given as equal
+        #print((k,lambd,np.exp(means[k-1]),stdevs[k-1],weights[k]))
+        if k == 0: prod = weights[k] * stats.expon.pdf(ks, scale=1/lambd)
+        else:
+            #print(len(ks))
+            #print(type(ks))
+            #print(stats.lognorm.pdf(ks, scale=np.exp(means[k-1]), s=stdevs[k-1]))
+            prod = weights[k] * stats.lognorm.pdf(ks, scale=np.exp(means[k-1]), s=stdevs[k-1])
+        # The addition of all pdf with weight
+        products.append(prod)
+    sum_comp_perpoint = sum(products)
+    log_sum_comp_perpoint = np.log(sum_comp_perpoint)
+    fit_loglikelihood = sum(log_sum_comp_perpoint)
+    posteriors = [products[i] / sum_comp_perpoint for i in range(num_comp)]
+    return fit_loglikelihood, posteriors
+
+def m_step(num_comp, ks, posteriors):
+    new_lambda = sum(posteriors[0]) / sum(posteriors[0] * ks)
+    points_per_k = [sum(posteriors[i]) for i in range(num_comp)]
+    # here the new weights is overall weight instead of weight per datapoint
+    new_weights = [points_per_k[i]/len(ks) for i in range(num_comp)]
+    new_means = [sum(posteriors[i+1] * np.log(ks)) / points_per_k[i+1] for i in range(num_comp-1)]
+    new_stdevs = [np.sqrt(sum(posteriors[i+1]*pow(np.log(ks)-new_means[i],2))/points_per_k[i+1]) for i in range(num_comp-1)]
+    return new_means, new_stdevs, new_weights, new_lambda
+
+def EM_step(num_comp,data,means,stds,lambd,weights,max_EM_iterations=200,max_num_comp = 5, reduced_gaussians_flag=None):
+    #data = np.array(deconvoluted_data).reshape(-1, 1)
+    convergence,ks = False,data[data>0]
+    curr_loglik, posteriors = e_step(num_comp, ks, means, stds, weights, lambd)
+    new_means, new_stdevs, new_weights, new_lambd = m_step(num_comp, ks, posteriors)
+    for i in range(max_EM_iterations-1):
+        new_loglik, posteriors = e_step(num_comp, ks, new_means, new_stdevs, new_weights, new_lambd)
+        new_means, new_stdevs, new_weights, new_lambd = m_step(num_comp, ks, posteriors)
+        if abs(curr_loglik - new_loglik) <= 1e-6:
+            convergence = True
+            break
+        else: curr_loglik = new_loglik
+    bic = -2 * new_loglik + num_comp * np.log(len(ks))
+    #if convergence: logging.info('The EM algorithm has reached convergence')
+    #else: logging.info("The EM algorithm hasn't reached convergence")
+    #logging.info("The Log-likelihood and BIC of Model 1 are {:.3f} and {:.3f}".format(new_loglik,bic))
+    return bic, new_means, new_stdevs, new_lambd, new_weights, convergence
+
+def plot_init_model(ax1,ax2,means,stds,lambd,weights):
+    x = np.linspace(-5, 10, 15*100)
+    ax1.plot(x, weights[0] * stats.expon.pdf(x, scale=1/lambd),'g:', lw=2, alpha=0.5,label='Exponential initiated')
+    styles = ["b:", "r:", "c:", "m:", "k:"][:len(means)-1] + ["y:"]
+    lognormal_peaks = {i:round(np.exp(means[i] - pow(stds[i], 2)), 2) for i in range(len(stds))}
+    lognormals_sorted_by_peak = [k for k,v in sorted(lognormal_peaks.items(), key=lambda y:y[1])]
+    letter_dict = dict(zip(lognormals_sorted_by_peak, [ "a", "b", "c", "d", "e", "f", "g"][:len(stds)]))
+    colors = ["b", "r", "c", "m", "k"][:len(stds)-1] + ["y"]
+    #for i, st in zip(range(len(stds)), styles):
+    for i, st in zip(lognormals_sorted_by_peak,styles):
+        ax1.plot(x, weights[i+1] * stats.lognorm.pdf(x, scale=np.exp(means[i]), s=stds[i]), st, lw=1.5, alpha=0.4,label=f'Lognormal {letter_dict[i]} initiated (mode {lognormal_peaks[i]})')
+        ax2.plot(x, weights[i+1] * stats.norm.pdf(x, means[i], stds[i]),st,lw=1.5, alpha=0.4,label=f'Norm {letter_dict[i]} initiated')
+
+def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False):
+    peaks, properties = signal.find_peaks(spl_y)
+    #prominences = properties["prominences"]
+    prominences = signal.peak_prominences(spl_y, peaks)[0]
+    fig, axes = plt.subplots(nrows=len(peaks)+1, ncols=2, figsize=(14, 7*(len(peaks)+1)), sharey=True)
+    fig.suptitle("Peak detection in log-transformed $K_\mathrm{S}$ distribution of " + "{}".format(sp), y = 0.92,fontsize=20)
+    #plt.title("Peak detection in log-transformed $K_\mathrm{S}$ distribution of " + "{}".format(sp))
+    for w in range(len(peaks)+1): axes[w][0].set_ylabel("Density of retained duplicates")
+    for w in [0,1]: axes[len(peaks)][w].set_xlabel("ln $K_\mathrm{S}$")
+    for ax in axes:
+        ax[0].plot(spl_x, spl_y, color="gray", linewidth=1)
+        ax[1].plot(spl_x, spl_y, color="gray", linewidth=1)
+    for i in [0,1]: axes[0,i].scatter(spl_x[peaks], spl_y[peaks], marker="x", c="b", label="all potential peaks")
+    axes[0,0].vlines(x=spl_x[peaks], ymin=spl_y[peaks]-prominences, ymax=spl_y[peaks], color="b", label="prominences")
+    axes[0,1].vlines(x=spl_x[peaks], ymin=spl_y[peaks]-prominences, ymax=spl_y[peaks], color="b", label="prominences")
+    prominences_refed_R1,width_refed_R1,prominences_refed_L1,width_refed_L1 = [],[],[],[]
+    for i in range(len(peaks)):
+        peak_index = peaks[i]
+        #Note here the y value is exactly reflected without changing
+        spl_peak_refl_y = np.concatenate((np.flip(spl_y[peak_index+1:]), spl_y[peak_index:]))
+        spl_peak_refl_x = np.concatenate((np.flip(spl_x[peak_index+1:] * -1 + 2 * spl_x[peak_index]), spl_x[peak_index:]))
+        axes[i+1,0].plot(spl_peak_refl_x, spl_peak_refl_y,color='g',label='peak {} right-reflected'.format(i+1),linewidth=1)
+        current_peak_index = int((len(spl_peak_refl_x)-1)/2)
+        #current_peak_index = np.floor(len(spl_peak_refl_x)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y, [current_peak_index], rel_height=0.4)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_R1.append(new_prominences)
+        width_refed_R1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        axes[i+1,0].vlines(x=spl_x[peak_index], ymin=spl_y[peak_index] - new_prominences, ymax = spl_y[peak_index], color=c, label='prominence {:.2f}'.format(new_prominences))
+        w = new_width[0]/2/100
+        if new_prominences >= peak_threshold: axes[i+1,0].hlines(y=new_height[0], xmin=spl_x[peak_index], xmax=spl_x[peak_index]+w, linestyles="-", color="darkred", lw=1, label='width {:.2f}'.format(w))
+        axes[i+1,0].legend(frameon=False)
+        spl_peak_refl_y_L = np.concatenate((spl_y[:peak_index+1], np.flip(spl_y[:peak_index])))
+        spl_peak_refl_x_L = np.concatenate((spl_x[:peak_index+1], np.flip(spl_x[:peak_index]) * -1 + 2*spl_x[peak_index]))
+        axes[i+1,1].plot(spl_peak_refl_x_L, spl_peak_refl_y_L,color='g',label='peak {} left-reflected'.format(i+1),linewidth=1)
+        #current_peak_index = np.floor(len(spl_peak_refl_x_L)/2)
+        current_peak_index = int((len(spl_peak_refl_x_L)-1)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y_L,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y_L, [current_peak_index], rel_height=0.4)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_L1.append(new_prominences)
+        width_refed_L1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        axes[i+1,1].vlines(x=spl_x[peak_index], ymin=spl_y[peak_index] - new_prominences, ymax = spl_y[peak_index], color=c, label='prominence {:.2f}'.format(new_prominences))
+        w = new_width[0]/2/100
+        if new_prominences >= peak_threshold: axes[i+1,1].hlines(y=new_height[0], xmin=spl_x[peak_index], xmax=spl_x[peak_index]+w, linestyles="-", color="darkred", lw=1, label='width {:.2f}'.format(w))
+        axes[i+1,1].legend(frameon=False)
+    good_peaks_R1,good_peaks_L1 = [i>=peak_threshold for i in prominences_refed_R1],[i>=peak_threshold for i in prominences_refed_L1]
+    axes[0,0].set_title('Reflection L <-- R', fontsize=17)
+    axes[0,0].legend(frameon=False)
+    axes[0,1].set_title('Reflection L --> R', fontsize=17)
+    axes[0,1].legend(frameon=False)
+    original_y_lim = axes[0][0].get_ylim()[1]
+    for ax in axes.flatten(): ax.set_ylim(0, original_y_lim * 1.2)
+    #fig.tight_layout()
+    if na:
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.pdf".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.svg".format(sp)))
+    else:
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.pdf".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.svg".format(sp)))
+    plt.close()
+    good_prominences,init_means,init_stdevs = [],[],[]
+    for i in range(len(peaks)):
+        if good_peaks_R1[i] or good_peaks_L1[i]:
+            init_means.append(spl_x[peaks[i]])
+            best = np.argmax((prominences_refed_R1[i], prominences_refed_L1[i]))
+            good_prominences.append(max([prominences_refed_R1[i], prominences_refed_L1[i]]))
+            width = [width_refed_R1[i], width_refed_L1[i]][best]
+            init_stdevs.append(width/2/100)
+    return init_means, init_stdevs,good_prominences
 
 def default_plot(
         *args, 
