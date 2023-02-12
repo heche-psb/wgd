@@ -124,6 +124,92 @@ def plot_aic_bic(aic, bic, n1, n2, out_file):
     fig.savefig(out_file)
     plt.close()
 
+def kde_mode(kde_x, kde_y):
+    maxy_iloc = np.argmax(kde_y)
+    mode = kde_x[maxy_iloc]
+    return mode, max(kde_y)
+
+def get_totalH(Hs):
+    CHF = 0
+    for i in Hs: CHF = CHF + i
+    return CHF
+
+def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
+    ndists = len(args)
+    alphas = alphas or list(np.linspace(0.2, 1, ndists))
+    colors = colors or ['black'] * ndists
+    # assemble panels
+    keys = ["dS", "dS", "dN", "dN/dS"]
+    np.seterr(divide='ignore')
+    funs = [lambda x: x, np.log10, np.log10, np.log10]
+    fig, axs = plt.subplots(2, 2)
+    _labels = {"dS" : "$K_\mathrm{S}$","dN" : "$K_\mathrm{A}$","dN/dS": "$\omega$"}
+    bins = 50
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    #color_table = ['blue','orange','green','red','purple','brown','pink','gray','olive','cyan']
+    for (c, a, dist) in zip(colors, alphas, args):
+        dis = dist.dropna(subset=['weightoutlierexcluded'])
+        #time = 0
+        for ax, k, f in zip(axs.flatten(), keys, funs):
+            #color_random = cm.rainbow(np.linspace(0, 1, n))
+            #time = time + 1
+            comp_time = 0
+            if plot == 'identical':
+                for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
+                    dist_comp = dis[dis['component']==num]
+                    w = dist_comp['weightoutlierexcluded']
+                    x = f(dist_comp[k])
+                    y = x[np.isfinite(x)]
+                    w = w[np.isfinite(x)]
+                    if funs[0] == f:
+                        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                        kde_y = kde(kde_x)
+                        mode, maxim = kde_mode(kde_x, kde_y)
+                        CHF = get_totalH(Hs)
+                        scale = CHF*0.1
+                        ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--')
+                        ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+                    else:
+                        comp_time = comp_time + 1
+                        if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        else: ax.hist(y, bins = Bins, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        #Hss.append(Hs)
+                        #Binss.append(Bins)
+                        #patchess.append(patches)
+                    #kde_x, kde_y = get_kde(train_in,ax)
+                    #ax.plot(kde_x,kde_y)
+            else:
+                cs = [color for color in cm.rainbow(np.linspace(0, 1, nums))]
+                dist_comps = [dis[dis['component']==num] for num in range(nums)]
+                ws = [i['weightoutlierexcluded'] for i in dist_comps]
+                xs = [f(i[k]) for i in dist_comps]
+                ys = [x[np.isfinite(x)] for x in xs]
+                ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
+                if funs[0] == f: ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                else:
+                    #maxi = int(max(list(itertools.chain.from_iterable(xs)))*100)
+                    #mini = int(min(list(itertools.chain.from_iterable(xs)))*100)
+                    ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                    #ax.set_xticks(np.round_(np.linspace(mini, maxi, num=5,dtype=int)/100,decimals = 1))
+                #kde_x, kde_y = get_kde(train_in,ax)
+            leg = ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
+            for lh in leg.legendHandles: lh.set_alpha(0.1)
+            xlabel = _labels[k]
+            if f == np.log10:
+                xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
+            ax.set_xlabel(xlabel)
+    axs[0,0].set_ylabel(ylabel)
+    axs[1,0].set_ylabel(ylabel)
+    axs[0,0].set_xticks([0,1,2,3,4,5])
+    # finalize plot
+    sns.despine(offset=1)
+    fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
+    fig.tight_layout()
+    plt.subplots_adjust(top=0.85)  # prevent suptitle from overlapping
+    return fig
+
 def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
@@ -137,8 +223,11 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
     #color_table = ['blue','orange','green','red','purple','brown','pink','gray','olive','cyan']
     for (c, a, dist) in zip(colors, alphas, args):
         dis = dist.dropna(subset=['weightoutlierexcluded'])
+        #time = 0
         for ax, k, f in zip(axs.flatten(), keys, funs):
             #color_random = cm.rainbow(np.linspace(0, 1, n))
+            #time = time + 1
+            comp_time = 0
             if plot == 'identical':
                 for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
                     dist_comp = dis[dis['component']==num]
@@ -147,7 +236,13 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                     y = x[np.isfinite(x)]
                     w = w[np.isfinite(x)]
                     if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                    else: ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    else:
+                        comp_time = comp_time + 1
+                        if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        else: ax.hist(y, bins = Bins, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        #Hss.append(Hs)
+                        #Binss.append(Bins)
+                        #patchess.append(patches)
                     #kde_x, kde_y = get_kde(train_in,ax)
                     #ax.plot(kde_x,kde_y)
             else:
