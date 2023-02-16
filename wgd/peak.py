@@ -5,8 +5,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-from scipy import stats
 from scipy.stats import norm
+from scipy import stats,interpolate,signal
 import random
 from matplotlib.pyplot import cm
 from sklearn.neighbors import KernelDensity
@@ -18,6 +18,7 @@ import itertools
 import os
 from wgd.core import _mkdir
 from sklearn_extra.cluster import KMedoids
+from wgd.viz import reflect_logks,find_peak_init_parameters
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 
 def alnfilter(df,weights_outliers_included, identity, aln_len, coverage, min_ks, max_ks):
@@ -134,6 +135,115 @@ def get_totalH(Hs):
     for i in Hs: CHF = CHF + i
     return CHF
 
+def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon'):
+    colors = cm.rainbow(np.linspace(0, 1, nums))
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    fig, ax = plt.subplots()
+    if plot == 'identical':
+        if weighted:
+            for num,color in zip(range(nums),colors):
+                df_comp = df[df['AnchorKs_GMM_Component']==num]
+                w = df_comp['weightoutlierexcluded']
+                x = np.array(list(df_comp['dS']))
+                y = x[np.isfinite(x)]
+                w = w[np.isfinite(x)]
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component{}".format(num))
+        else:
+            for num,color in zip(range(nums),colors):
+                df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
+                x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
+                y = x[np.isfinite(x)]
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component{}".format(num))
+    else:
+        if weighted:
+            dist_comps = [df[df['AnchorKs_GMM_Component']==num] for num in range(nums)]
+            ws = [i['weightoutlierexcluded'] for i in dist_comps]
+            xs = [np.array(list(i['dS'])) for i in dist_comps]
+            ys = [x[np.isfinite(x)] for x in xs]
+            ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
+            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, weights=ws, alpha=0.5, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)])
+        else:
+            dist_comps = [df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node']) for num in range(nums)]
+            xs = [np.array(list(i['node_averaged_dS_outlierexcluded'])) for i in dist_comps]
+            ys = [x[np.isfinite(x)] for x in xs]
+            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, alpha=0.5, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)])
+    ax.legend(loc='upper right', fontsize='large',frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    if regime== 'multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    fig.tight_layout()
+    return fig
+
+def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
+    colors = cm.rainbow(np.linspace(0, 1, nums))
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    fig, ax = plt.subplots()
+    Hs_maxs,y_lim_beforekde_s = [],[]
+    if weighted:
+        for num,color in zip(range(nums),colors):
+            df_comp = df[df['AnchorKs_GMM_Component']==num]
+            w = df_comp['weightoutlierexcluded']
+            x = np.array(list(df_comp['dS']))
+            y = x[np.isfinite(x)]
+            w = w[np.isfinite(x)]
+            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+            kde_y = kde(kde_x)
+            mode, maxim = kde_mode(kde_x, kde_y)
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component{} (mode {:.2f})".format(num,mode))
+            Hs_max = max(Hs)
+            Hs_maxs.append(Hs_max)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekde_s.append(y_lim_beforekde)
+            #kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+            #kde_y = kde(kde_x)
+            #mode, maxim = kde_mode(kde_x, kde_y)
+            CHF = get_totalH(Hs)
+            scale = CHF*0.1
+            ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--',lw = 1)
+            y_lim_afterkde = ax.get_ylim()[1]
+            if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+            safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+            ax.set_ylim(0, safe_max)
+            ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+    else:
+        for num,color in zip(range(nums),colors):
+            df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
+            x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
+            y = x[np.isfinite(x)]
+            kde = stats.gaussian_kde(y,bw_method=0.1)
+            kde_y = kde(kde_x)
+            mode, maxim = kde_mode(kde_x, kde_y)
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component{} (mode {:.2f})".format(num,mode))
+            Hs_max = max(Hs)
+            Hs_maxs.append(Hs_max)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekde_s.append(y_lim_beforekde)
+            #kde = stats.gaussian_kde(y,bw_method=0.1)
+            #kde_y = kde(kde_x)
+            #mode, maxim = kde_mode(kde_x, kde_y)
+            CHF = get_totalH(Hs)
+            scale = CHF*0.1
+            ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--',lw = 1)
+            y_lim_afterkde = ax.get_ylim()[1]
+            if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+            safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+            ax.set_ylim(0, safe_max)
+            ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+    ax.legend(loc='upper right', fontsize='large',frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    fig.tight_layout()
+    return fig
+
 def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
@@ -150,57 +260,93 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
     #color_table = ['blue','orange','green','red','purple','brown','pink','gray','olive','cyan']
     for (c, a, dist) in zip(colors, alphas, args):
         dis = dist.dropna(subset=['weightoutlierexcluded'])
+        #y_lim = []
         #time = 0
+        y_lim_beforekde_s,Hs_maxs = [],[]
         for ax, k, f in zip(axs.flatten(), keys, funs):
             #color_random = cm.rainbow(np.linspace(0, 1, n))
             #time = time + 1
-            comp_time = 0
-            if plot == 'identical':
-                for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
-                    dist_comp = dis[dis['component']==num]
-                    w = dist_comp['weightoutlierexcluded']
-                    x = f(dist_comp[k])
-                    y = x[np.isfinite(x)]
-                    w = w[np.isfinite(x)]
-                    if funs[0] == f:
-                        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                        kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
-                        kde_y = kde(kde_x)
-                        mode, maxim = kde_mode(kde_x, kde_y)
-                        CHF = get_totalH(Hs)
-                        scale = CHF*0.1
-                        ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--')
-                        ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
-                    else:
-                        comp_time = comp_time + 1
-                        if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                        else: ax.hist(y, bins = Bins, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                        #Hss.append(Hs)
-                        #Binss.append(Bins)
-                        #patchess.append(patches)
-                    #kde_x, kde_y = get_kde(train_in,ax)
-                    #ax.plot(kde_x,kde_y)
-            else:
-                cs = [color for color in cm.rainbow(np.linspace(0, 1, nums))]
-                dist_comps = [dis[dis['component']==num] for num in range(nums)]
-                ws = [i['weightoutlierexcluded'] for i in dist_comps]
-                xs = [f(i[k]) for i in dist_comps]
-                ys = [x[np.isfinite(x)] for x in xs]
-                ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
-                if funs[0] == f: ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+            #comp_time = 0
+            for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
+                dist_comp = dis[dis['component']==num]
+                w = dist_comp['weightoutlierexcluded']
+                x = f(dist_comp[k])
+                y = x[np.isfinite(x)]
+                w = w[np.isfinite(x)]
+                if funs[0] == f:
+                    #print(y.shape)
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    #print(Hs[0])
+                    Hs_max = max(Hs)
+                    Hs_maxs.append(Hs_max)
+                    #y_lim.append(ax.get_ylim()[1])
+                    #ax.set_ylim(0, max(y_lim) * 1.2)
+                    y_lim_beforekde = ax.get_ylim()[1]
+                    #print(y_lim_beforekde)
+                    y_lim_beforekde_s.append(y_lim_beforekde)
+                    kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                    kde_y = kde(kde_x)
+                    mode, maxim = kde_mode(kde_x, kde_y)
+                    CHF = get_totalH(Hs)
+                    scale = CHF*0.1
+                    ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--',lw = 1)
+                    y_lim_afterkde = ax.get_ylim()[1]
+                    #print(y_lim_afterkde)
+                    if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+                    #y_lim_done = ax.get_ylim()[1]
+                    #y_lim_dones.append(y_lim_done)
+                    #safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs),max(y_lim_dones)])
+                    safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+                    ax.set_ylim(0, safe_max)
+                    #yticks = ax.get_yticks()
+                    #if y_lim_beforekde < max(y_lim_beforekde_s):
+                    #    if max(y_lim_beforekde_s) > max(y_lim_dones): ax.set_ylim(0, max(y_lim_beforekde_s))
+                    #    else: ax.set_ylim(0, max(y_lim_dones))
+                    ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+                    ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                 else:
+                    #comp_time = comp_time + 1
+                    #if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
+                    #Hss.append(Hs)
+                    #Binss.append(Bins)
+                    #patchess.append(patches)
+                #kde_x, kde_y = get_kde(train_in,ax)
+                #ax.plot(kde_x,kde_y)
+            #else:
+            #    cs = [color for color in cm.rainbow(np.linspace(0, 1, nums))]
+            #    dist_comps = [dis[dis['component']==num] for num in range(nums)]
+            #    ws = [i['weightoutlierexcluded'] for i in dist_comps]
+            #    xs = [f(i[k]) for i in dist_comps]
+            #    ys = [x[np.isfinite(x)] for x in xs]
+            #    ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
+            #    if funs[0] == f:
+            #        ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+            #        ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
+            #    else:
                     #maxi = int(max(list(itertools.chain.from_iterable(xs)))*100)
                     #mini = int(min(list(itertools.chain.from_iterable(xs)))*100)
-                    ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+            #        ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+            #        ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
                     #ax.set_xticks(np.round_(np.linspace(mini, maxi, num=5,dtype=int)/100,decimals = 1))
                 #kde_x, kde_y = get_kde(train_in,ax)
-            leg = ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
-            for lh in leg.legendHandles: lh.set_alpha(0.1)
-            xlabel = _labels[k]
-            if f == np.log10:
-                xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
-            ax.set_xlabel(xlabel)
+            #leg = ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
+            #for lh in leg.legendHandles: lh.set_alpha(0.1)
+        xlabel = _labels[k]
+        if f == np.log10:
+            xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
+        ax.set_xlabel(xlabel)
+        #original_y_lim = ax.get_ylim()[1]
+        #ax.set_ylim(0, original_y_lim * 1.2)
+    yticks = axs[0,0].get_yticks()
+    yticklabels = axs[0,0].get_yticklabels()
+    #print(yticks)
+    #print(safe_max)
+    #print(yticklabels)
     axs[0,0].set_ylabel(ylabel)
+    axs[0,0].set_yticks(axs[0,0].get_yticks())
+    axs[0,0].set_ylim(0, safe_max)
     axs[1,0].set_ylabel(ylabel)
     axs[0,0].set_xticks([0,1,2,3,4,5])
     # finalize plot
@@ -208,9 +354,9 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
     fig.tight_layout()
     plt.subplots_adjust(top=0.85)  # prevent suptitle from overlapping
-    return fig
+    return fig,safe_max,yticks
 
-def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
+def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical', ylim=1500,yticks='',**kwargs):
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
     colors = colors or ['black'] * ndists
@@ -227,7 +373,7 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
         for ax, k, f in zip(axs.flatten(), keys, funs):
             #color_random = cm.rainbow(np.linspace(0, 1, n))
             #time = time + 1
-            comp_time = 0
+            #comp_time = 0
             if plot == 'identical':
                 for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
                     dist_comp = dis[dis['component']==num]
@@ -235,11 +381,23 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                     x = f(dist_comp[k])
                     y = x[np.isfinite(x)]
                     w = w[np.isfinite(x)]
-                    if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    if funs[0] == f:
+                        ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        #Hs_max = max(Hs)
+                        #Hs_maxs.append(Hs_max)
+                        #y_lim_beforekde = ax.get_ylim()[1]
+                        #y_lim_beforekde_s.append(y_lim_beforekde)
+                        #y_lim.append(ax.get_ylim()[1])
+                        #ax.set_ylim(0, max(y_lim) * 1.2)
+                        #safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+                        ax.set_yticks(yticks)
+                        ax.set_ylim(0, ylim)
+                        ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
                     else:
-                        comp_time = comp_time + 1
-                        if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                        else: ax.hist(y, bins = Bins, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        #comp_time = comp_time + 1
+                        #if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
                         #Hss.append(Hs)
                         #Binss.append(Bins)
                         #patchess.append(patches)
@@ -252,15 +410,18 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                 xs = [f(i[k]) for i in dist_comps]
                 ys = [x[np.isfinite(x)] for x in xs]
                 ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
-                if funs[0] == f: ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                if funs[0] == f:
+                    ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                    ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                 else:
                     #maxi = int(max(list(itertools.chain.from_iterable(xs)))*100)
                     #mini = int(min(list(itertools.chain.from_iterable(xs)))*100)
                     ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                    ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                     #ax.set_xticks(np.round_(np.linspace(mini, maxi, num=5,dtype=int)/100,decimals = 1))
                 #kde_x, kde_y = get_kde(train_in,ax)
-            leg = ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
-            for lh in leg.legendHandles: lh.set_alpha(0.1)
+            #leg = ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
+            #for lh in leg.legendHandles: lh.set_alpha(0.1)
             xlabel = _labels[k]
             if f == np.log10:
                 xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
@@ -546,7 +707,9 @@ def draw_components_kde_bootstrap(kdemethod,outdir,num,ksdf_predict,weighted,boo
             if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(train_in['node_averaged_dS_outlierexcluded'].tolist()).evaluate(kde_x)
         mode_orig, maxim_orig = kde_mode(kde_x, kde_y)
         #print(modes)
-        if all([i==0 for i in modes]): modes = np.array(modes)+1e-10
+        if all([i==0 for i in modes]):
+            #modes = np.array(modes)+1e-10
+            modes = [i+np.random.choice(np.arange(1e-10, 1e-8, 1e-10)) for i in modes]
         if kdemethod == 'scipy': kde_y=stats.gaussian_kde(np.array(modes),bw_method=bin_width).pdf(kde_x)
         if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(modes).evaluate(kde_x)
         if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(modes).evaluate(kde_x)
@@ -572,9 +735,9 @@ def info_centers(cluster_centers):
         logging.info("cluster {0} centered at {1}".format(i,c))
     return centers
 
-def write_labels(df,df_index,labels,outdir,n):
+def write_labels(df,df_index,labels,outdir,n,regime='multiplicon'):
     predict_column = pd.DataFrame(labels,index=df_index.index,columns=['KMedoids_Cluster']).reset_index()
-    df = df.reset_index().merge(predict_column, on = ['multiplicon'])
+    df = df.reset_index().merge(predict_column, on = [regime])
     df = df.set_index('pair')
     fname = os.path.join(outdir,'AnchorKs_KMedoids_Clustering_{}components_prediction.tsv'.format(n))
     df.to_csv(fname,header=True,index=True,sep='\t')
@@ -623,8 +786,8 @@ def kde_method(kdemethod,bw,X,kde_x,w=None):
     if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
     return kde_y
 
-def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50):
-    fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components.pdf".format(n))
+def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+    fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components_kde.pdf".format(n))
     f, ax = plt.subplots()
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -641,63 +804,22 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
                 X = getX(df,'dS')
                 w = getX(df,'weightoutlierexcluded')
                 kde_y = kde_method(kdemethod,bin_width,X,kde_x,w=w)
-                #if kdemethod == 'scipy': kde_y=stats.gaussian_kde(X,weights=w,bw_method=bin_width).pdf(kde_x)
-                #if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
-                #if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
-                #if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(X,weights=w).evaluate(kde_x)
-                #counts = 1/w
-                #counts = counts.astype('int')
-                #fv = np.repeat(X, counts)
-                #fv_log = np.log(fv)
-                #mu, std = norm.fit(fv_log)
-                #mu, std = np.exp(mu), np.exp(std)
                 mode, maxim = kde_mode(kde_x, kde_y)
                 orig_modes.append(mode)
-                #CDF = get_totalP(kde_y,num=bins*kdesity)
-                #print(CDF)
-                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.7, rwidth=0.8)
+                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='Clusters {} (mode {:.2f})'.format(i,mode))
                 CHF = get_totalH(Hs)
                 scale = CHF*bin_width
-                #print(CHF)
-                #print(len(X))
                 plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4, ls = '--')
                 plt.axvline(x = mode, color = c, alpha = 0.8, ls = ':', lw = 1)
                 i_low,i_upp = get_CDF_CI(Hs,alpha,num=int(5/bin_width))
                 CIs[i]=[Bins[i_low],Bins[i_upp]]
-                #plt.axvline(x = Bins[i_low], color = c, alpha = 0.8, ls = '--', lw = 1)
-                #plt.axvline(x = Bins[i_upp], color = c, alpha = 0.8, ls = '--', lw = 1)
-                #plt.axvline(x = mu, color = c, alpha = 0.8, ls = '-.', lw = 1)
-                #plt.axvline(x = mu-1.96*std, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-                #plt.axvline(x = mu+1.96*std, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-                #for b in range(boots):
-                #    s = np.random.normal(mu, std, len(X))
-                #    s = s[(s > 0) & (s < 5)]
-                    #print(s)
-                    #X = random.choices(X,k=len(X),weights=w)
-                    #p = norm.pdf(, mu, std)
-                #    if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(s).evaluate(kde_x)
-                #    if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(s).evaluate(kde_x)
-                #    if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(s).evaluate(kde_x)
-                #    mode, maxim = kde_mode(kde_x, kde_y)
-                #    modes[i].append(mode)
-                    #plt.plot(kde_x, kde_y*len(X)/10, color = 'grey',alpha=0.05)
         else:
             dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
             dfs = [df.dropna(subset=['weightoutlierexcluded']) for df in dfs]
             cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
             Xs = [getX(df,'dS') for df in dfs]
             ws = [getX(df,'weightoutlierexcluded') for df in dfs]
-            #sns.distplot(Xs,bins = np.linspace(0, 50, num=51,dtype=int)/10,hist_kws={"rwidth": 0.8, "color": cs, "alpha": 0.7, "weights":ws,"stacked":True},kde_kws={"bw": 0.2})
-            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.7,rwidth=0.8,stacked=True)
-            df = dfo.dropna(subset=['weightoutlierexcluded'])
-            X = getX(df,'dS')
-            w = getX(df,'weightoutlierexcluded')
-            Hs, Bins, patches =plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='white',alpha=0.0,rwidth=0.8)
-            kde_y = kde_method(kdemethod,bin_width,X,kde_x,w=w)
-            #CHF = get_totalH(Hs[0])+get_totalH(Hs[1])+get_totalH(Hs[2])
-            CHF = get_totalH(Hs)
-            scale = CHF*bin_width
-            plt.plot(kde_x, kde_y*scale, color = 'black',alpha=0.4,ls = '--')
+            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True)
     elif plot == 'identical':
         for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
             css.append(c)
@@ -708,62 +830,72 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
             mode, maxim = kde_mode(kde_x, kde_y)
             plt.axvline(x = mode, color = c, alpha = 0.8, ls = ':', lw = 1)
             orig_modes.append(mode)
-            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.7, rwidth=0.8)
+            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='Clusters {} (mode {:.2f})'.format(i,mode))
             CHF = get_totalH(Hs)
             scale = CHF*bin_width
             plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4,ls = '--')
             i_low,i_upp = get_CDF_CI(Hs,alpha,num=int(5/bin_width))
             CIs[i]=[Bins[i_low],Bins[i_upp]]
-            #plt.axvline(x = Bins[i_upp], color = c, alpha = 0.8, ls = '--', lw = 1)
-            #plt.axvline(x = Bins[i_low], color = c, alpha = 0.8, ls = '--', lw = 1)
-            #X_log = np.log(X)
-            #mu, std = norm.fit(X_log)
-            #mu, std = np.exp(mu), np.exp(std)
-            #plt.axvline(x = mu, color = c, alpha = 0.8, ls = '-.', lw = 1)
-            #plt.axvline(x = mu-1.96*std, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-            #plt.axvline(x = mu+1.96*std, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-            #for b in range(boots):
-            #    s = np.random.normal(mu, std, len(X))
-            #    s = s[(s > 0) & (s < 5)]
-                #X = random.choices(X,k=len(X))
-            #    if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(s).evaluate(kde_x)
-            #    if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(s).evaluate(kde_x)
-            #    if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(s).evaluate(kde_x)
-            #    mode, maxim = kde_mode(kde_x, kde_y)
-            #    modes[i].append(mode)
-                #plt.plot(kde_x, kde_y*len(X)/10, color = 'grey',alpha=0.05)
     else:
         dfo = dfo.drop_duplicates(subset=['family', 'node'])
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
         cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
         Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
-        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.7,rwidth=0.8,stacked=True)
-        X = getX(dfo,'node_averaged_dS_outlierexcluded')
-        Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color='white',alpha=0.0,rwidth=0.8)
-        kde_y = kde_method(kdemethod,bin_width,X,kde_x)
-        CHF = get_totalH(Hs)
-        scale = CHF*bin_width
-        plt.plot(kde_x, kde_y*scale, color = 'black',alpha=0.4,ls = '--')
-    #if plot == 'identical':
-    #    for i,mode in modes.items():
-    #        kde_x = np.linspace(0,5,num=512)
-    #        lower, upper = get_empirical_CI(0.95,mode)
-    #        if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(mode).evaluate(kde_x)
-    #        if kdemethod == 'treekde': kde_y = TreeKDE(bw=bin_width).fit(mode).evaluate(kde_x)
-    #        if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bin_width).fit(mode).evaluate(kde_x)
-    #        mode_mode, maxim = kde_mode(kde_x, kde_y)
-    #        logging.info('Cluster {0} has raw mode as {1}, peak at {2}, 95% empirical confidence interval (CI) at {3} - {4} '.format(i,orig_modes[i],mode_mode,lower,upper))
-    #        plt.axvline(x = mode_mode, color = css[i], alpha = 0.8, ls = '-.', lw = 1)
-    #        plt.axvline(x = lower, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-    #        plt.axvline(x = upper, color = 'black', alpha = 0.8, ls = '--', lw = 1)
-    #for c in centers: plt.axvline(x = c, color = 'black', alpha = 0.8, ls = ':', lw = 1)
-    if plot == 'identical':
-        props = dict(boxstyle='round', facecolor='grey', alpha=0.1)
-        text = "\n".join(["\n".join(["Clusters: {}".format(i),"Mode: {:2.2f}".format(orig_modes[i]),"CI: {:2.2f}-{:2.2f}".format(CIs[i][0],CIs[i][1])]) for i in range(n)])
-        plt.text(0.75,0.95,text,transform=ax.transAxes,fontsize=8,verticalalignment='top',bbox=props)
+        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='Clusters {}'.format(i))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
-    #plt.yticks(ticks=plt.yticks()[0][1:], labels=10 * np.array(plt.yticks()[0][1:], dtype=np.float64))
+    ax.legend(loc=1,fontsize='large',frameon=False)
+    sns.despine(offset=1)
+    if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
+    else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
+    plt.tight_layout()
+    plt.savefig(fname,format ='pdf', bbox_inches='tight')
+    plt.close()
+
+def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+    fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components.pdf".format(n))
+    f, ax = plt.subplots()
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    modes = {i:[] for i in range(n)}
+    orig_modes = []
+    css = []
+    CIs = {}
+    if weighted:
+        if plot == 'identical':
+            for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+                css.append(c)
+                df = dfo[dfo['KMedoids_Cluster']==i]
+                df = df.dropna(subset=['weightoutlierexcluded'])
+                X = getX(df,'dS')
+                w = getX(df,'weightoutlierexcluded')
+                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='Clusters {}'.format(i,mode))
+        else:
+            dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
+            dfs = [df.dropna(subset=['weightoutlierexcluded']) for df in dfs]
+            cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+            Xs = [getX(df,'dS') for df in dfs]
+            ws = [getX(df,'weightoutlierexcluded') for df in dfs]
+            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True)
+    elif plot == 'identical':
+        for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+            css.append(c)
+            dfo = dfo.drop_duplicates(subset=['family', 'node'])
+            df = dfo[dfo['KMedoids_Cluster']==i]
+            X = getX(df,'node_averaged_dS_outlierexcluded')
+            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='Clusters {}'.format(i))
+    else:
+        dfo = dfo.drop_duplicates(subset=['family', 'node'])
+        dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
+        cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+        Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
+        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='Clusters {}'.format(i))
+    plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
+    plt.ylabel("Frequency", fontsize = 10)
+    ax.legend(loc=1,fontsize='large',frameon=False)
+    sns.despine(offset=1)
+    if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
+    else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     plt.tight_layout()
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
@@ -782,6 +914,119 @@ def Elbow_lossf(X_log,cluster_centers,labels):
         D.append(sum_d)
     Loss = sum(D)
     return Loss
+
+def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
+    df_withindex,ks_or = bc_group_anchor(df,regime=guide)
+    df_m = df_withindex.copy()
+    df_m['weightoutlierexcluded'] = 1
+    w = np.array(df_m['weightoutlierexcluded'])
+    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
+    ks = np.log(ks_or)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(-5,2)
+    ax.set_title('KDE and spline of log-transformed anchor $K_\mathrm{S}$ of species '+ '{}'.format(sp))
+    ax.set_xlabel("ln $K_\mathrm{S}$")
+    ax.set_ylabel("Density of retained duplicates")
+    max_ks,min_ks = ks.max(),ks.min()
+    ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    kde = stats.gaussian_kde(ks_refed, bw_method="scott", weights=w_refed)
+    bw_modifier = 0.4
+    kde.set_bandwidth(kde.factor * bw_modifier)
+    kde_x = np.linspace(min_ks-cutoff, max_ks+cutoff,num=500)
+    kde_y = kde(kde_x)
+    ax.plot(kde_x, kde_y, color="k", lw=1, label="KDE")
+    spl = interpolate.UnivariateSpline(kde_x, kde_y)
+    spl.set_smoothing_factor(0.01)
+    spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
+    spl_y = spl(spl_x)
+    ax.plot(kde_x, spl(kde_x), 'b', lw=1, label="Spline on KDE")
+    ax.hist(ks_refed, weights=w_refed, bins=np.arange(-5, 2.1, 0.1), color="gray", alpha=0.8, density=True,rwidth=0.8)
+    ax.legend(loc=2,fontsize='large',frameon=False)
+    ax.set_ylim(0, ax.get_ylim()[1] * 1.1)
+    fig.tight_layout()
+    fig.savefig(os.path.join(outdir, "{}_guided_{}_Ks_spline.pdf".format(guide,sp)))
+    plt.close(fig)
+    if na: logging.info('Detecting likely peaks from {}-guided node-averaged Ks data '.format(guide))
+    else: logging.info('Detecting likely peaks from {}-guided node-weighted Ks data '.format(guide))
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,guide=guide)
+    if na:
+        df = df.drop_duplicates(subset=['family','node'])
+        df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df['weightoutlierexcluded'] = 1
+    plot_95CI_hist(init_means, init_stdevs, np.array(df['dS']), np.array(df['weightoutlierexcluded']), outdir, na, sp, guide=guide)
+
+def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False):
+    if na:
+        df = df.drop_duplicates(subset=['family','node'])
+        df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df['weightoutlierexcluded'] = 1
+    df = df.dropna(subset=['dS','weightoutlierexcluded'])
+    df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
+    ks_or = np.array(df['dS'])
+    w = np.array(df['weightoutlierexcluded'])
+    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
+    ks = np.log(ks_or)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(-5,2)
+    ax.set_title('KDE and spline of log-transformed anchor $K_\mathrm{S}$ of species '+ '{}'.format(sp))
+    ax.set_xlabel("ln $K_\mathrm{S}$")
+    ax.set_ylabel("Density of retained duplicates")
+    max_ks,min_ks = ks.max(),ks.min()
+    ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    kde = stats.gaussian_kde(ks_refed, bw_method="scott", weights=w_refed)
+    bw_modifier = 0.4
+    kde.set_bandwidth(kde.factor * bw_modifier)
+    kde_x = np.linspace(min_ks-cutoff, max_ks+cutoff,num=500)
+    kde_y = kde(kde_x)
+    ax.plot(kde_x, kde_y, color="k", lw=1, label="KDE")
+    spl = interpolate.UnivariateSpline(kde_x, kde_y)
+    spl.set_smoothing_factor(0.01)
+    spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
+    spl_y = spl(spl_x)
+    ax.plot(kde_x, spl(kde_x), 'b', lw=1, label="Spline on KDE")
+    ax.hist(ks_refed, weights=w_refed, bins=np.arange(-5, 2.1, 0.1), color="gray", alpha=0.8, density=True,rwidth=0.8)
+    ax.legend(loc=2,fontsize='large',frameon=False)
+    ax.set_ylim(0, ax.get_ylim()[1] * 1.1)
+    fig.tight_layout()
+    if na:
+        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.pdf".format(sp)))
+    else:
+        fig.savefig(os.path.join(outdir, "{}.spline_weighted.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}.spline_weighted.pdf".format(sp)))
+    plt.close(fig)
+    if na: logging.info('Detecting likely peaks from node-averaged data')
+    else: logging.info('Detecting likely peaks from node-weighted data')
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na)
+    plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
+
+def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None):
+    text = "AnchorKs_PeakCI_"
+    if guide != None: text = "AnchorKs_PeakCI_{}_guided_".format(guide)
+    if na: fname = os.path.join(outdir, "{}{}_node_averaged.pdf".format(text,sp))
+    else: fname = os.path.join(outdir, "{}{}_node_weighted.pdf".format(text,sp))
+    f, ax = plt.subplots()
+    kdesity = 100
+    bins = 50
+    bin_width = 0.1
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    #colors = cm.rainbow(np.linspace(0, 1, len(init_means)))
+    alphas = np.linspace(0.3, 0.7, len(init_means))
+    for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
+        Hs, Bins, patches = plt.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
+        plt.axvline(x = np.exp(mean), color = 'black', alpha = alphas[i], ls = ':', lw = 1,label='Peak {} mean {:.2f}'.format(i+1,np.exp(mean)))
+        plt.axvline(x = np.exp(mean)+std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} upper 95% CI {:.2f}'.format(i+1,np.exp(mean)+std*2))
+        plt.axvline(x = np.exp(mean)-std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} lower 95% CI {:.2f}'.format(i+1,np.exp(mean)-std*2))
+    plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
+    if na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
+    else: plt.ylabel("Number of retained duplicates (weighted)", fontsize = 10)
+    ax.legend(loc=1,fontsize='large',frameon=False)
+    sns.despine(offset=1)
+    plt.title('Anchor $K_\mathrm{S}$'+' distribution of {}'.format(sp))
+    plt.tight_layout()
+    plt.savefig(fname,format ='pdf', bbox_inches='tight')
+    plt.close()
+
 
 def plot_Elbow_loss(Losses,outdir):
     fname = os.path.join(outdir,'Elbow-Loss Function.pdf')
@@ -804,24 +1049,61 @@ def get_anchors(anchor):
     return df
 
 def get_anchor_ksd(ksdf, apdf):
-    return ksdf.join(apdf)
+    return ksdf.join(apdf).dropna()
+    # here any NA occurred per row is dropped
 
-def bc_group_anchor(df):
+def bc_group_anchor(df,regime='multiplicon'):
     #median_df = df.groupby(["basecluster"]).median()
-    median_df = df.groupby(["multiplicon"]).median()
+    median_df = df.groupby([regime]).median()
     X = getX(median_df,'dS')
     return median_df,X
 
-def fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5):
+def add_apgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
+    predict_column = pd.DataFrame(labels,index=df_index.index,columns=['AnchorKs_GMM_Component']).reset_index()
+    df = df.reset_index().merge(predict_column, on = [regime])
+    df = df.set_index('pair')
+    fname = os.path.join(outdir,'AnchorKs_GMM_{}components_prediction.tsv'.format(n))
+    df.to_csv(fname,header=True,index=True,sep='\t')
+    return df
+
+def fit_apgmm(guide,anchor,df,seed,components,em_iter,n_init,outdir,method,weighted,plot):
+    if anchor == None:
+        logging.error('Please provide anchorpoints.txt file for Anchor Ks KMedoids Clustering')
+        exit(0)
+    df_ap = get_anchors(anchor)
+    df = get_anchor_ksd(df, df_ap)
+    df_withindex,X = bc_group_anchor(df,regime=guide)
+    X_log = np.log(X).reshape(-1, 1)
+    out_file = os.path.join(outdir, "AnchorKs_GMM_AIC_BIC.pdf")
+    if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    #logging.info("Gaussian Mixture Modeling with {} component".format(n))
+    #df_c = write_apgmmlabels(df,df_withindex,labels,outdir,n)
+    for n, m in zip(N,models):
+        labels = m.predict(X_log)
+        df_c = add_apgmmlabels(df,df_withindex,labels,outdir,n,regime=guide)
+        fig = plot_ak_component(df_c,n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide)
+        if weighted: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_weighted.pdf".format(n))
+        else: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_averaged.pdf".format(n))
+        fig.savefig(fname)
+        plt.close()
+        fig = plot_ak_component_kde(df_c,n,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
+        if weighted: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_weighted_kde.pdf".format(n))
+        else: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
+        fig.savefig(fname)
+        plt.close()
+    return df
+
+def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5):
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
     if anchor == None:
-        logging.error('Please proved anchorpoints.txt file for Anchor Ks KMedoids Clustering')
+        logging.error('Please provide anchorpoints.txt file for Anchor Ks KMedoids Clustering')
         exit(0)
     df_ap = get_anchors(anchor)
     df = get_anchor_ksd(df, df_ap)
-    df_withindex,X = bc_group_anchor(df)
+    df_withindex,X = bc_group_anchor(df,regime=guide)
     #df = df.dropna(subset=['node_averaged_dS_outlierexcluded'])
     #df_rmdup = df.drop_duplicates(subset=['family', 'node'])
     #X = getX(df_rmdup,'node_averaged_dS_outlierexcluded')
@@ -844,8 +1126,10 @@ def fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, df, outdir, seed
     plot_Elbow_loss(Losses,outdir)
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
-    df_c = write_labels(df,df_withindex,labels,outdir,n)
-    plot_kmedoids(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha)
+    df_c = write_labels(df,df_withindex,labels,outdir,n,regime=guide)
+    plot_kmedoids(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
+    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
+    return df
 
 def Getanchor_Ksdf(anchor,ksdf,multiplicon):
     ap = pd.read_csv(anchor,header=0,index_col=0,sep = '\t')

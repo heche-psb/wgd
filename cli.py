@@ -293,26 +293,28 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     help="include Ks outliers")
 @click.option('--method', '-m', type=click.Choice(['gmm', 'bgmm']), default='gmm', show_default=True, help="mixture modeling method")
 @click.option('--seed',type=int, default=2352890, show_default=True, help="random seed given to initialize parameters")
-@click.option('--em_iter', '-ei',type=int, default=100, show_default=True, help="number of EM iterations to perform")
-@click.option('--n_init', '-ni',type=int, default=1, show_default=True, help="number of initializations to perform")
+@click.option('--em_iter', '-ei',type=int, default=200, show_default=True, help="number of EM iterations to perform")
+@click.option('--n_init', '-ni',type=int, default=200, show_default=True, help="number of initializations to perform")
 @click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--boots', type=int, default=200, show_default=True, help="number of bootstrap replicates of kde")
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
 @click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='identical', show_default=True, help="plotting method")
 @click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
-@click.option('--anchorks', '-ak', is_flag=True, help='anchor Ks distribution clustering')
 @click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
 @click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
 @click.option('--alpha',type=float, default=0.5, show_default=True, help="alpha value to control Interpercentile range")
 @click.option('--n_clusters',type=int, default=5, show_default=True, help="number of clusters to plot Elbow loss function")
+@click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
+@click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster']), default='multiplicon', show_default=True, help="regime residing anchors")
+@click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, anchorks, n_medoids, kdemethod, alpha, n_clusters):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
@@ -323,8 +325,13 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
-    if anchorks:
-        fit_kmedoids(anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
+    if anchor!= None:
+        if kmedoids: df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
+        else: df_ap = fit_apgmm(guide,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
+        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False)
+        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True)
+        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=False)
+        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=True)
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
@@ -337,17 +344,21 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         ksdf_predict = add_prediction(ksdf,fn_ksdf,train_in,m)
         ksdf_predict.to_csv(fname,header=True,index=True,sep='\t')
         logging.info("Plotting components-annotated Ks distribution for {} components model".format(n))
-        fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
-        fig.savefig(fname + "_Ks.svg")
-        fig.savefig(fname + "_Ks.pdf")
-        plt.close()
-        fig = default_plot_kde(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
+        #fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot)
+        #fig.savefig(fname + "_Ks.svg")
+        #fig.savefig(fname + "_Ks.pdf")
+        #plt.close()
+        fig,ylim,yticks = default_plot_kde(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = 'identical')
         fig.savefig(fname + "_Ks_kde.svg")
         fig.savefig(fname + "_Ks_kde.pdf")
         plt.close()
-        ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
-        draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
-    mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
+        fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot, ylim=ylim,yticks=yticks)
+        fig.savefig(fname + "_Ks.svg")
+        fig.savefig(fname + "_Ks.pdf")
+        plt.close()
+        #ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
+        #draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
+    #mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
     logging.info("Done")
 
 # Ks distribution construction
@@ -470,10 +481,11 @@ def _viz(datafile,nonks,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_ini
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     plt.close()
-    logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
-    elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff)
-    logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
-    elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True)
+    if spair == None:
+        logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff)
+        logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True)
     logging.info('Done')
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})

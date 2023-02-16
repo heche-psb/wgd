@@ -47,13 +47,15 @@ _labels = {
 def getspair_ks(spair,df,spgenemap):
     df_perspair = {}
     allspair = []
+    paralog_pair = []
     for i in spair:
         pair = '_'.join(sorted([j.strip() for j in i.split(';')]))
+        if i.split(';')[0] == i.split(';')[1]: paralog_pair.append(pair)
         if pair not in allspair: allspair.append(pair)
     #df['sp1'],df['sp2'] = [spgenemap[g] for g in df['gene1']],[spgenemap[g] for g in df['gene2']]
     df['spair'] = ['_'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
     for p in allspair: df_perspair[p] = df[df['spair']==p]
-    return df_perspair,allspair
+    return df_perspair,allspair,paralog_pair
 
 def get_totalH(Hs):
     CHF = 0
@@ -87,7 +89,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
     fnames = os.path.join(outdir,'{}_per_spair.ksd.svg'.format(title))
     fnamep = os.path.join(outdir,'{}_per_spair.ksd.pdf'.format(title))
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair = getspair_ks(spair,df,spgenemap)
+    df_perspair,allspair,paralog_pair = getspair_ks(spair,df,spgenemap)
     cs = cm.rainbow(np.linspace(0, 1, len(allspair)))
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
@@ -111,14 +113,15 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
         Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
-        kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
-        kde_y = kde(kde_x)
-        mode, maxim = kde_mode(kde_x, kde_y)
-        logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
-        CHF = get_totalH(Hs)
-        scale = CHF*0.1
-        if plotkde: ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
-        if plotkde: ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
+        if pair not in paralog_pair:
+            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+            kde_y = kde(kde_x)
+            mode, maxim = kde_mode(kde_x, kde_y)
+            logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
+            CHF = get_totalH(Hs)
+            scale = CHF*0.1
+            if plotkde: ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
+            if plotkde: ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
             #if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
             #else: ax.hist(y, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,bins=50,label=pair)
         #w = [df_per['weightoutlierexcluded'] for df_per in df_pers]
@@ -133,6 +136,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
             #ax.legend(loc=1,bbox_to_anchor=(1.0, 0.9),fontsize='small')
     ax.set_xlabel(_labels["dS"])
     ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
+    #ax.legend(loc=1,fontsize=8,frameon=False)
     #axs[0,0].set_ylabel(ylabel)
     #axs[1,0].set_ylabel(ylabel)
     #axs[0,0].set_xticks([0,1,2,3,4,5])
@@ -162,7 +166,8 @@ def reflect_logks(ks,w):
 
 def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False):
     if na:
-        df=df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df = df.drop_duplicates(subset=['family','node'])
+        df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
     df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
@@ -491,7 +496,7 @@ def plot_init_model(ax1,ax2,means,stds,lambd,weights):
         ax1.plot(x, weights[i+1] * stats.lognorm.pdf(x, scale=np.exp(means[i]), s=stds[i]), st, lw=1.5, alpha=0.4,label=f'Lognormal {letter_dict[i]} initiated (mode {lognormal_peaks[i]})')
         ax2.plot(x, weights[i+1] * stats.norm.pdf(x, means[i], stds[i]),st,lw=1.5, alpha=0.4,label=f'Norm {letter_dict[i]} initiated')
 
-def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False):
+def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False, guide=None):
     peaks, properties = signal.find_peaks(spl_y)
     #prominences = properties["prominences"]
     prominences = signal.peak_prominences(spl_y, peaks)[0]
@@ -548,12 +553,16 @@ def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False)
     original_y_lim = axes[0][0].get_ylim()[1]
     for ax in axes.flatten(): ax.set_ylim(0, original_y_lim * 1.2)
     #fig.tight_layout()
-    if na:
-        fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.pdf".format(sp)))
-        fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.svg".format(sp)))
+    if guide == None:
+        if na:
+            fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.pdf".format(sp)))
+            fig.savefig(os.path.join(outdir, "{}_peak_detection_node_averaged.svg".format(sp)))
+        else:
+            fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.pdf".format(sp)))
+            fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.svg".format(sp)))
     else:
-        fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.pdf".format(sp)))
-        fig.savefig(os.path.join(outdir, "{}_peak_detection_weighted.svg".format(sp)))
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_guided_by_{}.pdf".format(sp,guide)))
+        fig.savefig(os.path.join(outdir, "{}_peak_detection_guided_by_{}.svg".format(sp,guide)))
     plt.close()
     good_prominences,init_means,init_stdevs = [],[],[]
     for i in range(len(peaks)):
