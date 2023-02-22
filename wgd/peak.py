@@ -1153,9 +1153,13 @@ def retreive95CI(family,ksdf_filtered,outdir,lower,upper):
     ks_tmp = ksdf_filtered.loc[:,['dS','gene1','gene2']].copy()
     ks_tmp['ap12']= ["_".join(sorted([x,y])) for x,y in zip(list(ks_tmp['gene1']),list(ks_tmp['gene2']))]
     ks_tmp = ks_tmp.loc[:,['ap12','dS']]
+    #df = df.reset_index()
     df = df.merge(ks_tmp,on='ap12')
     df = df.loc[(df['dS']<=upper) & (df['dS']>=lower),:]
+    #df = df.set_index('index')
     df = df.drop(['dS','ap12'],axis=1)
+    #here I reindexed the df to output
+    df.index = ["GF{:0>8}".format(i+1) for i in range(len(df.index))]
     fname = os.path.join(outdir,os.path.basename(family)+'.95CI')
     df.to_csv(fname,header=True,index=True,sep='\t')
 

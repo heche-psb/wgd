@@ -271,7 +271,7 @@ class mcmctree:
     def get_dates(self,CI_table,PM_table,wgd_mrca,cds=True):
         Figtree = Phylo.read('FigTree.tre','nexus')
         wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
-        self.CI = wgd_node.comment.strip('[&95%={').strip('}]').split(', ')
+        self.CI = wgd_node.comment.strip('[&95%HPD={').strip('[&95%={').strip('}]').split(', ')
         self.PM = wgd_node.clades[0].branch_length
         if cds:
             logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))

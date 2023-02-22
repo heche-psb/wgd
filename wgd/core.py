@@ -961,7 +961,7 @@ def FileRn(cds_alns_rn, pro_alns_rn, calnfs, palnfs):
                 f.write(">{}\n{}\n".format(pro_aln_rn[j].id,pro_aln_rn[j].seq))
     return calnfs_rn, palnfs_rn
 
-def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
+def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir, infer_tree=False):
     gsmap, slist = GetG2SMap(families, outdir)
     famnum = len(pro_alns)
     cds_alns_rn = {}
@@ -1015,23 +1015,26 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     ctree_length = Concat_caln.get_alignment_length()
     Concat_paln = AlignIO.read(Concat_palnf, "fasta")
     Concat_ctrees, ctree_pths, Concat_ptrees, ptree_pths, famid = {},[],{},[],'Concat'
-    if tree_method == 'mrbayes':
-        mrbayes_run(outdir,famid,Concat_palnf,Concat_paln,treeset)
-        addmbtree(outdir,Concat_ptrees,ptree_pths,i,concat=True)
-        # TO DO -- get caln work in mrbayes
-        Concat_ctrees, ctree_pths = Concat_ptrees, ptree_pths
-    if tree_method == "iqtree":
-        iqtree_run(treeset,Concat_calnf)
-        addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.treefile')
-        iqtree_run(treeset,Concat_palnf)
-        addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.treefile')
-    if tree_method == "fasttree":
-        fasttree_run(Concat_calnf,treeset)
-        addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.fasttree')
-        fasttree_run(Concat_palnf,treeset)
-        addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.fasttree')
-    Concat_ctree, ctree_pth, Concat_ptree, ptree_pth = Concat_ctrees[famid], ctree_pths[0], Concat_ptrees[famid], ptree_pths[0]
-    return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist
+    if infer_tree:
+        if tree_method == 'mrbayes':
+            mrbayes_run(outdir,famid,Concat_palnf,Concat_paln,treeset)
+            addmbtree(outdir,Concat_ptrees,ptree_pths,i,concat=True)
+            # TO DO -- get caln work in mrbayes
+            Concat_ctrees, ctree_pths = Concat_ptrees, ptree_pths
+        if tree_method == "iqtree":
+            iqtree_run(treeset,Concat_calnf)
+            addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.treefile')
+            iqtree_run(treeset,Concat_palnf)
+            addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.treefile')
+        if tree_method == "fasttree":
+            fasttree_run(Concat_calnf,treeset)
+            addiqfatree(famid,Concat_ctrees,Concat_calnf,ctree_pths,postfix='.fasttree')
+            fasttree_run(Concat_palnf,treeset)
+            addiqfatree(famid,Concat_ptrees,Concat_palnf,ptree_pths,postfix='.fasttree')
+        Concat_ctree, ctree_pth, Concat_ptree, ptree_pth = Concat_ctrees[famid], ctree_pths[0], Concat_ptrees[famid], ptree_pths[0]
+        return cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist
+    else:
+        return cds_alns_rn, pro_alns_rn, Concat_calnf, Concat_palnf, ctree_length, gsmap, Concat_caln, Concat_paln, slist
 
 def _Codon2partition_(alnf, outdir):
     pos_1 = alnf + ".pos1"
