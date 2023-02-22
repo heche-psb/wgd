@@ -187,7 +187,7 @@ class mcmctree:
             'usedata':'3  * 0: no data; 1:seq; 2:approximation; 3:out.BV (in.BV)',
             'clock': 2,
             'RootAge': '<5.00',
-            'model': 4,
+            'model': 1,
             'alpha': 0.5,
             'ncatG': 5,
             'cleandata': 0,
@@ -256,7 +256,9 @@ class mcmctree:
             #if self.aamodel != 'poisson':
             #    cmd = ['sed', '-i', 's/{}/{}/g'.format('model = 0','model = 2'), 'tmp0001.ctl']
             #    sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
-            cmd = ['sed', '-i', 's/{}/{}/g'.format('model = 1','model = 2'), 'tmp0001.ctl']
+            if self.aamodel != 'poisson':
+                cmd = ['sed', '-i', 's/{}/{}/g'.format('model = 1','model = 2'), 'tmp0001.ctl']
+                sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             cmd = ['codeml', 'tmp0001.ctl']
             sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             cmd = ['mv','rst2','in.BV']
