@@ -84,8 +84,9 @@ def kde_mode(kde_x, kde_y):
 def reweighted(df_per):
     return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
 
-def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=False,reweight=True):
-    spgenemap = getgsmap(gsmap)
+def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=False,reweight=True,ksd=False):
+    if not ksd: spgenemap = getgsmap(gsmap)
+    else: spgenemap = gsmap
     fnames = os.path.join(outdir,'{}_per_spair.ksd.svg'.format(title))
     fnamep = os.path.join(outdir,'{}_per_spair.ksd.pdf'.format(title))
     if not viz: writespgenemap(spgenemap,outdir)
@@ -374,8 +375,10 @@ def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_itera
             init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
             init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
             for j in range(num_comp-2):
-                init_means.append(np.random.choice(np.arange(-0.5, 1, 0.1)))
-                init_stdevs.append(np.random.choice(np.arange(0.3, 0.9, 0.1)))
+                #init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)),1))
+                init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.01)),1))
+                #init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)),1))
+                init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.01)),1))
             init_means.append(np.log(5))
             init_stdevs.append(0.3)
             start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
@@ -774,6 +777,24 @@ def plot_ancestor(sp,scafflength,scafflabel,outdir):
     fig.savefig(fnames)
     return color_scaff
 
+def filter_by_dfy(seg,dfy,minlen,spy):
+    lens = dfy.groupby("scaffold")["start"].agg(max)
+    lens.name = "len"
+    df1y = pd.DataFrame(lens).sort_values("len", ascending=False)
+    scfa_len = {i:df1y.loc[i,'len'] for i in df1y.index}
+    if minlen < 0: minlen = df1y.len.max() * 0.1
+    #df1y = df1y.loc[df1y.len > minlen]
+    #df1y['genome']=spy
+    #df1y = df1y.reset_index().rename(columns={"scaffold": "list"})
+    #seg = seg.merge(df1y,on=['genome'])
+    rm_indices = []
+    for i in seg.index:
+        if seg.loc[i,'genome'] == spy:
+            scfa = seg.loc[i,'list']
+            if scfa_len[scfa] <= minlen: rm_indices.append(i)
+    seg = seg.drop(rm_indices)
+    return seg
+
 def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
     lens = dfx.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
@@ -781,6 +802,7 @@ def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
     if minlen < 0: minlen = df1x.len.max() * 0.1
     df1x = df1x.loc[df1x.len > minlen]
     seg.loc[:,"segment"] = seg.index
+    seg = filter_by_dfy(seg,dfy,minlen,spy)
     seg_unfilterded = seg.loc[seg['genome']==spx].copy()
     segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = segs_info.unstack(level=-1).fillna(0)
@@ -826,8 +848,9 @@ def plothlines(highest_level,segs_levels,sp,gene_start,scafflength,scafflabel,ou
     yticks = []
     yticklabels = []
     for i,le,la in zip(range(len(scafflength)),scafflength_normalized,scafflabel):
-        lower = (3*i)+0.5+0.1
-        upper = (3*i)+3-0.75-0.1
+        lower = (3*i)+1+0.5+0.1
+        #upper = (3*i)+3-0.75-0.1
+        upper = (3*i)+1+3-0.1
         height_increment = (upper-lower)/highest_level
         yticks.append((3*i)+1.25)
         yticklabels.append(la)
@@ -936,7 +959,7 @@ def get_vertices(dic,order):
     elif max(sp_levels.values())==2: color = 'green'
     elif max(sp_levels.values())==3: color = 'blue'
     elif max(sp_levels.values())==4: color = 'red'
-    else: color = 'yellow'
+    else: color = 'white'
     for i in range(len(sps)):
         for j in range(i+1,len(sps)):
             spi,spj = sps[i],sps[j]
@@ -945,16 +968,14 @@ def get_vertices(dic,order):
                 for coordi in dic[spi]:
                     for coordj in dic[spj]:
                         f1,l1,f2,l2 = coordi[0],coordi[1],coordj[0],coordj[1]
-                        if spi_indice-spj_indice==1:
-                            f2,l2 = (f2[0],f2[1]+0.75), (l2[0],l2[1]+0.75)
-                        else:
-                            f1,l1 = (f1[0],f1[1]+0.75), (l1[0],l1[1]+0.75)
+                        if spi_indice-spj_indice==1: f2,l2 = (f2[0],f2[1]+0.75), (l2[0],l2[1]+0.75)
+                        else: f1,l1 = (f1[0],f1[1]+0.75), (l1[0],l1[1]+0.75)
                         vertices.append([f1,l1,l2,f2])
     return vertices,color
 
 
 def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
-    fig, ax = plt.subplots(1, 1, figsize=(100,10))
+    fig, ax = plt.subplots(1, 1, figsize=(100,100))
     fname = os.path.join(outdir, "All_species_marcosynteny.png")
     fnamep = os.path.join(outdir, "All_species_marcosynteny.pdf")
     fnames = os.path.join(outdir, "All_species_marcosynteny.svg")
@@ -989,6 +1010,8 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
     #coordi = {sp:list(map(lambda x: x[1].loc[x[1]['genome']==sp,['first','last','list']],multis)) for sp in scaf_info.keys()}
     #coordi_x = list(map(lambda x: x[1].loc[x[1]['genome']==sp1,['first','last','list']],multis))
     #coordi_y = list(map(lambda x: x[1].loc[x[1]['genome']==sp2,['first','last','list']],multis))
+    lb_le_persp = {sp:{} for sp in scaf_info.keys()}
+    for sp in scaf_info.keys(): lb_le_persp[sp]={lb:le for lb,le in zip(scaf_info[sp][0],scaf_info[sp][1])}
     for coord in coordi:
         sp_occur = set(coord['genome'])
         coord_sp = {sp:[] for sp in sp_occur}
@@ -996,6 +1019,11 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir):
             df = coord.loc[coord['genome']==sp,['first','last','list']]
             for i in df.index:
                 f,l,li = df.loc[i,'first'],df.loc[i,'last'],df.loc[i,'list']
+                if not li in lb_le_persp[sp].keys():
+                    continue
+                ratio = (gene_start[l]-gene_start[f])/lb_le_persp[sp][li]
+                if ratio < 0.05:
+                    continue
                 f,l = 0.75*gene_start[f]/sp_wholelengths[sp]+sp_segs_starts[sp][li],0.75*gene_start[l]/sp_wholelengths[sp]+sp_segs_starts[sp][li]
                 coord_sp[sp].append([(f,sp_segs_y[sp]),(l,sp_segs_y[sp])])
         vertices,color = get_vertices(coord_sp,sp_bottom_up)
@@ -1036,11 +1064,13 @@ def get_marco(dfx, dfy, seg, multi, maxsize=None, minlen=None, outdir=None):
     df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
     if minlen < 0: minlen = df1x.len.max() * 0.1
     df1x = df1x.loc[df1x.len > minlen]
+    dfx.join(df1x,on="scaffold").dropna()
     lens = dfy.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
     df1y = pd.DataFrame(lens).sort_values("len", ascending=False)
     if minlen < 0: minlen = df1y.len.max() * 0.1
     df1y = df1y.loc[df1y.len > minlen]
+    dfy.join(df1y,on="scaffold").dropna()
     seg.loc[:,"segment"] = seg.index
     seg_unfilterded = seg.loc[(seg['genome']==spx) | (seg['genome']==spy)].copy()
     segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
@@ -1063,7 +1093,7 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
     fname = os.path.join(outdir, "{0}_{1}_marcosynteny.png".format(sp1,sp2))
     fnamep = os.path.join(outdir, "{0}_{1}_marcosynteny.pdf".format(sp1,sp2))
     fnames = os.path.join(outdir, "{0}_{1}_marcosynteny.svg".format(sp1,sp2))
-    fig, ax = plt.subplots(1, 1, figsize=(100,10))
+    fig, ax = plt.subplots(1, 1, figsize=(100,100))
     sp1_wholelength = sum(sp1_scafflength)
     sp2_wholelength = sum(sp2_scafflength)
     sp1_length_scaled = [i/sp1_wholelength for i in sp1_scafflength]
@@ -1098,23 +1128,32 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
     for cix,ciy in zip(coordi_x,coordi_y):
         for i in cix.index:
             f,l,li1 = cix.loc[i,'first'],cix.loc[i,'last'],cix.loc[i,'list']
+            if not li1 in sp1_scafflabel:
+                continue
             f1,l1 = 0.75*genex_start[f]/sum(sp1_scafflength)+segs1_starts[li1],0.75*genex_start[l]/sum(sp1_scafflength)+segs1_starts[li1]
             for j in ciy.index:
                 f2,l2,li2 = ciy.loc[j,'first'],ciy.loc[j,'last'],ciy.loc[j,'list']
+                if not li2 in sp2_scafflabel:
+                    continue
                 if f==f2 and l==l2:
                     continue
-                ratio = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
-                if ratio > 0.05:
+                ratioy = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
+                ratiox = (genex_start[l]-genex_start[f])/sp1_scafflabel_length[li1]
+                #here only the long segments are plotted (>5% of the residing chromosome)
+                if ratiox >= 0.05 or ratioy >= 0.05:
                     if len(cix) == 1 and len(ciy) == 1: color = 'gray'
-                    elif len(cix) == 2 or len(ciy) == 2: color = 'green'
-                    elif len(cix) == 3 or len(ciy) == 3: color = 'blue'
-                    elif len(cix) == 4 or len(ciy) == 4: color = 'red'
+                    #elif len(cix) == 2 or len(ciy) == 2: color = 'green'
+                    #elif len(cix) == 3 or len(ciy) == 3: color = 'blue'
+                    #elif len(cix) == 4 or len(ciy) == 4: color = 'red'
+                    elif max([len(cix),len(ciy)]) ==2: color = 'green'
+                    elif max([len(cix),len(ciy)]) ==3: color = 'blue'
+                    elif max([len(cix),len(ciy)]) ==4: color = 'red'
                     else: color = 'yellow'
-                else: color = 'gray'
+                else: color = 'white'
                 f2,l2 = 0.75*geney_start[f2]/sum(sp2_scafflength)+segs2_starts[li2],0.75*geney_start[l2]/sum(sp2_scafflength)+segs2_starts[li2]
                 vertices = [(f1,1+0.75),(l1,1+0.75),(l2,11),(f2,11)]
                 codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
-                pp = patches.PathPatch(Path(vertices,codes),fc=color,alpha=0.1,zorder=1,lw=0.1)
+                pp = patches.PathPatch(Path(vertices,codes),fc=color,alpha=0.5,zorder=1,lw=0.1)
                 ax.add_patch(pp)
     # Second the links
     ax.set_yticks(yticks)
@@ -1165,12 +1204,20 @@ def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
             logging.info("{} vs. {}".format(spx, spy))
             get_marco(dfx, dfy, segs, multi, **kwargs)
             df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, dupStack = False, **kwargs)
+            #print(xs)
+            #print(ys)
+            #for i,j in zip(df.x,df.y): print((i,j))
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
-            ax.scatter(df.x, df.y, s=1, color="k", alpha=0.01)
+            #for x,y in zip(df.x,df.y): ax.scatter(x, y, s=1, color="k", alpha=0.1)
+            #print((len(list(itertools.chain(df.x))),len(list(itertools.chain(df.y)))))
+            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=1, color="k", alpha=0.1)
+            #ax.scatter(np.array(df.x,dtype=float), np.array(df.y,dtype=float), s=1, color="k", alpha=0.1)
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
-                ax.scatter(andf.x, andf.y, s=1, color="red", alpha=0.9)
+                #for x,y in zip(andf.x,andf.y): ax.scatter(x, y, s=1, color="r", alpha=0.9)
+                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=1, color="r", alpha=0.9)
+                #ax.scatter(np.array(andf.x,dtype=float), np.array(andf.y,dtype=float), s=1, color="red", alpha=0.9)
             xlim = max(scaffxtick)
             ylim = max(scaffytick)
             ax.set_xlim(0, xlim)
@@ -1178,9 +1225,13 @@ def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
             ymin, ymax = ax.get_ylim()
             xmin, xmax = ax.get_xlim()
             #ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.8, color="k")
-            ax.vlines(xs, ymin=0, ymax=ylim, alpha=0.8, color="k")
+            #ax.vlines(xs, ymin=0, ymax=ylim, alpha=0.8, color="k")
+            ax.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
+            #ax.vlines(scaffxtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
             #ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.8, color="k")
-            ax.hlines(ys, xmin=0, xmax=xlim, alpha=0.8, color="k")
+            #ax.hlines(ys, xmin=0, xmax=xlim, alpha=0.8, color="k")
+            ax.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+            #ax.hlines(scaffytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
             #xlim = max(scaffxtick)
             #ax.set_xlim(0, xs[-1])
             #ax.set_xlim(0, xlim)
@@ -1208,10 +1259,11 @@ def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
             #ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
             ax.set_yticks(scaffytick)
             ax.set_yticklabels(scaffylabels,rotation=45)
+            fig.tight_layout()
             figs[spx + "-vs-" + spy] = fig
     return figs
 
-def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25, **kwargs):
+def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25, outdir='', **kwargs):
     """
     Generate Ks colored dot plots for all pairs of species in `df`.
     """
@@ -1265,7 +1317,7 @@ def Ks_dotplots(segs,dff, df, ks, an, anchors=None, color_map='Spectral',min_ks=
             spx, dfx = gdf[i]
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys, scafflabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, minlen=minlen, maxsize=maxsize, outdir = outdir)
+            df, xs, ys, scafflabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, dff, minlen=minlen, maxsize=maxsize, outdir = outdir)
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
             ax.scatter(df.x, df.y, s=0.1, color="k", alpha=0.5)
@@ -1328,27 +1380,40 @@ def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=200, outdir = '', dupStack
         scaffxlabels = list(dfx['scaffold'].drop_duplicates())
         scaffylabels = list(dfy['scaffold'].drop_duplicates())
         #xl = list(np.unique(dfx["scaffstart"])) + [max(df.x)]
-        xl = list(dfx["scaffstart"].drop_duplicates()) + [max(df.x)]
+        #xl = list(dfx["scaffstart"].drop_duplicates()) + [max(df.x)]
+        #xl = list(dfx["scaffstart"].drop_duplicates()) + [max(list(df['x']))]
+        #xl = list(dfx["scaffstart"].drop_duplicates()) + [df['x'].max()]
+        xl = list(dfx.drop_duplicates(subset=['scaffstart']).loc[:,'scaffstart'])
         #yl = list(np.unique(dfy["scaffstart"])) + [max(df.y)]
-        yl = list(dfy["scaffstart"].drop_duplicates()) + [max(df.y)]
+        #yl = list(dfy["scaffstart"].drop_duplicates()) + [max(df.y)]
+        #yl = list(dfy["scaffstart"].drop_duplicates()) + [max(list(df['y']))]
+        #yl = list(dfy["scaffstart"].drop_duplicates()) + [df['y'].max()]
+        yl = list(dfy.drop_duplicates(subset=['scaffstart']).loc[:,'scaffstart'])
         return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick 
 
 def filter_data_dotplot(df, minlen):
     lens = df.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
     lens = pd.DataFrame(lens).sort_values("len", ascending=False)
+    noriginal = len(lens.index)
+    if minlen < 0:
+        minlen = lens.len.max() * 0.1
+        logging.info("`minlen` not set, taking 10% of longest scaffold ({})".format(minlen))
+    lens = lens.loc[lens.len > minlen]
+    logging.info("Dropped {} scaffolds because they are on scaffolds shorter than {}".format(noriginal-len(lens.index),minlen))
     scaffstart = [0] + list(np.cumsum(lens.len))[0:-1]
     scafftick = list(np.cumsum(lens.len))
     lens["scaffstart"] = scaffstart
-    df = df.join(lens, on="scaffold").sort_values("len", ascending=False)
+    df = df.join(lens, on="scaffold").sort_values("len", ascending=False).dropna()
+    #print(set(df['scaffold']))
     # df now contains scaffold lengths
-    if minlen < 0:  # find a reasonable threshold, 5% of longest scaffold?
-        minlen = df.len.max() * 0.1
-        logging.info("`minlen` not set, taking 10% of longest scaffold ({})".format(minlen))
-    noriginal = len(df.index)
-    df = df.loc[df.len > minlen]
-    logging.info("Dropped {} genes because they are on scaffolds shorter "
-            "than {}".format(noriginal - len(df.index), minlen))
+    #if minlen < 0:  # find a reasonable threshold, 5% of longest scaffold?
+    #    minlen = df.len.max() * 0.1
+    #    logging.info("`minlen` not set, taking 10% of longest scaffold ({})".format(minlen))
+    #noriginal = len(df.index)
+    #df = df.loc[df.len > minlen]
+    #logging.info("Dropped {} genes because they are on scaffolds shorter "
+    #        "than {}".format(noriginal - len(df.index), minlen))
     df["x"] = df["scaffstart"] + df["start"]
     return df,scafftick
 

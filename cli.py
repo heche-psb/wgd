@@ -78,7 +78,8 @@ def cli(verbosity):
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
 @click.option('--collinearcoalescence','-coc', is_flag=True,help="collinear coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
-@click.option('--bins', '-bs', type=int, default=10, show_default=True, help='bins for gene length normalization')
+@click.option('--bins', '-bs', type=int, default=100, show_default=True, help='bins for gene length normalization')
+@click.option('--normalizedpercent', '-np', type=int, default=5, show_default=True, help='percentage of top hits used for normalization')
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
 @click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='hmm profile of given busco dataset')
 @click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO')
@@ -110,11 +111,11 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins) for s in sequences]
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, np=normalizedpercent) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if buscosog:
         logging.info("Constructing busco-guided families")
@@ -125,10 +126,10 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
-        genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start)
+        genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent)
     if orthoinfer:
         logging.info("Infering orthologous gene families")
-        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,bins=bins)
+        ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=bins)
         if onlyortho: endt(tmpdir,start,s)
     if len(s) == 0:
         logging.error("No sequences provided!")
@@ -227,7 +228,8 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     for s in seqs: logging.info("tmpdir = {} for {}".format(s.tmp_path,s.prefix))
     fams = read_MultiRBH_gene_families(families)
-    cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto")
+    if coalescence: cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=True)
+    else: cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=False)
     if concatenation or dating != 'none':
         cds_alns_rn, pro_alns_rn, Concat_ctree, Concat_ptree, Concat_calnf, Concat_palnf, ctree_pth, ctree_length, gsmap, Concat_caln, Concat_paln, slist = Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir)
     if coalescence:
@@ -283,7 +285,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     help='anchor pair infomation if available')
 @click.option('--outdir', '-o', default='wgd_peak', show_default=True,
     help='output directory')
-@click.option('--alignfilter', '-f', nargs=3, type=float, default= (0.,0,0.), show_default=True,
+@click.option('--alignfilter', '-af', nargs=3, type=float, default= (0.,0,0.), show_default=True,
     help='filter alignment identity, length and coverage')
 @click.option('--ksrange', '-r', nargs=2, type=float, default=(0, 5), show_default=True,
     help='range of Ks to be analyzed')
@@ -307,14 +309,16 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
 @click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster']), default='multiplicon', show_default=True, help="regime residing anchors")
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
+@click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
+@click.option('--family', '-f', default=None, show_default=True, help='family to filter Ks upon')
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak, retreive95CI
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
@@ -323,6 +327,10 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         draw_kde_CI(kdemethod, outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
         exit()
     ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
+    if family != None:
+        retreive95CI(family,ksdf_filtered,outdir,kstodate[0],kstodate[1])
+        logging.info('Done')
+        exit()
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     if anchor!= None:
@@ -436,7 +444,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
-    multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel)
+    if spair!= None:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -449,8 +457,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
-@click.argument('datafile', type=click.Path(exists=True))
-@click.option('--nonks', '-nk', is_flag=True, help='datafile is not Ks file')
+@click.option('--datafile', '-d', default=None, show_default=True, help='Ks data file')
 @click.option('--outdir', '-o', default="wgd_viz", show_default=True, help='output directory')
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--gsmap', '-gs', default=None, show_default=True, help='gene name-species name map')
@@ -459,29 +466,45 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
 @click.option('--em_initializations', '-init', type=int, default=200, show_default=True, help='maximum EM initializations')
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
+@click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
+@click.option('--minlen', '-ml', default=-1, show_default=True, help="minimum length of a genomic element to be included in dotplot.")
+@click.option('--maxsize', '-ms', default=50, show_default=True, help="maximum family size to include in analysis.")
+@click.option('--anchor', '-a', default=None, show_default=True, help='anchorpoints.txt file')
+@click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
+@click.option('--listsegments', '-ls', default=None, show_default=True, help='list_elements.txt file')
+@click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,nonks,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable):
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots
     from wgd.core import _mkdir
-    prefix = os.path.basename(datafile)
+    from wgd.syn import get_anchors,get_multi,get_segments_profile
+    if datafile!=None: prefix = os.path.basename(datafile)
     _mkdir(outdir)
-    if nonks:
-        print('nonks')
-    else:
-        ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
-        df = apply_filters(ksdb_df, [("dS", 0., 5.)])
-        ylabel = "Duplications" if spair == None else "Homologous pairs"
-        if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight)
+    if datafile ==None:
+        table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
+        df_anchor,df_multi = get_anchors('',userdf=anchor),get_multi('',userdf2=multiplicon)
+        segprofile,segs = get_segments_profile('',userdf3=segments,userdf4=listsegments)
+        figs = all_dotplots(table, segs, df_multi, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
+        for k, v in figs.items():
+            v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
+            v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
+            v.savefig(os.path.join(outdir, "{}.dot.png".format(k)))
+        logging.info('Done')
+        exit()
+    ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
+    df = apply_filters(ksdb_df, [("dS", 0., 5.)])
+    ylabel = "Duplications" if spair == None else "Homologous pairs"
+    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     plt.close()
-    if spair == None:
+    if spair == ():
         logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
         elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff)
         logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
@@ -499,11 +522,11 @@ def _viz(datafile,nonks,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_ini
     help="keyword for parsing the genes from the GFF file (column 3)")
 @click.option('--attribute', '-a', default='ID', show_default=True,
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
-@click.option('--minlen', '-ml', default=250, show_default=True,
+@click.option('--minlen', '-ml', default=-1, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
 @click.option('--maxsize', '-ms', default=50, show_default=True,
     help="maximum family size to include in analysis.")
-@click.option('--ks_range', '-r', nargs=2, default=(0.05, 5), show_default=True,
+@click.option('--ks_range', '-r', nargs=2, default=(0.001, 5), show_default=True,
     type=float, help='Ks range to use for colored dotplot')
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "

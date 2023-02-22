@@ -124,7 +124,6 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
     bins = bins
-    print(bins)
     if hicluster:
         X = [[i] for i in df[12]]
         df[13] = AgglomerativeClustering(n_clusters=bins).fit(X).labels_
@@ -232,9 +231,10 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100):
+            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, np = 5):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
+        self.np = np
         self.tmp_path  = _mkdir(tmp_path)
         self.out_path  = _mkdir(out_path)
         self.cds_fasta = cds_fasta
@@ -348,7 +348,7 @@ class SequenceData:
             #df1 = df.sort_values(10).drop_duplicates([0])
             # originally sorted by e-value in ascending, but it flaws due to the e-value has a lower threshold below which it will become 0
             df1 = df.sort_values(11,ascending=False).drop_duplicates([0])
-            # now sorted by bit-score in descending which avoids the issue of e-value
+            # now sorted by normalized bit-score in descending which avoids the issue of e-value
             #df2 = df.sort_values(10).drop_duplicates([1])
             df2 = df.sort_values(11,ascending=False).drop_duplicates([1])
             self.rbh[seqs.prefix] = df1.merge(df2)
@@ -778,11 +778,12 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                     table = table.merge(df)
                     if not keepduplicates:
                         for c in table.columns: table.drop_duplicates(subset=[c],inplace=True)
-        gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
-        table.insert(0,'GF', gfid)
+        #gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
+        #table.insert(0,'GF', gfid)
+        _label_families(table)
         #if not keepduplicates:
         #    for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
-        table.to_csv(gmrbhf, sep="\t",index=False)
+        table.to_csv(gmrbhf, sep="\t",index=True)
     elif not focus is None:
         logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
         x = 0
@@ -816,9 +817,10 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                     if not keepduplicates: table = table.drop_duplicates([focus])
             #if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
-        gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
-        table.insert(0,'GF', gfid)
-        table.to_csv(focusname, sep="\t",index=False)
+        #gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
+        #table.insert(0,'GF', gfid)
+        _label_families(table)
+        table.to_csv(focusname, sep="\t",index=True)
     if not anchorpoints is None:
         ap = pd.read_csv(anchorpoints,header=0,index_col=False,sep='\t')
         ap = ap.loc[:,'gene_x':'gene_y']
@@ -827,12 +829,16 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         focusapname = os.path.join(outdir, 'merge_focus_ap.tsv')
         table.insert(1, focus, table.pop(focus))
         table_ap = table.merge(ap_combined,left_on = focus,right_on = 'gene_x')
-        table_ap.drop('gene_x', inplace=True, axis=1)
+        table_ap['gene_xy'] = ["_".join(sorted([x,y])) for x,y in zip(list(table_ap['gene_x']),list(table_ap['gene_y']))]
+        table_ap = table_ap.drop_duplicates(subset=['gene_xy']).drop('gene_xy',axis=1).drop('gene_x',axis=1)
+        #table_ap.drop('gene_x', inplace=True, axis=1)
         table_ap.insert(2, 'gene_y', table_ap.pop('gene_y'))
         #table_ap.columns = table_ap.columns.str.replace(focus, focus + '_ap1')
         #table_ap.columns = table_ap.columns.str.replace('gene_y', focus + '_ap2')
         table_ap.rename(columns = {focus : focus + '_ap1', 'gene_y' : focus + '_ap2'}, inplace = True)
-        table_ap.to_csv(focusapname, sep="\t",index=False)
+        #here I rename the GF index
+        _label_families(table_ap)
+        table_ap.to_csv(focusapname, sep="\t",index=True,header=True)
     if globalmrbh or not focus is None:
         if keepfasta:
             idmap = {}
@@ -875,7 +881,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 #            Record = seq_cds.get(idmap.get(seqs))
                 #            f.write(">{}\n{}\n".format(seqs, Record))
 
-def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", **kwargs):
+def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", runtree=False, **kwargs):
     idmap = {}
     seq_cds = {}
     seq_pro = {}
@@ -893,18 +899,18 @@ def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthread
         idmap.update(seqs[i].idmap)
     fnamecalns, fnamepalns = {},{}
     Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(getseqmetaln)(i,fam,outdir,idmap,seq_pro,seq_cds,option) for i, fam in enumerate(fams))
-    for i in range(len(fams)):
-        add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
-    x = lambda i : "GF{:0>8}".format(i+1)
-    if tree_method == "mrbayes":
-        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
-        for i in range(len(fams)): addmbtree(outdir,tree_fams,tree_famsf,i=i,concat=False)
-    if tree_method == "iqtree":
-        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(iqtree_run)(treeset,fnamecalns[x(i)]) for i in range(len(fams)))
-        for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.treefile')
-    if tree_method == "fasttree":
-        Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
-        for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
+    for i in range(len(fams)): add2table(i,outdir,cds_fastaf,palnfs,pro_alns,calnfs,calnfs_length,cds_alns,fnamecalns,fnamepalns)
+    if runtree:
+        x = lambda i : "GF{:0>8}".format(i+1)
+        if tree_method == "mrbayes":
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(mrbayes_run)(outdir,x(i),fnamepalns[x(i)],pro_alns[x(i)],treeset) for i in range(len(fams)))
+            for i in range(len(fams)): addmbtree(outdir,tree_fams,tree_famsf,i=i,concat=False)
+        if tree_method == "iqtree":
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(iqtree_run)(treeset,fnamecalns[x(i)]) for i in range(len(fams)))
+            for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.treefile')
+        if tree_method == "fasttree":
+            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(fasttree_run)(fnamecalns[x(i)],treeset) for i in range(len(fams)))
+            for i in range(len(fams)): addiqfatree(x(i),tree_fams,fnamecalns[x(i)],tree_famsf,postfix = '.fasttree')
     return cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams
 
 def select_phylogeny(tree_fams,slist):
@@ -965,31 +971,36 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir):
     cdsseq = {}
     proseq = {}
     ctree_length = 0
+    slist_set = set(slist)
     for i in range(famnum):
         famid = "GF{:0>8}".format(i+1)
         cds_aln = cds_alns[famid]
         pro_aln = pro_alns[famid]
+        added_sp = set()
         for j in range(len(pro_aln)):
             with open(gsmap,"r") as f:
                 lines = f.readlines()
                 for k in lines:
                     k = k.strip('\n').strip(' ').split(' ')
                     if k[0] == cds_aln[j].id:
+                        # here the repeated occurance of one ap will lead to errornously multiply that sequence
                         spn = k[1]
+                        if spn in added_sp:
+                            if spn.endswith('_ap1'): spn=spn[:-1]+'2'
+                            else: spn=spn[:-1]+'1'
+                        added_sp.add(spn)
                         cds_aln[j].id = spn
                         sequence = cds_aln[j].seq
-                        if cdsseq.get(spn) is None:
-                            cdsseq[spn] = str(sequence)
-                        else:
-                            cdsseq[spn] = cdsseq[spn] + str(sequence)
-                    if k[0] == pro_aln[j].id:
-                        spn = k[1]
+                        if cdsseq.get(spn) is None: cdsseq[spn] = str(sequence)
+                        else: cdsseq[spn] = cdsseq[spn] + str(sequence)
+                    #if k[0] == pro_aln[j].id:
+                    #    spn = k[1]
                         pro_aln[j].id = spn
                         sequence = pro_aln[j].seq
-                        if proseq.get(spn) is None:
-                            proseq[spn] = str(sequence)
-                        else:
-                            proseq[spn] = proseq[spn] + str(sequence)
+                        if proseq.get(spn) is None: proseq[spn] = str(sequence)
+                        else: proseq[spn] = proseq[spn] + str(sequence)
+                        break
+        if slist_set != added_sp: logging.info('Error in concatenation process that multiple genes were concatenated to the same species. Please check the input file that if two genes in the same family could be assigned to the same species!')
         cds_alns_rn[famid] = cds_aln
         pro_alns_rn[famid] = pro_aln
     for spname in range(len(slist)):
@@ -1532,9 +1543,9 @@ def rmtmp(tmpdir,outdir,querys):
 def dmd4g2f(outdir,s,nthreads,querys,df):
     print('dmd4')
 
-def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start):
+def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent):
     logging.info("Assigning sequences into given gene families")
-    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads) for s in seq2assign]
+    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, np=normalizedpercent) for s in seq2assign]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
     if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
@@ -1580,13 +1591,13 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,bins=100):
+def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=100):
     s0_orig = copy.deepcopy(s[0])
     if concat:
         sgidmaps = {}
         for x in s : sgidmaps.update(x.spgenemap())
         Concat_cdsf = concatcdss(sequences,outdir)
-        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, np=normalizedpercent)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)

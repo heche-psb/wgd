@@ -806,7 +806,7 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,wei
                 kde_y = kde_method(kdemethod,bin_width,X,kde_x,w=w)
                 mode, maxim = kde_mode(kde_x, kde_y)
                 orig_modes.append(mode)
-                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='Clusters {} (mode {:.2f})'.format(i,mode))
+                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='component {} (mode {:.2f})'.format(i,mode))
                 CHF = get_totalH(Hs)
                 scale = CHF*bin_width
                 plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4, ls = '--')
@@ -819,7 +819,8 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,wei
             cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
             Xs = [getX(df,'dS') for df in dfs]
             ws = [getX(df,'weightoutlierexcluded') for df in dfs]
-            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True)
+            labels = ['component {}'.format(i) for i in range(n)]
+            plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True,label=labels)
     elif plot == 'identical':
         for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
             css.append(c)
@@ -830,7 +831,7 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,wei
             mode, maxim = kde_mode(kde_x, kde_y)
             plt.axvline(x = mode, color = c, alpha = 0.8, ls = ':', lw = 1)
             orig_modes.append(mode)
-            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='Clusters {} (mode {:.2f})'.format(i,mode))
+            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='component {} (mode {:.2f})'.format(i,mode))
             CHF = get_totalH(Hs)
             scale = CHF*bin_width
             plt.plot(kde_x, kde_y*scale, color = c,alpha=0.4,ls = '--')
@@ -841,7 +842,8 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,wei
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
         cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
         Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
-        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='Clusters {}'.format(i))
+        labels = ['component {}'.format(i) for i in range(n)]
+        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label=labels)
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
@@ -869,7 +871,7 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
                 df = df.dropna(subset=['weightoutlierexcluded'])
                 X = getX(df,'dS')
                 w = getX(df,'weightoutlierexcluded')
-                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='Clusters {}'.format(i,mode))
+                Hs, Bins, patches = plt.hist(X,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color=c, alpha=0.5, rwidth=0.8,label='component {}'.format(i,mode))
         else:
             dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
             dfs = [df.dropna(subset=['weightoutlierexcluded']) for df in dfs]
@@ -883,13 +885,13 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
             dfo = dfo.drop_duplicates(subset=['family', 'node'])
             df = dfo[dfo['KMedoids_Cluster']==i]
             X = getX(df,'node_averaged_dS_outlierexcluded')
-            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='Clusters {}'.format(i))
+            Hs, Bins, patches = plt.hist(X,np.linspace(0, 5, num=int(5/bin_width)+1),color = c, alpha=0.5, rwidth=0.8,label='component {}'.format(i))
     else:
         dfo = dfo.drop_duplicates(subset=['family', 'node'])
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
         cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
         Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
-        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='Clusters {}'.format(i))
+        plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='component {}'.format(i))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
@@ -916,6 +918,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     return Loss
 
 def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
+    gs_ks = df.loc[:,['gene1','gene2','dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     df_m = df_withindex.copy()
     df_m['weightoutlierexcluded'] = 1
@@ -953,9 +956,11 @@ def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
-    plot_95CI_hist(init_means, init_stdevs, np.array(df['dS']), np.array(df['weightoutlierexcluded']), outdir, na, sp, guide=guide)
+    lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, np.array(df['dS']), np.array(df['weightoutlierexcluded']), outdir, na, sp, guide=guide)
+    get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp,guide=guide)
 
 def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False):
+    gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -998,7 +1003,15 @@ def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False):
     if na: logging.info('Detecting likely peaks from node-averaged data')
     else: logging.info('Detecting likely peaks from node-weighted data')
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na)
-    plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
+    lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
+    get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp)
+
+def get95CIap(lower,upper,gs_ks,outdir,na,sp,guide=None):
+    ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
+    sp_m = '{}'.format(sp) if guide == None else '{}_guided_{}'.format(guide,sp)
+    if na: fname = os.path.join(outdir, "{}_95%CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+    else: fname = os.path.join(outdir, "{}_95%CI_AP_for_dating_weighted.tsv".format(sp_m))
+    ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
 
 def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None):
     text = "AnchorKs_PeakCI_"
@@ -1026,6 +1039,7 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     plt.tight_layout()
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
+    return np.exp(mean)-std*2,np.exp(mean)+std*2
 
 
 def plot_Elbow_loss(Losses,outdir):
@@ -1130,6 +1144,20 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df, outdir
     plot_kmedoids(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
     plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
     return df
+
+def retreive95CI(family,ksdf_filtered,outdir,lower,upper):
+    df = pd.read_csv(family,header=0,index_col=0,sep='\t')
+    cs = list(df.columns)
+    focus_ids = [i for i in cs if i.endswith('_ap1') or i.endswith('_ap2')]
+    df['ap12'] = ["_".join(sorted([x,y])) for x,y in zip(list(df[focus_ids[0]]),list(df[focus_ids[1]]))]
+    ks_tmp = ksdf_filtered.loc[:,['dS','gene1','gene2']].copy()
+    ks_tmp['ap12']= ["_".join(sorted([x,y])) for x,y in zip(list(ks_tmp['gene1']),list(ks_tmp['gene2']))]
+    ks_tmp = ks_tmp.loc[:,['ap12','dS']]
+    df = df.merge(ks_tmp,on='ap12')
+    df = df.loc[(df['dS']<=upper) & (df['dS']>=lower),:]
+    df = df.drop(['dS','ap12'],axis=1)
+    fname = os.path.join(outdir,os.path.basename(family)+'.95CI')
+    df.to_csv(fname,header=True,index=True,sep='\t')
 
 def Getanchor_Ksdf(anchor,ksdf,multiplicon):
     ap = pd.read_csv(anchor,header=0,index_col=0,sep = '\t')

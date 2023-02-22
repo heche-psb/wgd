@@ -48,6 +48,7 @@ def gff2table(gff, feature, attribute):
             if l.startswith("#"):
                 continue
             x = l.split("\t")
+            #Note here the empty lines from input will make error
             if x[2] == feature:
                 a = getattr(x[-1], attribute)
                 rows.append({"gene": a, "scaffold": x[0], "start": int(x[3]), "or": x[6]})
@@ -169,8 +170,9 @@ def run_adhore(config_file):
     logging.info(completed.stdout.decode('utf-8'))
     return
 
-def get_anchors(out_path):
-    anchors = pd.read_csv(os.path.join(out_path, "anchorpoints.txt"), sep="\t", index_col=0)
+def get_anchors(out_path,userdf=None):
+    if userdf!=None: anchors = pd.read_csv(userdf, sep="\t", index_col=0)
+    else: anchors = pd.read_csv(os.path.join(out_path, "anchorpoints.txt"), sep="\t", index_col=0)
     if len(anchors) == 0:
         return None
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
@@ -181,21 +183,25 @@ def get_anchors(out_path):
     # there are duplicates, due to anchors being in multiple multiplicons
     return df
 
-def get_multi(out_path):
-    multi = pd.read_csv(os.path.join(out_path, "multiplicons.txt"), sep="\t", index_col=None,header = 0)
+def get_multi(out_path,userdf2=None):
+    if userdf2!=None: multi = pd.read_csv(userdf2, sep="\t", index_col=None,header = 0)
+    else: multi = pd.read_csv(os.path.join(out_path, "multiplicons.txt"), sep="\t", index_col=None,header = 0)
     return multi
 
 def get_anchor_ksd(ks_distribution, anchors):
     return ks_distribution.join(anchors).dropna()
 
-def get_segments_profile(out_path):
-    segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
-    le = pd.read_csv(os.path.join(out_path, "list_elements.txt"), sep="\t", index_col=0)
+def get_segments_profile(out_path,userdf3=None,userdf4=None):
+    if userdf3!=None: segs = pd.read_csv(userdf3, sep="\t", index_col=0)
+    else: segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
+    if userdf4!=None: le = pd.read_csv(userdf4, sep="\t", index_col=0)
+    else: le = pd.read_csv(os.path.join(out_path, "list_elements.txt"), sep="\t", index_col=0)
     segs = segs.join(le.set_index("segment"), how="inner")
     segs["segment"] = segs.index
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
-    segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
+    if userdf3!=None: segs = pd.read_csv(userdf3, sep="\t", index_col=0)
+    else: segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
     return profile,segs
 
 
