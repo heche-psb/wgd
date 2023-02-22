@@ -1118,7 +1118,7 @@ def get_dates(wgd_mrca,CI_table,PM_table,prefixx):
     CI_table[prefixx]=[float(i) for i in CI]
     PM_table[prefixx]=PM
 
-def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml):
+def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml,partition):
     parent = os.getcwd()
     calnfs_rn_cat = calnfs_rn + [Concat_calnf_paml]
     for i,calnf_rn in enumerate(calnfs_rn_cat):
@@ -1131,6 +1131,12 @@ def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml):
         os.chdir(folder)
         get_dates(wgd_mrca,CI_table,PM_table,prefix+"_pep")
         os.chdir(parent)
+        if partition:
+            folder = os.path.join(outdir, "mcmctree",prefix+'_partitioned',"cds")
+            os.chdir(folder)
+            get_dates(wgd_mrca,CI_table,PM_table,prefix+"_partitioned")
+            os.chdir(parent)
+
 
 def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, calnfs, tmpdir, outdir, speciestree, datingset, slist, nthreads, beastlgjar, beagle, fossil, chainset, rootheight):
     beasts = []
@@ -1189,7 +1195,7 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         McMctrees.append(McMctree)
         #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
     Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
-    Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml)
+    Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml,partition)
     df_CI = pd.DataFrame.from_dict(CI_table,orient='index',columns=['CI_lower','CI_upper'])
     df_PM = pd.DataFrame.from_dict(PM_table,orient='index',columns=['PM'])
     fname_CI = os.path.join(outdir,'mcmctree','CI.tsv')
