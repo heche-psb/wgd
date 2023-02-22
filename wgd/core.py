@@ -1113,7 +1113,7 @@ def Getpartitionedpaml(alnf,outdir):
 def get_dates(wgd_mrca,CI_table,PM_table,prefixx):
     Figtree = Phylo.read('FigTree.tre','nexus')
     wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
-    CI = wgd_node.comment.strip('[&95%={').strip('}]').split(', ')
+    CI = wgd_node.comment.strip('[&95%HPD={').strip('[&95%={').strip('}]').split(', ')
     PM = wgd_node.clades[0].branch_length
     CI_table[prefixx]=[float(i) for i in CI]
     PM_table[prefixx]=PM
