@@ -917,7 +917,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     Loss = sum(D)
     return Loss
 
-def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
+def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False,rel_height=0.4):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     df_m = df_withindex.copy()
@@ -951,7 +951,7 @@ def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
     plt.close(fig)
     if na: logging.info('Detecting likely peaks from {}-guided node-averaged Ks data '.format(guide))
     else: logging.info('Detecting likely peaks from {}-guided node-weighted Ks data '.format(guide))
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,guide=guide)
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,guide=guide,rel_height=rel_height)
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -959,7 +959,7 @@ def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False):
     lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, np.array(df['dS']), np.array(df['weightoutlierexcluded']), outdir, na, sp, guide=guide)
     get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp,guide=guide)
 
-def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False):
+def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -1002,7 +1002,7 @@ def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False):
     plt.close(fig)
     if na: logging.info('Detecting likely peaks from node-averaged data')
     else: logging.info('Detecting likely peaks from node-weighted data')
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na)
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
     get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp)
 

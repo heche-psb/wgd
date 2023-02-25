@@ -314,13 +314,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 @click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
 @click.option('--family', '-f', default=None, show_default=True, help='family to filter Ks upon')
+@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family):
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak, retreive95CI
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
@@ -339,10 +340,10 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     if anchor!= None:
         if kmedoids: df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
         else: df_ap = fit_apgmm(guide,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
-        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False)
-        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True)
-        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=False)
-        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=True)
+        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height)
+        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height)
+        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height)
+        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height)
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
@@ -476,13 +477,14 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
 @click.option('--listsegments', '-ls', default=None, show_default=True, help='list_elements.txt file')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
+@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile
@@ -509,9 +511,9 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     plt.close()
     if spair == ():
         logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
-        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff)
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height)
         logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
-        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True)
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height)
     logging.info('Done')
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})

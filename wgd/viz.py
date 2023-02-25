@@ -165,7 +165,7 @@ def reflect_logks(ks,w):
     ks_refed,w_refed = np.hstack([ks,np.array(right)]),np.hstack([w,np.array(right_w)])
     return ks_refed,cutoff,w_refed
 
-def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False):
+def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False,rel_height=0.4):
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -211,7 +211,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         fig.savefig(os.path.join(outdir, "{}.spline_weighted.pdf".format(sp)))
     plt.close(fig)
     logging.info('Initiative detection of likely peaks')
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na)
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     logging.info('Found {} likely peak signals'.format(len(init_means)))
     reduced_gaussians = False
     # here I select the peak via prominence
@@ -221,10 +221,10 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         reduced_gaussians = True
         logging.info('Too many peak signals detected among which only 4 with highest prominences are retained')
     buffer_maxks,buffer_std = 5,0.3
-    logging.info('An extra buffer lognormal component with mean {:.2f} and std 0.30 is appended'.format(np.log(buffer_maxks)))
+    logging.info('An extra buffer lognormal component with mean {:.2f} and std 0.30 is appended'.format(buffer_maxks))
     init_means.append(np.log(buffer_maxks))
     init_stdevs.append(buffer_std)
-    for m,s in zip(init_means,init_stdevs): logging.info('The initiative means and stds is {:.2f} {:.2f}'.format(m,s))
+    for m,s in zip(init_means,init_stdevs): logging.info('The initiative means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
     num_comp = len(init_means)+1
     init_weights = [1/num_comp] * num_comp
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(20, 16), sharey="row")
@@ -246,6 +246,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     num_comp = len(init_means) + 1
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
+    for m,s in zip(new_means,new_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
     if convergence: logging.info('The EM algorithm has reached convergence')
     else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
@@ -279,6 +280,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
     plot_fitted_model(axes[1,0], axes[1,1],final_means, final_stdevs, final_lambd, final_weights)
     bic_dict['Model2'] = min(bic_from_same_num_comp)
+    for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
     logging.info('BIC of Model2 : {:.2f}'.format(min(bic_from_same_num_comp)))
     if na:
         fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_node_averaged.pdf".format(sp)),bbox_inches="tight")
@@ -394,6 +396,7 @@ def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_itera
         all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
         plot_fitted_model(ax0, ax1, final_means, final_stdevs, final_lambd, final_weights)
         bic_dict["Model{}".format(model_id)] = min(bic_from_same_num_comp)
+        for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
         logging.info('BIC of Model{} : {:.2f}'.format(model_id,min(bic_from_same_num_comp)))
     if na:
         fig.savefig(os.path.join(outdir, "elmm_{}_models_random_node_averaged.pdf".format(sp)),bbox_inches="tight")
@@ -499,7 +502,7 @@ def plot_init_model(ax1,ax2,means,stds,lambd,weights):
         ax1.plot(x, weights[i+1] * stats.lognorm.pdf(x, scale=np.exp(means[i]), s=stds[i]), st, lw=1.5, alpha=0.4,label=f'Lognormal {letter_dict[i]} initiated (mode {lognormal_peaks[i]})')
         ax2.plot(x, weights[i+1] * stats.norm.pdf(x, means[i], stds[i]),st,lw=1.5, alpha=0.4,label=f'Norm {letter_dict[i]} initiated')
 
-def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False, guide=None):
+def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False, guide=None,rel_height=0.4):
     peaks, properties = signal.find_peaks(spl_y)
     #prominences = properties["prominences"]
     prominences = signal.peak_prominences(spl_y, peaks)[0]
@@ -524,7 +527,7 @@ def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False,
         current_peak_index = int((len(spl_peak_refl_x)-1)/2)
         #current_peak_index = np.floor(len(spl_peak_refl_x)/2)
         new_prominences = signal.peak_prominences(spl_peak_refl_y,[current_peak_index])[0][0]
-        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y, [current_peak_index], rel_height=0.4)
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y, [current_peak_index], rel_height=rel_height)
         if new_width[0] > 150: new_width[0] = 150
         prominences_refed_R1.append(new_prominences)
         width_refed_R1.append(new_width[0])
@@ -539,7 +542,7 @@ def find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=0.1,na=False,
         #current_peak_index = np.floor(len(spl_peak_refl_x_L)/2)
         current_peak_index = int((len(spl_peak_refl_x_L)-1)/2)
         new_prominences = signal.peak_prominences(spl_peak_refl_y_L,[current_peak_index])[0][0]
-        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y_L, [current_peak_index], rel_height=0.4)
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y_L, [current_peak_index], rel_height=rel_height)
         if new_width[0] > 150: new_width[0] = 150
         prominences_refed_L1.append(new_prominences)
         width_refed_L1.append(new_width[0])
