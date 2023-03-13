@@ -923,7 +923,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     Loss = sum(D)
     return Loss
 
-def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95):
+def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     df_m = df_withindex.copy()
@@ -957,9 +957,10 @@ def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95
     logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
     lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide)
-    get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,False,sp,ci,guide=guide)
+    if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,False,sp,ci,guide=guide,user=user)
+    else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,False,sp,ci,guide=guide,user=user)
 
-def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95):
+def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -1004,22 +1005,33 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     #lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
     lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci)
-    get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci)
+    if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user)
+    else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user)
 
-def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,guide=None):
+def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,guide=None,user=False):
     ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
     sp_m = '{}'.format(sp) if guide == None else '{}_guided_{}'.format(guide,sp)
-    if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating.tsv".format(sp_m,ci))
-    elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
-    else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
+    if user:
+        if guide!=None: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating.tsv".format(sp_m))
+        elif na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
+    else:
+        if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating.tsv".format(sp_m,ci))
+        elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
+        else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
     ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
     anchors = pd.read_csv(anchor, sep="\t", index_col=0)
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
     ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
     ap_format.index.name = 'id'
-    if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_format.tsv".format(sp_m,ci))
-    elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
-    else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
+    if user:
+        if guide!=None: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_format.tsv".format(sp_m))
+        elif na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
+    else:
+        if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_format.tsv".format(sp_m,ci))
+        elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
+        else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
     ap_format.to_csv(fname,header=True,index=True,sep='\t')
 
 
