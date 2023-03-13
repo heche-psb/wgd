@@ -192,6 +192,7 @@ def focus(**kwargs):
     Example 1 - Dating orthologous families containing anchor pairs with a required user-defined species tree:
 
         wgd focus ap_families cds1.fasta cds2.fasta cds3.fasta --dating mcmctree --speciestree sp.newick -ds 'burnin = 2000' -ds 'sigma2_gamma = 1 10 1'
+        wgd focus ap_families cds1.fasta cds2.fasta cds3.fasta --dating beast --speciestree sp.newick --fossil clade1 taxa1,taxa2 4 0.5 400 --rootheight 4 0.5 400 --chainset 10000 100 --beastlgjar path (--beagle)
 
     Example 2 - Dating orthologous families containing anchor pairs with or without a user-defined species tree in r8s:
 
@@ -315,13 +316,14 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
 @click.option('--family', '-f', default=None, show_default=True, help='family to filter Ks upon')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
+@click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height):
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak, retreive95CI
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
@@ -340,10 +342,10 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     if anchor!= None:
         if kmedoids: df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
         else: df_ap = fit_apgmm(guide,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
-        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height)
-        find_apeak(df_ap,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height)
-        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height)
-        find_mpeak(df_ap,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height)
+        find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci)
+        find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci)
+        find_mpeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci)
+        logging.info('Done')
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
@@ -448,7 +450,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
-    if spair!= None:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True)
+    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -503,7 +505,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         exit()
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
-    ylabel = "Duplications" if spair == None else "Homologous pairs"
+    ylabel = "Duplications" if spair == () else "Homologous pairs"
     if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))

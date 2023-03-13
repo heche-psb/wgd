@@ -246,7 +246,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     num_comp = len(init_means) + 1
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
-    for m,s in zip(new_means,new_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
+    #for m,s in zip(new_means,new_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
     if convergence: logging.info('The EM algorithm has reached convergence')
     else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
@@ -280,7 +280,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
     plot_fitted_model(axes[1,0], axes[1,1],final_means, final_stdevs, final_lambd, final_weights)
     bic_dict['Model2'] = min(bic_from_same_num_comp)
-    for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
+    #for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
     logging.info('BIC of Model2 : {:.2f}'.format(min(bic_from_same_num_comp)))
     if na:
         fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_node_averaged.pdf".format(sp)),bbox_inches="tight")
@@ -396,7 +396,7 @@ def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_itera
         all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
         plot_fitted_model(ax0, ax1, final_means, final_stdevs, final_lambd, final_weights)
         bic_dict["Model{}".format(model_id)] = min(bic_from_same_num_comp)
-        for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
+        #for m,s in zip(final_means,final_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
         logging.info('BIC of Model{} : {:.2f}'.format(model_id,min(bic_from_same_num_comp)))
     if na:
         fig.savefig(os.path.join(outdir, "elmm_{}_models_random_node_averaged.pdf".format(sp)),bbox_inches="tight")
@@ -414,6 +414,7 @@ def plot_fitted_model(ax1,ax2,means,stds,lambd,weights,scaling=1, final=False):
     #colors = cm.rainbow(np.linspace(0, 1, len(stds)))
     ax1.plot(x_points_strictly_positive,scaling*weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
     lognormal_peaks = {i:round(np.exp(means[i] - pow(stds[i], 2)), 2) for i in range(len(stds))}
+    #The formula of mode of the log-normal distribution
     lognormals_sorted_by_peak = [k for k,v in sorted(lognormal_peaks.items(), key=lambda y:y[1])]
     letter_dict = dict(zip(lognormals_sorted_by_peak, [ "a", "b", "c", "d", "e", "f", "g"][:len(stds)]))
     colors = ["b", "r", "c", "m", "k"][:len(stds)-1] + ["y"]
@@ -805,7 +806,7 @@ def sankey_plot(spx, dfx, spy, dfy, minlen, outdir, seg, multi):
     if minlen < 0: minlen = df1x.len.max() * 0.1
     df1x = df1x.loc[df1x.len > minlen]
     seg.loc[:,"segment"] = seg.index
-    seg = filter_by_dfy(seg,dfy,minlen,spy)
+    seg = filter_by_dfy(seg,dfy,minlen,spy) #This filter step makes singon segments on level plot
     seg_unfilterded = seg.loc[seg['genome']==spx].copy()
     segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = segs_info.unstack(level=-1).fillna(0)
@@ -1378,7 +1379,7 @@ def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=200, outdir = '', dupStack
                 xs.append({"pair":pair, "x": dfx.loc[x]["x"], "y": dfy.loc[y]["x"]})
         #ax.scatter(xs, ys)
         if len(xs) == 0:  # HACK
-            return None, None, None, None
+            return None, None, None, None, None, None, None
         df = pd.DataFrame.from_dict(xs).set_index("pair")
         scaffxlabels = list(dfx['scaffold'].drop_duplicates())
         scaffylabels = list(dfy['scaffold'].drop_duplicates())
