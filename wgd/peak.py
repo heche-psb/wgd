@@ -18,7 +18,7 @@ import itertools
 import os
 from wgd.core import _mkdir
 from sklearn_extra.cluster import KMedoids
-from wgd.viz import reflect_logks,find_peak_init_parameters
+from wgd.viz import reflect_logks,find_peak_init_parameters,get_deconvoluted_data
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 
 def alnfilter(df,weights_outliers_included, identity, aln_len, coverage, min_ks, max_ks):
@@ -191,6 +191,9 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             x = np.array(list(df_comp['dS']))
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
+            if len(y) < 2:
+                logging.info("Detected one component with less than 2 elements, will skip it")
+                continue
             kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
@@ -215,6 +218,9 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
             x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
             y = x[np.isfinite(x)]
+            if len(y) < 2:
+                logging.info("Detected one component with less than 2 elements, will skip it")
+                continue
             kde = stats.gaussian_kde(y,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
@@ -917,13 +923,12 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     Loss = sum(D)
     return Loss
 
-def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False,rel_height=0.4):
+def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     df_m = df_withindex.copy()
     df_m['weightoutlierexcluded'] = 1
     w = np.array(df_m['weightoutlierexcluded'])
-    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
     ks = np.log(ks_or)
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_xlim(-5,2)
@@ -949,17 +954,12 @@ def find_mpeak(df,sp,outdir,guide,peak_threshold=0.1,na=False,rel_height=0.4):
     fig.tight_layout()
     fig.savefig(os.path.join(outdir, "{}_guided_{}_Ks_spline.pdf".format(guide,sp)))
     plt.close(fig)
-    if na: logging.info('Detecting likely peaks from {}-guided node-averaged Ks data '.format(guide))
-    else: logging.info('Detecting likely peaks from {}-guided node-weighted Ks data '.format(guide))
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,guide=guide,rel_height=rel_height)
-    if na:
-        df = df.drop_duplicates(subset=['family','node'])
-        df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
-        df['weightoutlierexcluded'] = 1
-    lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, np.array(df['dS']), np.array(df['weightoutlierexcluded']), outdir, na, sp, guide=guide)
-    get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp,guide=guide)
+    logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
+    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide)
+    get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,False,sp,ci,guide=guide)
 
-def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4):
+def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -969,7 +969,6 @@ def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4):
     df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
     ks_or = np.array(df['dS'])
     w = np.array(df['weightoutlierexcluded'])
-    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
     ks = np.log(ks_or)
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_xlim(-5,2)
@@ -1003,20 +1002,32 @@ def find_apeak(df,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4):
     if na: logging.info('Detecting likely peaks from node-averaged data')
     else: logging.info('Detecting likely peaks from node-weighted data')
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
-    lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
-    get95CIap(lower95CI,upper95CI,gs_ks,outdir,na,sp)
+    #lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci)
+    get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci)
 
-def get95CIap(lower,upper,gs_ks,outdir,na,sp,guide=None):
+def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,guide=None):
     ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
     sp_m = '{}'.format(sp) if guide == None else '{}_guided_{}'.format(guide,sp)
-    if na: fname = os.path.join(outdir, "{}_95%CI_AP_for_dating_node_averaged.tsv".format(sp_m))
-    else: fname = os.path.join(outdir, "{}_95%CI_AP_for_dating_weighted.tsv".format(sp_m))
+    if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating.tsv".format(sp_m,ci))
+    elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
+    else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
     ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+    anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+    anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+    ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
+    ap_format.index.name = 'id'
+    if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_format.tsv".format(sp_m,ci))
+    elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
+    else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
+    ap_format.to_csv(fname,header=True,index=True,sep='\t')
+
 
 def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None):
     text = "AnchorKs_PeakCI_"
-    if guide != None: text = "AnchorKs_PeakCI_{}_guided_".format(guide)
-    if na: fname = os.path.join(outdir, "{}{}_node_averaged.pdf".format(text,sp))
+    #if guide != None: text = "AnchorKs_PeakCI_{}_guided_".format(guide)
+    if guide != None: fname = os.path.join(outdir, "{}{}_guided_{}.pdf".format(text,guide,sp))
+    elif na: fname = os.path.join(outdir, "{}{}_node_averaged.pdf".format(text,sp))
     else: fname = os.path.join(outdir, "{}{}_node_weighted.pdf".format(text,sp))
     f, ax = plt.subplots()
     kdesity = 100
@@ -1031,7 +1042,8 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
         plt.axvline(x = np.exp(mean)+std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} upper 95% CI {:.2f}'.format(i+1,np.exp(mean)+std*2))
         plt.axvline(x = np.exp(mean)-std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} lower 95% CI {:.2f}'.format(i+1,np.exp(mean)-std*2))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
-    if na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
+    if guide != None: plt.ylabel("Number of retained duplicates", fontsize = 10)
+    elif na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
     else: plt.ylabel("Number of retained duplicates (weighted)", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
     sns.despine(offset=1)
@@ -1041,6 +1053,37 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     plt.close()
     return np.exp(mean)-std*2,np.exp(mean)+std*2
 
+def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None, ci=95):
+    text = "AnchorKs_PeakCI_"
+    if guide != None: fname = os.path.join(outdir, "{}{}_guided_{}.pdf".format(text,guide,sp))
+    elif na: fname = os.path.join(outdir, "{}{}_node_averaged.pdf".format(text,sp))
+    else: fname = os.path.join(outdir, "{}{}_node_weighted.pdf".format(text,sp))
+    f, ax = plt.subplots()
+    x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
+    bin_width = 0.1
+    cs = ['b','g','y','r','k']
+    alphas = np.linspace(0.3, 0.7, len(init_means))
+    ci_l = (1-ci/100)/2
+    ci_u = 1-(1-ci/100)/2
+    for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
+        Hs, Bins, patches = ax.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
+        CHF = get_totalH(Hs)
+        scaling = CHF*0.1
+        ax.plot(x_points_strictly_positive,scaling*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(mean),s=std), c=cs[i], ls='-', lw=1.5, alpha=0.8, label='Peak {} mode {:.2f}'.format(i+1,np.exp(mean - std**2)))
+        CI_95 = stats.lognorm.ppf([ci_l, ci_u], scale=np.exp(mean), s=std)
+        plt.axvline(x = CI_95[0], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(i+1,ci,CI_95[0]))
+        plt.axvline(x = CI_95[1], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(i+1,ci,CI_95[1]))
+    plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
+    if guide != None: plt.ylabel("Number of retained duplicates", fontsize = 10)
+    elif na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
+    else: plt.ylabel("Number of retained duplicates (weighted)", fontsize = 10)
+    ax.legend(loc=1,fontsize='large',frameon=False)
+    sns.despine(offset=1)
+    plt.title('Anchor $K_\mathrm{S}$'+' distribution of {}'.format(sp))
+    plt.tight_layout()
+    plt.savefig(fname,format ='pdf', bbox_inches='tight')
+    plt.close()
+    return CI_95[0],CI_95[1]
 
 def plot_Elbow_loss(Losses,outdir):
     fname = os.path.join(outdir,'Elbow-Loss Function.pdf')
