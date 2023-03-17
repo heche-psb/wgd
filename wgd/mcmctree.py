@@ -135,44 +135,45 @@ class mcmctree:
         self.tree = speciestree
         self.partition = partition
         self.aamodel = aamodel
-        self.prefix = os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
+        self.prefix = os.path.basename(palnf_rn).replace('.paln','').replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
         if tmpdir == None:
             tmp_path = os.path.join(outdir, "mcmctree", self.prefix)
         else:
             tmp_path = os.path.join(tmpdir, "mcmctree", self.prefix)
         _mkdir(os.path.join(outdir, "mcmctree"))
         self.tmp_path = _mkdir(tmp_path)
-        tmpc_path = os.path.join(tmp_path, "cds")
-        self.tmpc_path = _mkdir(tmpc_path)
         self.calnf_rn = calnf_rn
-        _cp2tmp(self.calnf_rn,self.tree,self.tmpc_path)
-        self.controlcf = os.path.join(tmpc_path, 'mcmctree.ctrl')
-        self.controlc = {
-            'seqfile': os.path.basename(self.calnf_rn),
-            'treefile':self.tree,
-            'outfile': 'mcmctree.out',
-            'ndata':1,
-            'seqtype':0,
-            'usedata':1,
-            'clock': 2,
-            'RootAge': '<5.00',
-            'model': 4,
-            'alpha': 0.5,
-            'ncatG': 5,
-            'cleandata': 0,
-            'BDparas': '1 1 0.1',
-            'kappa_gamma': '6 2',
-            'alpha_gamma': '1 1',
-            'rgene_gamma': '2 20 1',
-            'sigma2_gamma': '1 10 1',
-            'finetune': '1: .1 .1 .1 .1 .1 .1',
-            'print': 1,
-            'burnin': 1,
-            'sampfreq': 1,
-            'nsample': 10,}
-        if self.partition:
-            self.controlc['ndata'] = 3
-        else:
+        if self.calnf_rn is not None:
+            tmpc_path = os.path.join(tmp_path, "cds")
+            self.tmpc_path = _mkdir(tmpc_path)
+            _cp2tmp(self.calnf_rn,self.tree,self.tmpc_path)
+            self.controlcf = os.path.join(tmpc_path, 'mcmctree.ctrl')
+            self.controlc = {
+                'seqfile': os.path.basename(self.calnf_rn),
+                'treefile':self.tree,
+                'outfile': 'mcmctree.out',
+                'ndata':1,
+                'seqtype':0,
+                'usedata':1,
+                'clock': 2,
+                'RootAge': '<5.00',
+                'model': 4,
+                'alpha': 0.5,
+                'ncatG': 5,
+                'cleandata': 0,
+                'BDparas': '1 1 0.1',
+                'kappa_gamma': '6 2',
+                'alpha_gamma': '1 1',
+                'rgene_gamma': '2 20 1',
+                'sigma2_gamma': '1 10 1',
+                'finetune': '1: .1 .1 .1 .1 .1 .1',
+                'print': 1,
+                'burnin': 1,
+                'sampfreq': 1,
+                'nsample': 10,}
+            if self.partition:
+                self.controlc['ndata'] = 3
+        if not self.partition:
             tmpp_path = os.path.join(tmp_path, "pep")
             self.tmpp_path = _mkdir(tmpp_path)
             self.palnf_rn = palnf_rn
@@ -204,10 +205,15 @@ class mcmctree:
         if not datingset is None:
             for i in datingset:
                 i.strip('\t').strip('\n').strip(' ')
-                for key in self.controlc.keys():
-                    if key in i:
-                        self.controlc[key] = i.replace(key,'').replace('=','').strip(' ')
-                        if not self.partition:
+                if self.calnf_rn is not None:
+                    for key in self.controlc.keys():
+                        if key in i:
+                            self.controlc[key] = i.replace(key,'').replace('=','').strip(' ')
+                            if not self.partition:
+                                self.controlp[key] = i.replace(key,'').replace('=','').strip(' ')
+                elif not self.partition:
+                    for key in self.controlp.keys():
+                        if key in i:
                             self.controlp[key] = i.replace(key,'').replace('=','').strip(' ')
         #for x in kwargs.keys():
         #    if x not in self.control:
@@ -215,10 +221,11 @@ class mcmctree:
         #    else:
         #        self.control.get(x) = kwargs[x]
     def write_ctrl(self):
-        c = ['{0} = {1}'.format(k, v) for (k,v) in self.controlc.items()]
-        c = "\n".join(c)
-        with open(self.controlcf, "w") as f:
-            f.write(c)
+        if self.calnf_rn is not None:
+            c = ['{0} = {1}'.format(k, v) for (k,v) in self.controlc.items()]
+            c = "\n".join(c)
+            with open(self.controlcf, "w") as f:
+                f.write(c)
         if not self.partition:
             p = ['{0} = {1}'.format(k, v) for (k,v) in self.controlp.items()]
             p = "\n".join(p)
@@ -230,12 +237,13 @@ class mcmctree:
         """
         self.write_ctrl()
         parentdir = os.getcwd()  # where we are currently
-        os.chdir(self.tmpc_path)  # go to tmpdir
-        _run_mcmctree('mcmctree.ctrl')
-        self.CI, self.PM = self.get_dates(CI_table,PM_table,wgd_mrca,cds=True)
-        CI_table[self.prefix] = [[float(i) for i in self.CI]]
-        PM_table[self.prefix] = [self.PM]
-        os.chdir(parentdir)
+        if self.calnf_rn is not None:
+            os.chdir(self.tmpc_path)  # go to tmpdir
+            _run_mcmctree('mcmctree.ctrl')
+            self.CI, self.PM = self.get_dates(CI_table,PM_table,wgd_mrca,cds=True)
+            CI_table[self.prefix] = [[float(i) for i in self.CI]]
+            PM_table[self.prefix] = [self.PM]
+            os.chdir(parentdir)
         if not self.partition:
             os.chdir(self.tmpp_path)
             _run_mcmctree('mcmctree.ctrl')
@@ -267,8 +275,12 @@ class mcmctree:
             sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
             _run_mcmctree('mcmctree.ctrl')
             self.CI, self.PM = self.get_dates(CI_table,PM_table,wgd_mrca,cds=False)
-            CI_table[self.prefix].append([float(i) for i in self.CI])
-            PM_table[self.prefix].append(self.PM)
+            if self.calnf_rn is not None:
+                CI_table[self.prefix].append([float(i) for i in self.CI])
+                PM_table[self.prefix].append(self.PM)
+            else:
+                CI_table[self.prefix] = [[float(i) for i in self.CI]]
+                PM_table[self.prefix] = [self.PM]
             os.chdir(parentdir)
         #return results, []
     def get_dates(self,CI_table,PM_table,wgd_mrca,cds=True):

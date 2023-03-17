@@ -881,6 +881,81 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 #            Record = seq_cds.get(idmap.get(seqs))
                 #            f.write(">{}\n{}\n".format(seqs, Record))
 
+def getproaln(i,fam,outdir,idmap,seq_pro,option):
+    famid = "GF{:0>8}".format(i+1)
+    fnamep =os.path.join(outdir, famid + ".pep")
+    for seqid in fam:
+        safeid = idmap.get(seqid)
+        with open(fnamep,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    mafft_cmd(fnamep,option,fnamepaln)
+
+def addproaln(i,outdir,pro_alns):
+    famid = "GF{:0>8}".format(i+1)
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    pro_alns[famid] = AlignIO.read(fnamepaln, "fasta")
+
+def get_only_protaln(seqs,fams,outdir,nthreads,option="--auto"):
+    seq_pro,idmap,pro_alns = {},{},{}
+    for i in range(len(seqs)):
+        seq_pro.update(seqs[i].pro_sequence)
+        idmap.update(seqs[i].idmap)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(getproaln)(i,fam,outdir,idmap,seq_pro,option) for i, fam in enumerate(fams))
+    for i in range(len(fams)): addproaln(i,outdir,pro_alns)
+    return pro_alns
+
+def Concat_prot(pro_alns,families,outdir):
+    gsmap, slist = GetG2SMap(families, outdir)
+    famnum = len(pro_alns)
+    pro_alns_rn = {}
+    Concat_palnf = os.path.join(outdir, "Concatenated.paln")
+    proseq = {}
+    slist_set = set(slist)
+    for i in range(famnum):
+        famid = "GF{:0>8}".format(i+1)
+        pro_aln = pro_alns[famid]
+        added_sp = set()
+        for j in range(len(pro_aln)):
+            with open(gsmap,"r") as f:
+                lines = f.readlines()
+                for k in lines:
+                    k = k.strip('\n').strip(' ').split(' ')
+                    if k[0] == pro_aln[j].id:
+                        # here the repeated occurance of one ap will lead to errornously multiply that sequence
+                        spn = k[1]
+                        if spn in added_sp:
+                            if spn.endswith('_ap1'): spn=spn[:-1]+'2'
+                            else: spn=spn[:-1]+'1'
+                        added_sp.add(spn)
+                        pro_aln[j].id = spn
+                        sequence = pro_aln[j].seq
+                        if proseq.get(spn) is None: proseq[spn] = str(sequence)
+                        else: proseq[spn] = proseq[spn] + str(sequence)
+                        break
+        if slist_set != added_sp: logging.info('Error in concatenation process that multiple genes were concatenated to the same species. Please check the input file that if two genes in the same family could be assigned to the same species!')
+        pro_alns_rn[famid] = pro_aln
+    for spname in range(len(slist)):
+        spn = slist[spname]
+        with open(Concat_palnf,"a") as f: f.write(">{}\n{}\n".format(spn, proseq[spn]))
+    Concat_paln = AlignIO.read(Concat_palnf, "fasta")
+    return Concat_palnf,Concat_paln,slist
+
+def Run_MCMCTREE_concprot(Concat_paln,Concat_palnf,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads):
+    CI_table,PM_table = {},{}
+    wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
+    Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
+    McMctrees = []
+    if aamodel == 'wag':
+        logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
+    elif aamodel == 'lg':
+        logging.info('Running mcmctree using Hessian matrix of LG+Gamma for protein model')
+    elif aamodel == 'dayhoff':
+        logging.info('Running mcmctree using Hessian matrix of Dayhoff-DCMut for protein model')
+    else:
+        logging.info('Running mcmctree using Poisson without gamma rates for protein model')
+    McMctree = mcmctree(None, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
+    McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", runtree=False, **kwargs):
     idmap = {}
     seq_cds = {}
@@ -1136,7 +1211,6 @@ def Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml,p
             os.chdir(folder)
             get_dates(wgd_mrca,CI_table,PM_table,prefix+"_partitioned")
             os.chdir(parent)
-
 
 def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, calnfs, tmpdir, outdir, speciestree, datingset, slist, nthreads, beastlgjar, beagle, fossil, chainset, rootheight):
     beasts = []
