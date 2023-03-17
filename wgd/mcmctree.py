@@ -135,7 +135,9 @@ class mcmctree:
         self.tree = speciestree
         self.partition = partition
         self.aamodel = aamodel
-        self.prefix = os.path.basename(palnf_rn).replace('.paln','').replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
+        self.calnf_rn = calnf_rn
+        if self.calnf_rn is not None: self.prefix = os.path.basename(calnf_rn).replace('.caln','').replace('.rename','').replace('.paml','').replace('.','_')
+        else: self.prefix = os.path.basename(palnf_rn).replace('.paln','').replace('.rename','').replace('.paml','').replace('.','_')
         if tmpdir == None:
             tmp_path = os.path.join(outdir, "mcmctree", self.prefix)
         else:
