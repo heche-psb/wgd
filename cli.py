@@ -296,8 +296,10 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 # Get peak and confidence interval of Ks distribution
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('ks_distribution', type=click.Path(exists=True))
-@click.option('--anchor', '-a', default=None, show_default=True,
-    help='anchor pair infomation if available')
+@click.option('--anchor', '-a', default=None, show_default=True, help='anchor pair infomation')
+@click.option('--segment', '-sg', default=None, show_default=True, help='segment information')
+@click.option('--listelement', '-le', default=None, show_default=True, help='listelement information')
+@click.option('--multipliconpairs', '-mp', default=None, show_default=True, help='multipliconpairs information')
 @click.option('--outdir', '-o', default='wgd_peak', show_default=True,
     help='output directory')
 @click.option('--alignfilter', '-af', nargs=3, type=float, default= (0.,0,0.), show_default=True,
@@ -322,21 +324,23 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--alpha',type=float, default=0.5, show_default=True, help="alpha value to control Interpercentile range")
 @click.option('--n_clusters',type=int, default=5, show_default=True, help="number of clusters to plot Elbow loss function")
 @click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
-@click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster']), default='multiplicon', show_default=True, help="regime residing anchors")
+@click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster', 'segment']), default='segment', show_default=True, help="regime residing anchors")
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 @click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
 @click.option('--family', '-f', default=None, show_default=True, help='family to filter Ks upon')
-@click.option('--manualset', is_flag=True,help="Manually set Ks range as CI")
+@click.option('--manualset', is_flag=True,help="Manually set Ks range of anchor pairs or multiplicons as CI")
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
+@click.option('--hdr', default=95, show_default=True,type=int, help='highest densidy region (HDR) of log-normal distribution to date')
+@click.option('--heuristicci', is_flag=True,help="heuristic CI for dating")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci,manualset):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm, find_apeak, find_mpeak, retreive95CI, formatv2
+def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci,manualset,segment,hdr,heuristicci,listelement,multipliconpairs):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI, formatv2
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
@@ -353,11 +357,15 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     if anchor!= None:
-        if kmedoids: df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters)
-        else: df_ap = fit_apgmm(guide,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
-        find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-        find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-        find_mpeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+        if kmedoids:
+            df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters, segment = segment, multipliconpairs=multipliconpairs,listelement=listelement)
+        else:
+            fit_apgmm_guide(hdr,guide,anchor,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=segment,multipliconpairs=multipliconpairs,listelement=listelement)
+            df_ap = fit_apgmm_ap(hdr,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
+        if heuristicci:
+            find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_mpeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
         logging.info('Done')
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])

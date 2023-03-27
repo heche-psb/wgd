@@ -31,7 +31,8 @@ def filter_group_data(
     """
     # pre node-grouping filters, irrespective of outlier removal
     df = df.dropna()
-    df = df[df["alnlen"] >= aln_len]
+    #df = df[df["alnlen"] >= aln_len]
+    df = df[df['alignmentlength']>= aln_len]
 
     # Ks range filters
     # if one filters before the node-weighting, the weights are adapted with

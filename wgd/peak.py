@@ -19,6 +19,8 @@ import os
 from wgd.core import _mkdir
 from sklearn_extra.cluster import KMedoids
 from wgd.viz import reflect_logks,find_peak_init_parameters,get_deconvoluted_data
+from io import StringIO
+from sklearn import metrics
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 
 def alnfilter(df,weights_outliers_included, identity, aln_len, coverage, min_ks, max_ks):
@@ -50,17 +52,20 @@ def info_components(m,i,info_table):
     covariances = []
     weights = []
     precisions = []
+    stds = []
     for j in range(i):
         mean = np.exp(m.means_[j][0])
         covariance = m.covariances_[j][0][0]
+        std = np.sqrt(covariance)
         weight = m.weights_[j]
         precision = m.precisions_[j][0][0]
         means.append(mean)
         covariances.append(covariance)
+        stds.append(std)
         weights.append(weight)
         precisions.append(precision)
-        logging.info("Component {0} has mean {1:.3f} ,covariance {2:.3f} ,weight {3:.3f}, precision {4:.3f}".format(j+1,mean,covariance,weight,precision))
-    info_table['{}component'.format(i)] = {'mean':means,'covariance':covariances,'weight':weights,'precision':precisions}
+        logging.info("Component {0} has mean {1:.3f} ,std {2:.3f} ,weight {3:.3f}, precision {4:.3f}".format(j+1,mean,std,weight,precision))
+    info_table['{}component'.format(i)] = {'mean':means,'covariance':covariances,'weight':weights,'precision':precisions,'stds':stds}
 
 def aic_info(aic,n1):
     besta_loc = np.argmin(aic)
@@ -125,6 +130,32 @@ def plot_aic_bic(aic, bic, n1, n2, out_file):
     fig.savefig(out_file)
     plt.close()
 
+def significance_test_cluster(X,n1,n2,labels):
+    n_permutations = 100
+    for indice,i in enumerate(range(n1, n2 + 1)):
+        obs = metrics.silhouette_score(X,labels[indice])
+        perm_scores = []
+        for j in range(n_permutations):
+            perm_labels = np.random.permutation(labels[indice])
+            perm_scores.append(metrics.silhouette_score(X, perm_labels))
+        p_value = np.mean(np.array(perm_scores) >= obs)
+        logging.info("Components {} model: Observed Silhouette Coefficient {:.2f} and P-value {:.3f}".format(i,obs,p_value))
+
+def plot_silhouette_score(X,n1,n2,labels,outdir,prefix,method):
+    x_range = list(range(n1, n2 + 1))
+    fig, ax = plt.subplots()
+    scores = [metrics.silhouette_score(X, label) for label in labels]
+    ax.plot(np.arange(1, len(labels) + 1),scores,color='k', marker='o')
+    ax.set_xticks(list(range(1, len(labels) + 1)))
+    ax.set_xticklabels(x_range)
+    ax.grid(ls=":")
+    ax.set_ylabel("Silhouette Coefficient")
+    ax.set_xlabel("# components")
+    fig.tight_layout()
+    fname = os.path.join(outdir, "{}_{}_Clustering_Silhouette_Coefficient.pdf".format(method,prefix))
+    fig.savefig(fname)
+    plt.close()
+
 def kde_mode(kde_x, kde_y):
     maxy_iloc = np.argmax(kde_y)
     mode = kde_x[maxy_iloc]
@@ -135,45 +166,157 @@ def get_totalH(Hs):
     for i in Hs: CHF = CHF + i
     return CHF
 
-def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon'):
-    colors = cm.rainbow(np.linspace(0, 1, nums))
+def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Counts",regime='multiplicon'):
+    #labels = labels[(X<5) & (X>0)]
+    #X = X[(X<5) & (X>0)]
+    colors = cm.rainbow(np.linspace(0, 1, n))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
+    fig, ax = plt.subplots()
+    df = pd.DataFrame.from_dict({'label':labels,'dS':X})
+    for i,color in enumerate(colors):
+        mean,std,weight = means[i][0],stds[i][0][0],weights[i]
+        df_comp = df[df['label']==i]
+        x = np.array(list(df_comp['dS']))
+        y = x[np.isfinite(x)]
+        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(i))
+        CHF = get_totalH(Hs)
+        scaling = CHF*0.1
+        #upper_HPD,lower_HPD = calculateHPD(y,hdr)
+        #plt.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Upper {:.2f}".format(hdr,upper_HPD))
+        #plt.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Lower {:.2f}".format(hdr,lower_HPD))
+        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
+    ax.legend(loc='upper right', fontsize='small',frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    if regime== 'multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
+    else: plt.title('Basecluster $K_\mathrm{S}$ GMM modeling')
+    fig.tight_layout()
+    return fig
+
+def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regime='multiplicon'):
+    labels = labels[(X<5) & (X>0)]
+    X = X[(X<5) & (X>0)]
+    colors = cm.rainbow(np.linspace(0, 1, n))
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    fig, ax = plt.subplots()
+    df = pd.DataFrame.from_dict({'label':labels,'dS':X})
+    if plot == 'identical':
+        for i,color in enumerate(colors):
+            df_comp = df[df['label']==i]
+            x = np.array(list(df_comp['dS']))
+            y = x[np.isfinite(x)]
+            ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component{}".format(i))
+    else:
+        dist_comps = [df[df['label']==num] for num in range(n)]
+        xs = [np.array(list(i['dS'])) for i in dist_comps]
+        ys = [x[np.isfinite(x)] for x in xs]
+        ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, alpha=0.5, rwidth=0.8, label = ["component {}".format(int(i)) for i in range(n)])
+    ax.legend(loc='upper right', fontsize='small',frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    if regime== 'multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
+    else: plt.title('Basecluster $K_\mathrm{S}$ GMM modeling')
+    fig.tight_layout()
+    return fig
+
+def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon'):
+    colors = cm.rainbow(np.linspace(0, 1, nums))
     fig, ax = plt.subplots()
     if plot == 'identical':
         if weighted:
             for num,color in zip(range(nums),colors):
-                df_comp = df[df['AnchorKs_GMM_Component']==num]
+                if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+                else: df_comp = df[df['AnchorKs_GMM_Component']==num]
                 w = df_comp['weightoutlierexcluded']
                 x = np.array(list(df_comp['dS']))
                 y = x[np.isfinite(x)]
                 w = w[np.isfinite(x)]
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component{}".format(num))
+                ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
         else:
             for num,color in zip(range(nums),colors):
-                df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
+                if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+                else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
                 x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
                 y = x[np.isfinite(x)]
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component{}".format(num))
+                ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
     else:
         if weighted:
-            dist_comps = [df[df['AnchorKs_GMM_Component']==num] for num in range(nums)]
+            if nums == 1:  dist_comps = [df]
+            else: dist_comps = [df[df['AnchorKs_GMM_Component']==num] for num in range(nums)]
             ws = [i['weightoutlierexcluded'] for i in dist_comps]
             xs = [np.array(list(i['dS'])) for i in dist_comps]
             ys = [x[np.isfinite(x)] for x in xs]
             ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
-            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, weights=ws, alpha=0.5, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)])
+            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, weights=ws, alpha=0.5, rwidth=0.8, label = ["component {}".format(int(i)) for i in range(nums)])
         else:
-            dist_comps = [df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node']) for num in range(nums)]
+            if nums == 1:  dist_comps = [df]
+            else: dist_comps = [df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node']) for num in range(nums)]
             xs = [np.array(list(i['node_averaged_dS_outlierexcluded'])) for i in dist_comps]
             ys = [x[np.isfinite(x)] for x in xs]
-            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, alpha=0.5, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)])
-    ax.legend(loc='upper right', fontsize='large',frameon=False)
+            ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=colors, stacked=True, alpha=0.5, rwidth=0.8, label = ["component {}".format(int(i)) for i in range(nums)])
+    ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
     sns.despine(offset=1)
     if regime== 'multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
+    else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    fig.tight_layout()
+    return fig
+
+def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
+    colors = cm.rainbow(np.linspace(0, 1, nums))
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    fig, ax = plt.subplots()
+    if weighted:
+        for num,color in zip(range(nums),colors):
+            mean,std,weight = means[num][0],stds[num][0][0],weights[num]
+            if nums == 1: df_comp = df.copy()
+            else: df_comp = df[df['AnchorKs_GMM_Component']==num]
+            w = df_comp['weightoutlierexcluded']
+            x = np.array(list(df_comp['dS']))
+            y = x[np.isfinite(x)]
+            w = w[np.isfinite(x)]
+            if len(y) < 2:
+                logging.info("Detected one component with less than 2 elements, will skip it")
+                continue
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
+            CHF = get_totalH(Hs)
+            scaling = CHF*0.1
+            ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
+    else:
+        for num,color in zip(range(nums),colors):
+            mean,std,weight = means[num][0],stds[num][0][0],weights[num]
+            if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+            else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
+            x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
+            y = x[np.isfinite(x)]
+            if len(y) < 2:
+                logging.info("Detected one component with less than 2 elements, will skip it")
+                continue
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
+            CHF = get_totalH(Hs)
+            scaling = CHF*0.1
+            ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
+    ax.legend(loc='upper right', fontsize='small',frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig
@@ -186,7 +329,9 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
     Hs_maxs,y_lim_beforekde_s = [],[]
     if weighted:
         for num,color in zip(range(nums),colors):
-            df_comp = df[df['AnchorKs_GMM_Component']==num]
+            #if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+            if nums == 1: df_comp = df.copy()
+            else: df_comp = df[df['AnchorKs_GMM_Component']==num]
             w = df_comp['weightoutlierexcluded']
             x = np.array(list(df_comp['dS']))
             y = x[np.isfinite(x)]
@@ -197,7 +342,7 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
-            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component{} (mode {:.2f})".format(num,mode))
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
             Hs_max = max(Hs)
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
@@ -206,8 +351,8 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             #kde_y = kde(kde_x)
             #mode, maxim = kde_mode(kde_x, kde_y)
             CHF = get_totalH(Hs)
-            scale = CHF*0.1
-            ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--',lw = 1)
+            scaling = CHF*0.1
+            ax.plot(kde_x, kde_y*scaling, color=color,alpha=0.4, ls = '--',lw = 1)
             y_lim_afterkde = ax.get_ylim()[1]
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
@@ -215,7 +360,8 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
     else:
         for num,color in zip(range(nums),colors):
-            df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
+            if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+            else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
             x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
             y = x[np.isfinite(x)]
             if len(y) < 2:
@@ -224,7 +370,7 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             kde = stats.gaussian_kde(y,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
-            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component{} (mode {:.2f})".format(num,mode))
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
             Hs_max = max(Hs)
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
@@ -233,8 +379,8 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             #kde_y = kde(kde_x)
             #mode, maxim = kde_mode(kde_x, kde_y)
             CHF = get_totalH(Hs)
-            scale = CHF*0.1
-            ax.plot(kde_x, kde_y*scale, color=color,alpha=0.4, ls = '--',lw = 1)
+            scaling = CHF*0.1
+            ax.plot(kde_x, kde_y*scaling, color=color,alpha=0.4, ls = '--',lw = 1)
             y_lim_afterkde = ax.get_ylim()[1]
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
@@ -246,6 +392,8 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
     ax.set_xticks([0,1,2,3,4,5])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
+    elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig
@@ -281,7 +429,7 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
                 w = w[np.isfinite(x)]
                 if funs[0] == f:
                     #print(y.shape)
-                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component {}".format(num),**kwargs)
                     #print(Hs[0])
                     Hs_max = max(Hs)
                     Hs_maxs.append(Hs_max)
@@ -313,7 +461,7 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
                 else:
                     #comp_time = comp_time + 1
                     #if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                    ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                    ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component {}".format(num),**kwargs)
                     ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                     #Hss.append(Hs)
                     #Binss.append(Bins)
@@ -388,7 +536,7 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                     y = x[np.isfinite(x)]
                     w = w[np.isfinite(x)]
                     if funs[0] == f:
-                        ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component {}".format(num),**kwargs)
                         #Hs_max = max(Hs)
                         #Hs_maxs.append(Hs_max)
                         #y_lim_beforekde = ax.get_ylim()[1]
@@ -402,7 +550,7 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                     else:
                         #comp_time = comp_time + 1
                         #if comp_time < 2: Hs, Bins, patches = ax.hist(y, bins = 50, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
-                        ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component{}".format(num),**kwargs)
+                        ax.hist(y, bins = np.linspace(-50, 20, num=70+1,dtype=int)/10, color = color, weights=w, alpha=a, rwidth=0.8, label = "component {}".format(num),**kwargs)
                         ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1)
                         #Hss.append(Hs)
                         #Binss.append(Bins)
@@ -417,12 +565,12 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                 ys = [x[np.isfinite(x)] for x in xs]
                 ws = [w[np.isfinite(x)] for w,x in zip(ws,xs)]
                 if funs[0] == f:
-                    ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                    ax.hist(ys, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color=[cs[i] for i in range(nums)], stacked=True, weights=ws, alpha=a, rwidth=0.8, label = ["component {}".format(int(i)) for i in range(nums)],**kwargs)
                     ax.legend(loc='upper right', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                 else:
                     #maxi = int(max(list(itertools.chain.from_iterable(xs)))*100)
                     #mini = int(min(list(itertools.chain.from_iterable(xs)))*100)
-                    ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component{}".format(int(i)) for i in range(nums)],**kwargs)
+                    ax.hist(ys, bins = bins, color=[cs[i] for i in range(nums)], weights=ws, alpha=a, rwidth=0.8, label = ["component {}".format(int(i)) for i in range(nums)],**kwargs)
                     ax.legend(loc='upper left', fontsize=5,fancybox=True, framealpha=0.1,labelspacing=0.1,handlelength=2,handletextpad=0.1,frameon=False)
                     #ax.set_xticks(np.round_(np.linspace(mini, maxi, num=5,dtype=int)/100,decimals = 1))
                 #kde_x, kde_y = get_kde(train_in,ax)
@@ -743,9 +891,8 @@ def info_centers(cluster_centers):
 
 def write_labels(df,df_index,labels,outdir,n,regime='multiplicon'):
     predict_column = pd.DataFrame(labels,index=df_index.index,columns=['KMedoids_Cluster']).reset_index()
-    df = df.reset_index().merge(predict_column, on = [regime])
-    df = df.set_index('pair')
-    fname = os.path.join(outdir,'AnchorKs_KMedoids_Clustering_{}components_prediction.tsv'.format(n))
+    df = df.reset_index().merge(predict_column, on = [regime]).set_index('pair')
+    fname = os.path.join(outdir,'{}-guide_Ks_KMedoids_Clustering_{}components_prediction.tsv'.format(regime,n))
     df.to_csv(fname,header=True,index=True,sep='\t')
     return df
 
@@ -792,8 +939,8 @@ def kde_method(kdemethod,bw,X,kde_x,w=None):
     if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
     return kde_y
 
-def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
-    fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components_kde.pdf".format(n))
+def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+    fname = os.path.join(outdir,"{}-guide_AnchorKs_KMedoids_Clustering_{}components_kde.pdf".format(regime,n))
     f, ax = plt.subplots()
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -855,13 +1002,37 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,wei
     ax.legend(loc=1,fontsize='large',frameon=False)
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
+    elif regime=='segment': plt.title('Segment-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     plt.tight_layout()
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
 
-def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
-    fname = os.path.join(outdir,"AnchorKs_KMedoids_Clustering_{}components.pdf".format(n))
+def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment'):
+    fname = os.path.join(outdir,"{}_Ks_KMedoids_Clustering_{}components.pdf".format(regime,n))
+    f, ax = plt.subplots()
+    df = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
+    df.index.name = 'label'
+    df.loc[:,['Segment_Ks']] = X
+    df = df.reset_index()
+    for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+        if n == 1: dfo = df.copy()
+        else: dfo = df[df['KMedoids_Cluster']==i]
+        data = getX(dfo,'Segment_Ks')
+        ax.hist(data,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=c,alpha=0.5,rwidth=0.8,label='component {}'.format(i))
+    plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
+    plt.ylabel("Number of segment pair", fontsize = 10)
+    ax.legend(loc=1,fontsize='small',frameon=False)
+    sns.despine(offset=1)
+    if regime=='multiplicon': plt.title('Multilplicon $K_\mathrm{S}$ KMedoid modeling')
+    elif regime=='segment': plt.title('Segment  $K_\mathrm{S}$ KMedoid modeling')
+    else: plt.title('Basecluster $K_\mathrm{S}$ KMedoid modeling')
+    plt.tight_layout()
+    plt.savefig(fname,format ='pdf', bbox_inches='tight')
+    plt.close()
+
+def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+    fname = os.path.join(outdir,"{}-guided_AnchorKs_KMedoids_Clustering_{}components.pdf".format(regime,n))
     f, ax = plt.subplots()
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -903,13 +1074,16 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,centers,bin_width,bins=50,weighte
     ax.legend(loc=1,fontsize='large',frameon=False)
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
+    elif regime=='segment': plt.title('Segment-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     plt.tight_layout()
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
 
-def getX(df,column):
+def getX(df,column,cutoff=5.0):
     X = np.array(df.loc[:,column].dropna())
+    X = X[np.isfinite(X)]
+    X = X[X<cutoff]
     return X
 
 def Elbow_lossf(X_log,cluster_centers,labels):
@@ -924,8 +1098,9 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     return Loss
 
 def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
-    gs_ks = df.loc[:,['gene1','gene2','dS']]
+    gs_ks = df.loc[:,['gene1','gene2',guide,'dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
+    mpKs = pd.DataFrame.from_dict({guide:df_withindex.index,'Median_Ks':ks_or}).set_index(guide)
     df_m = df_withindex.copy()
     df_m['weightoutlierexcluded'] = 1
     w = np.array(df_m['weightoutlierexcluded'])
@@ -957,8 +1132,8 @@ def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95
     logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
     lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide)
-    if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,False,sp,ci,guide=guide,user=user)
-    else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,False,sp,ci,guide=guide,user=user)
+    if user: get95CIap_MP(user_low,user_upp,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user)
+    else: get95CIap_MP(lower95CI,upper95CI,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user)
 
 def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
@@ -1008,16 +1183,14 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user)
     else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user)
 
-def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,guide=None,user=False):
+def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
     ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
-    sp_m = '{}'.format(sp) if guide == None else '{}_guided_{}'.format(guide,sp)
+    sp_m = '{}'.format(sp)
     if user:
-        if guide!=None: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating.tsv".format(sp_m))
-        elif na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
         else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
     else:
-        if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating.tsv".format(sp_m,ci))
-        elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
+        if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
         else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
     ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
     anchors = pd.read_csv(anchor, sep="\t", index_col=0)
@@ -1025,15 +1198,81 @@ def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,guide=None,user=False):
     ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
     ap_format.index.name = 'id'
     if user:
-        if guide!=None: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_format.tsv".format(sp_m))
-        elif na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
+        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
         else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
     else:
-        if guide!=None: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_format.tsv".format(sp_m,ci))
-        elif na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
+        if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
         else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
     ap_format.to_csv(fname,header=True,index=True,sep='\t')
 
+def add_mpgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
+    predict_column = pd.DataFrame(labels,index=df_index.index,columns=['AnchorKs_GMM_Component']).reset_index()
+    df = df.reset_index().merge(predict_column, on = [regime])
+    df = df.set_index('pair')
+    fname = os.path.join(outdir,'AnchorKs_GMM_{}components_prediction.tsv'.format(n))
+    df.to_csv(fname,header=True,index=True,sep='\t')
+    return df
+
+def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
+    gs_ks = gs_ks.reset_index().set_index(guide).join(mpKs)
+    ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
+    sp_m = '{}_guided_{}'.format(guide,sp)
+    if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
+    else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
+    ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+    anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+    anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+    ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
+    ap_format.index.name = 'id'
+    if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
+    else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating_format.tsv".format(sp_m,ci))
+    ap_format.to_csv(fname,header=True,index=True,sep='\t')
+
+def get_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<cutoff]
+    weight_exc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_exc = weight_exc.to_frame(name='weightoutlierexcluded')
+    return weight_exc
+
+def get_outlierincluded(df):
+    weight_inc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_inc = weight_inc.to_frame(name='weightoutlierincluded')
+    return weight_inc
+
+def get_nodeaverged_dS_outlierincluded(df):
+    node_averaged_dS_inc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_inc = node_averaged_dS_inc.to_frame(name='node_averaged_dS_outlierincluded')
+    return node_averaged_dS_inc
+
+def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<cutoff]
+    node_averaged_dS_exc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
+    return node_averaged_dS_exc
+
+def formatv2(ksdf):
+    if "Ks" in ksdf.columns: ksdf = ksdf.rename(columns={"Ks":"dS"})
+    if "Ka" in ksdf.columns: ksdf = ksdf.rename(columns={"Ka":"dN"})
+    if "Omega" in ksdf.columns: ksdf = ksdf.rename(columns={"Omega":"dN/dS"})
+    if "Family" in ksdf.columns: ksdf = ksdf.rename(columns={"Family":"family"})
+    if "Node" in ksdf.columns: ksdf = ksdf.rename(columns={"Node":"node"})
+    if "AlignmentIdentity" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentIdentity":"alignmentidentity"})
+    if "AlignmentLength" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentLength":"alignmentlength"})
+    if "AlignmentCoverage" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentCoverage":"alignmentcoverage"})
+    if "Paralog1" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog1":"gene1"})
+    if "Paralog2" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog2":"gene2"})
+    if "WeightOutliersIncluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersIncluded"])
+    if "WeightOutliersExcluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersExcluded"])
+    if "weightoutlierexcluded" not in ksdf.columns: weight_inc = get_outlierincluded(ksdf)
+    if "weightoutlierincluded" not in ksdf.columns: weight_exc = get_outlierexcluded(ksdf,cutoff = 5)
+    node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(ksdf)
+    node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(ksdf,cutoff = 5)
+    ksdf = ksdf.join(weight_inc).join(weight_exc) # here I kept the NaN value
+    ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
+    ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
+    ksdf = ksdf.set_index('index')
+    ksdf.index.name = 'pair'
+    return ksdf
 
 def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None):
     text = "AnchorKs_PeakCI_"
@@ -1050,7 +1289,7 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     alphas = np.linspace(0.3, 0.7, len(init_means))
     for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
         Hs, Bins, patches = plt.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
-        plt.axvline(x = np.exp(mean), color = 'black', alpha = alphas[i], ls = ':', lw = 1,label='Peak {} mean {:.2f}'.format(i+1,np.exp(mean)))
+        plt.axvline(x = np.exp(mean), color = 'black', alpha = alphas[i], ls = ':', lw = 1,label='component {} mean {:.2f}'.format(i+1,np.exp(mean)))
         plt.axvline(x = np.exp(mean)+std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} upper 95% CI {:.2f}'.format(i+1,np.exp(mean)+std*2))
         plt.axvline(x = np.exp(mean)-std*2, color = 'black', alpha = alphas[i], ls = '--', lw = 1,label='Peak {} lower 95% CI {:.2f}'.format(i+1,np.exp(mean)-std*2))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
@@ -1097,16 +1336,23 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     plt.close()
     return CI_95[0],CI_95[1]
 
-def plot_Elbow_loss(Losses,outdir):
-    fname = os.path.join(outdir,'Elbow-Loss Function.pdf')
-    x_range = list(range(1, len(Losses) + 1))
+def plot_Elbow_loss(Losses,outdir,n1=None,n2=None,method='Medoids',regime=None):
+    if regime == 'original': fname = os.path.join(outdir,'{}_Elbow-Loss_Original_Anchor_Ks.pdf'.format(method))
+    if regime != None: fname = os.path.join(outdir,'{}_Elbow-Loss_{}_Ks.pdf'.format(method,regime))
+    else: fname = os.path.join(outdir,'Elbow-Loss Function.pdf')
     fig, axes = plt.subplots()
-    axes.plot(np.arange(1, len(Losses) + 1), Losses, color='k', marker='o')
-    axes.set_xticks(list(range(1, len(Losses) + 1)))
+    if n1 !=None:
+        x_range = list(range(n1, n2 + 1))
+        axes.plot(np.arange(n1, n2 + 1), Losses, color='k', marker='o')
+        axes.set_xticks(list(range(n1, n2 + 1)))
+    else:
+        x_range = list(range(1, len(Losses) + 1))
+        axes.plot(np.arange(1, len(Losses) + 1), Losses, color='k', marker='o')
+        axes.set_xticks(list(range(1, len(Losses) + 1)))
     axes.set_xticklabels(x_range)
     axes.grid(ls=":")
     axes.set_ylabel("Elbow-loss")
-    axes.set_xlabel("# Medoids")
+    axes.set_xlabel("# {}".format(method))
     fig.tight_layout()
     fig.savefig(fname,format ='pdf')
     plt.close()
@@ -1131,39 +1377,242 @@ def add_apgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
     predict_column = pd.DataFrame(labels,index=df_index.index,columns=['AnchorKs_GMM_Component']).reset_index()
     df = df.reset_index().merge(predict_column, on = [regime])
     df = df.set_index('pair')
-    fname = os.path.join(outdir,'AnchorKs_GMM_{}components_prediction.tsv'.format(n))
+    fname = os.path.join(outdir,'{}-guided_AnchorKs_GMM_{}components_prediction.tsv'.format(regime,n))
     df.to_csv(fname,header=True,index=True,sep='\t')
     return df
 
-def fit_apgmm(guide,anchor,df,seed,components,em_iter,n_init,outdir,method,weighted,plot):
+def add_apgmmlabels_pairs(df,df_index,labels,outdir,n):
+    predict_column = pd.DataFrame(labels,index=df_index,columns=['AnchorKs_GMM_Component'])
+    df = df.join(predict_column)
+    fname = os.path.join(outdir,'Original_AnchorKs_GMM_{}components_prediction.tsv'.format(n))
+    df.to_csv(fname,header=True,index=True,sep='\t')
+    return df
+
+def add_seg(df,listelement,multipliconpairs,segment):
+    #Here the df should be Ks 0-5 filter
+    #It hasn't to be ap in listelement note that a same pair of syntelogs can be in different multiplicon
+    mp = pd.read_csv(multipliconpairs, sep="\t", index_col=0)
+    if len(mp.columns) == 5: mp = mp.drop(columns=['gene_y']).rename(columns = {'gene_x':'gene_y'}).rename(columns = {'Unnamed: 2':'gene_x'})
+    mp = mp.loc[:,['multiplicon','gene_x','gene_y']]
+    mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(list(mp['gene_x']),list(mp['gene_y']))]
+    mp.loc[:,['id']] = [i for i in range(mp.shape[0])]
+    #mp= mp.drop_duplicates(subset=['pair']) #Here the same gene pair can be in different multiplicon
+    df_seg = pd.read_csv(segment,header=0,index_col=None,sep='\t').rename(columns = {'id':'segment'}).loc[:,['segment','multiplicon']]
+    df_le = pd.read_csv(listelement,header=0,index_col=0,sep='\t').merge(df_seg,on='segment').rename(columns = {'multiplicon':'multiplicon_x'}).loc[:,['segment','multiplicon_x','gene']]
+    #mp_segment_pools = {mt:list(set(df_seg[df_seg['multiplicon']==mt]['segment'])) for mt in df_seg['multiplicon']}
+    #segment_gene_pools = {sg:list(set(df_le[df_le['segment']==sg]['gene'])) for sg in df_le['segment']}
+    df_mp_le = mp.merge(df_le,left_on='gene_x',right_on='gene')
+    df_mp_le = df_mp_le[df_mp_le['multiplicon_x'] == df_mp_le['multiplicon']]
+    df_mp_le = df_mp_le.rename(columns = {'segment':'segment_x'})
+    # here the genes belonging to two segments in the same multiplicon were removed because of indeterminacy
+    df_mp_le = df_mp_le.drop_duplicates(subset=['id'],keep=False)
+    df_mp_le_r = df_mp_le.drop(columns=['multiplicon_x','gene']).merge(df_le,left_on='gene_y',right_on='gene')
+    df_mp_le_r = df_mp_le_r[df_mp_le_r['multiplicon_x'] == df_mp_le_r['multiplicon']]
+    df_mp_le_r = df_mp_le_r.rename(columns = {'segment':'segment_y'})
+    df_mp_le_r = df_mp_le_r.drop_duplicates(subset=['id'],keep=False)
+    df_mp_le_r = df_mp_le_r.loc[:,['multiplicon','gene_x','gene_y','segment_x','segment_y','pair']].set_index('pair')
+    df_mp_le_r.loc[:,['segment_pair']] = ["__".join(sorted([x,y])) for x,y in zip(list(df_mp_le_r['segment_x'].astype(str)),list(df_mp_le_r['segment_y'].astype(str)))]
+    df_cal_medKs = df_mp_le_r.loc[:,['segment_pair','multiplicon']].join(df).rename(columns = {'segment_pair':'segment'}).dropna(subset=['dS']) # here I kept Ks > 5 and duplicated index (pair)
+    dS_median = df_cal_medKs.groupby(['segment'])['dS'].median()
+    dS_median = dS_median[dS_median<5]
+    dS_median.name = 'Segment_dS'
+    df_cal_medKs = df_cal_medKs.reset_index().merge(dS_median.reset_index(),on='segment').dropna(subset=['Segment_dS']).set_index('pair')
+    #df_cal_medKs = df.join(df_mp_le_r.loc[:,['segment_pair','multiplicon']]).rename(columns = {'segment_pair':'segment'}) # here I did keep the NaN value, which impacted and changed the median Ks values afterwards
+    #df_mp_le_r = mp.merge(df_le,left_on='gene_y',right_on='gene')
+    #df_mp_le_r = df_mp_le_r[df_mp_le_r['multiplicon_x'] == df_mp_le_r['multiplicon']]
+    #df_mp_le_r = df_mp_le_r.rename(columns = {'segment':'segment_y'})
+    #df_mp_le_lr = df_mp_le.loc[:,['multiplicon','gene_x','gene_y','segment_x','pair']].merge(df_mp_le_r.loc[:,['pair','segment_y']],on='pair').set_index('pair')
+    #df_mp_le_lr.loc[:,['segment_pair']] = ["__".join(sorted([x,y])) for x,y in zip(list(df_mp_le_lr['segment_x'].astype(str)),list(df_mp_le_lr['segment_y'].astype(str)))]
+    #df_cal_medKs = df.join(df_mp_le_lr.loc[:,['segment_pair','multiplicon']]).dropna().rename(columns = {'segment_pair':'segment'})
+    #df_cal_medKs = df.join(df_mp_le_lr.loc[:,['segment_pair','multiplicon']]).rename(columns = {'segment_pair':'segment'}) # here I did keep the NaN value, which impacted and changed the median Ks values afterwards
+    #find_level345(df_cal_medKs)
+    #df_le_combined = pd.concat([df_mp_le, df_mp_le_r], ignore_index=True).drop_duplicates(subset=['pair']).set_index('pair')
+    #Here the smaller Ks of alternatives are the real age of that genes on that segment
+    #df_withKs = df.join(df_le_combined).dropna().sort_values('dS')
+    #df_cal_medKs = df_withKs.drop_duplicates(subset=['segment','gene_y']).drop_duplicates(subset=['segment','gene_x'])
+    #df_cal_medKs = df_cal_medKs.drop(columns=['gene_y','multiplicon_x','gene_x','gene'])
+    #Here we retrive the duplicates information for segment age clustering
+    #dup_le = df_withKs[df_withKs.duplicated(subset=['segment','gene_y'], keep=False)]
+    #dup_ri = df_withKs[df_withKs.duplicated(subset=['segment','gene_x'], keep=False)]
+    #dup_combined = pd.concat([dup_le,dup_ri], ignore_index=True).drop_duplicates()
+    #dup_combined_work = dup_combined.loc[:,['segment','gene_x','gene_y','dS']]
+    return df_cal_medKs
+
+def getDM(X):
+    dm = np.zeros((len(X), len(X)))
+    for i in range(len(X)):
+        for j in range(i+1, len(X)):
+            dm[i,j] = dm[j,i] = (abs(X[i][0] - X[j][0]))**2
+    return dm
+
+def getnw(X):
+    dm = getDM(X)
+    linkage_matrix = linkage(dm, method='average')
+    tree = to_tree(linkage_matrix)
+    newick_str = convert_newick(tree) + ";"
+    return newick_str
+
+def convert_newick(node):
+    if node.is_leaf():
+        return str(node.id)
+    else:
+        left_branch = convert_newick(node.left)
+        right_branch = convert_newick(node.right)
+        return "(" + left_branch + ":" + str(node.dist) + "," + right_branch + ":" + str(node.dist) + ")"
+
+def _label_internals(tree):
+    for i, c in enumerate(tree.get_nonterminals()):
+        c.name = str(i)
+
+def getsegpairs(seg_ids):
+    pairs = []
+    l = len(seg_ids)
+    for i in range(l):
+        for j in range(i+1,l):
+            pairs.append("__".join(sorted([seg_ids[i],seg_ids[j]])))
+    return pairs
+
+def find_level345(df):
+    #Here the segment is renamed from segment_pair
+    df.loc[:,['weight_segment']] = [1 for i in range(df.shape[0])]
+    df_level = df.groupby(['multiplicon'])['segment'].nunique().to_frame().rename(columns = {'segment':'segment_pair'})
+    df = df.reset_index().merge(df_level,on='multiplicon').set_index('pair')
+    df.loc[:,['segment_x']] = [i.split('__')[0] for i in df['segment']]
+    df.loc[:,['segment_y']] = [i.split('__')[1] for i in df['segment']]
+    df = df[df['segment_pair']>1]
+    df = df.drop_duplicates(subset=['segment'])
+    for mp in df.loc[:,['multiplicon']]:
+        tmp = df[df['multiplicon']==mp]
+        seg_ids = list(tmp.loc[:,['segment']])
+        seg_pairs = getsegpairs(seg_ids)
+        DM = getDM(list(tmp['segment_x']),list(tmp['segment_y']),list(tmp['Segment_dS']))
+        X = [[i] for i in tmp.loc[:,['Segment_dS']]]
+        tree = getnw(X)
+        tree_object = Phylo.read(StringIO(tree), "newick")
+        _label_internals(tree_object)
+
+    #df_level_duplicated = df_level[df_level['segment_pair']>1]
+    #df.merge()
+
+
+#def seg_duplicates_clusering(dup_combined_work):
+
+
+def calculateHPD(train_in,per):
+    sorted_in = np.sort(train_in)
+    #The lower_bound might be as zero which abort the HDR
+    upper_bound_indice = int(np.ceil(per*len(sorted_in)/100))
+    lower_bound_indice = int(np.ceil((100-per)*len(sorted_in)/100))
+    #upper_bound = np.percentile(train_in, per)
+    #lower_bound = np.percentile(train_in, 100-per)
+    #upper_bound_indice,lower_bound_indice = 0,0
+    cutoff,candidates = int(np.ceil(per*len(sorted_in)/100)),[]
+    #for i,v in enumerate(sorted_in):
+    #    if v >= upper_bound:
+    #        upper_bound_indice = i
+    #        break
+    #for i,v in enumerate(sorted_in):
+    #    if v >= lower_bound:
+    #        lower_bound_indice = i
+    #        break
+    for (x,y) in itertools.product(np.arange(0,lower_bound_indice,1,dtype=int), np.arange(upper_bound_indice,len(sorted_in),1,dtype=int)):
+        if (y-x+1) >= cutoff: candidates.append((sorted_in[y] - sorted_in[x],(x,y)))
+    lower,upper = sorted(candidates, key=lambda y: y[0])[0][1][0],sorted(candidates, key=lambda y: y[0])[0][1][1]
+    return sorted_in[upper],sorted_in[lower]
+
+def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=None,multipliconpairs=None,listelement=None):
     if anchor == None:
-        logging.error('Please provide anchorpoints.txt file for Anchor Ks KMedoids Clustering')
+        logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
     df_ap = get_anchors(anchor)
-    df = get_anchor_ksd(df, df_ap)
+    df = get_anchor_ksd(dfor, df_ap)
+    df_nofilter = df_nofilter[df_nofilter['dS']>0]
+    if segment!= None:
+        df = add_seg(df_nofilter,listelement,multipliconpairs,segment)
+        df.to_csv(os.path.join(outdir, "Segment_Ks.tsv"),header=True,index=True,sep='\t')
     df_withindex,X = bc_group_anchor(df,regime=guide)
     X_log = np.log(X).reshape(-1, 1)
-    out_file = os.path.join(outdir, "AnchorKs_GMM_AIC_BIC.pdf")
+    out_file = os.path.join(outdir, "{}_Ks_GMM_AIC_BIC.pdf".format(guide))
     if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
-    #logging.info("Gaussian Mixture Modeling with {} component".format(n))
-    #df_c = write_apgmmlabels(df,df_withindex,labels,outdir,n)
+    if components[0] == 1 and components[1] > 1:
+        plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,guide+'_Ks','GMM')
+        significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+    else:
+        plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,guide+'_Ks','GMM')
+        significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+    Losses = []
     for n, m in zip(N,models):
         labels = m.predict(X_log)
         df_c = add_apgmmlabels(df,df_withindex,labels,outdir,n,regime=guide)
-        fig = plot_ak_component(df_c,n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide)
-        if weighted: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_weighted.pdf".format(n))
-        else: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_averaged.pdf".format(n))
+        means,stds,weights = m.means_,m.covariances_,m.weights_
+        Losses.append(Elbow_lossf(X_log,[i[0] for i in means],labels))
+        fig = plot_mp_component(X,labels,n,bins=50,plot = plot,ylabel="Number of segment pair",regime=guide)
+        fname = os.path.join(outdir, "{}_Ks_Clusters_GMM_Component{}.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig = plot_ak_component_kde(df_c,n,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
-        if weighted: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_weighted_kde.pdf".format(n))
-        else: fname = os.path.join(outdir, "AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
+        fig = plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Number of segment pair",regime=guide)
+        #hdr_ap(hdr,df,df_withindex)
+        fname = os.path.join(outdir, "{}_Ks_Clusters_Lognormal_GMM_Component{}.pdf".format(guide,n))
+        fig.savefig(fname)
+        plt.close()
+    plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime=guide)
+    for n, m in zip(N,models):
+        fig = plot_ak_component(df_c.dropna(),n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide)
+        if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted.pdf".format(guide,n))
+        else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged.pdf".format(guide,n))
+        fig.savefig(fname)
+        plt.close()
+        fig = plot_ak_component_kde(df_c.dropna(),n,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
+        if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted_kde.pdf".format(guide,n))
+        else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
     return df
 
-def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5):
+def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,weighted,plot):
+    if anchor == None:
+        logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
+        exit(0)
+    df_ap = get_anchors(anchor)
+    df = get_anchor_ksd(df, df_ap)
+    df_withindex,X = df.index,getX(df,'dS')
+    X_log = np.log(X).reshape(-1, 1)
+    out_file = os.path.join(outdir, "Original_AnchorKs_GMM_AIC_BIC.pdf")
+    logging.info("GMM modeling on Log-scale original anchor Ks data")
+    if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if components[0] == 1 and components[1] > 1:
+        plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,'Original_AnchorKs','GMM')
+        significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+    else:
+        plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,'Original_AnchorKs','GMM')
+        significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+    Losses = []
+    for n, m in zip(N,models):
+        labels = m.predict(X_log)
+        means,stds,weights = m.means_,m.covariances_,m.weights_
+        Losses.append(Elbow_lossf(X_log,[i[0] for i in means],labels))
+        df_c = add_apgmmlabels_pairs(df,df_withindex,labels,outdir,n)
+        fig = plot_ak_component(df_c,n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime='original')
+        if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted.pdf".format(n))
+        else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged.pdf".format(n))
+        fig.savefig(fname)
+        plt.close()
+        #fig = plot_ak_component_kde(df_c,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original')
+        #if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_kde.pdf".format(n))
+        #else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
+        #fig.savefig(fname)
+        #plt.close()
+        fig = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original')
+        if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
+        else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
+        fig.savefig(fname)
+        plt.close()
+    plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime='original')
+    return df
+
+def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
@@ -1172,6 +1621,11 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df, outdir
         exit(0)
     df_ap = get_anchors(anchor)
     df = get_anchor_ksd(df, df_ap)
+    #if segment!= None: df = add_seg(df,segment)
+    df_nofilter = df_nofilter[df_nofilter['dS']>0]
+    if segment!= None:
+        df = add_seg(df_nofilter,listelement,multipliconpairs,segment)
+        df.to_csv(os.path.join(outdir, "Segment_Ks.tsv"),header=True,index=True,sep='\t')
     df_withindex,X = bc_group_anchor(df,regime=guide)
     #df = df.dropna(subset=['node_averaged_dS_outlierexcluded'])
     #df_rmdup = df.drop_duplicates(subset=['family', 'node'])
@@ -1183,30 +1637,36 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df, outdir
     cluster_centers = kmedoids.cluster_centers_
     centers = info_centers(cluster_centers)
     labels = kmedoids.labels_
+    plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime=guide)
     #labels = kmedoids.predict(X_log)
-    Losses = []
+    Losses,labels_plot = [],[]
     for p in range(1,n_kmedoids+1):
         if p == 1: kmedoids = KMedoids(n_clusters=p,metric=metric,method='alternate',init=init,max_iter=em_iter,random_state=seed).fit(X_log)
         else: kmedoids = KMedoids(n_clusters=p,metric=metric,method=method,init=init,max_iter=em_iter,random_state=seed).fit(X_log)
         Cluster_centers = kmedoids.cluster_centers_
         Labels = kmedoids.labels_
+        labels_plot.append(Labels)
         loss = Elbow_lossf(X_log,Cluster_centers,Labels)
         Losses.append(loss)
-    plot_Elbow_loss(Losses,outdir)
+    if n_kmedoids > 0:
+        plot_silhouette_score(X_log,2,n_kmedoids+1,labels_plot[1:],outdir,guide+'_Ks','KMedoids')
+        print((len(range(2,n_kmedoids+1)),len(labels_plot[1:])))
+        significance_test_cluster(X_log,2,n_kmedoids+1,labels_plot[1:])
+    plot_Elbow_loss(Losses,outdir,regime=guide)
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
     df_c = write_labels(df,df_withindex,labels,outdir,n,regime=guide)
-    plot_kmedoids(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
-    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,centers,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
+    plot_kmedoids(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
+    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
     return df
 
 def retreive95CI(family,ksdf_filtered,outdir,lower,upper):
     df = pd.read_csv(family,header=0,index_col=0,sep='\t')
     cs = list(df.columns)
     focus_ids = [i for i in cs if i.endswith('_ap1') or i.endswith('_ap2')]
-    df['ap12'] = ["_".join(sorted([x,y])) for x,y in zip(list(df[focus_ids[0]]),list(df[focus_ids[1]]))]
+    df['ap12'] = ["__".join(sorted([x,y])) for x,y in zip(list(df[focus_ids[0]]),list(df[focus_ids[1]]))]
     ks_tmp = ksdf_filtered.loc[:,['dS','gene1','gene2']].copy()
-    ks_tmp['ap12']= ["_".join(sorted([x,y])) for x,y in zip(list(ks_tmp['gene1']),list(ks_tmp['gene2']))]
+    ks_tmp['ap12']= ["__".join(sorted([x,y])) for x,y in zip(list(ks_tmp['gene1']),list(ks_tmp['gene2']))]
     ks_tmp = ks_tmp.loc[:,['ap12','dS']]
     #df = df.reset_index()
     df = df.merge(ks_tmp,on='ap12')
