@@ -1264,13 +1264,19 @@ def formatv2(ksdf):
     if "WeightOutliersIncluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersIncluded"])
     if "WeightOutliersExcluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersExcluded"])
     if "weightoutlierexcluded" not in ksdf.columns: weight_inc = get_outlierincluded(ksdf)
-    if "weightoutlierincluded" not in ksdf.columns: weight_exc = get_outlierexcluded(ksdf,cutoff = 5)
-    node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(ksdf)
-    node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(ksdf,cutoff = 5)
-    ksdf = ksdf.join(weight_inc).join(weight_exc) # here I kept the NaN value
-    ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
-    ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
-    ksdf = ksdf.set_index('index')
+    if "weightoutlierincluded" not in ksdf.columns:
+        weight_exc = get_outlierexcluded(ksdf,cutoff = 5)
+        ksdf = ksdf.join(weight_inc).join(weight_exc)
+    if "node_averaged_dS_outlierincluded" not in ksdf.columns:
+        node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(ksdf)
+    if "node_averaged_dS_outlierexcluded" not in ksdf.columns:
+        node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(ksdf,cutoff = 5)
+        ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
+        ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
+    #ksdf = ksdf.join(weight_inc).join(weight_exc) # here I kept the NaN value
+    #ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
+    #ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
+    if "index" in ksdf.columns: ksdf = ksdf.set_index('index')
     ksdf.index.name = 'pair'
     return ksdf
 

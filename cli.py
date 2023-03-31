@@ -651,11 +651,11 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
                 max_ks=ks_range[1], output_file=dotplot_out,
                 min_length=minlen
         )
-        figs2=Ks_dotplots(segs,multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen,outdir = outdir)
-        for k, v in figs2.items():
-            v.savefig(os.path.join(outdir, "{}.ks.dot.svg".format(k)))
-            v.savefig(os.path.join(outdir, "{}.ks.dot.pdf".format(k)))
-            v.savefig(os.path.join(outdir, "{}.ks.dot.png".format(k)))
+        #figs2=Ks_dotplots(segs,multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen,outdir = outdir)
+        #for k, v in figs2.items():
+        #    v.savefig(os.path.join(outdir, "{}.ks.dot.svg".format(k)))
+        #    v.savefig(os.path.join(outdir, "{}.ks.dot.pdf".format(k)))
+        #    v.savefig(os.path.join(outdir, "{}.ks.dot.png".format(k)))
     logging.info("Done")    
 
 # MIXTURE MODELING
