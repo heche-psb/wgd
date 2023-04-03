@@ -33,14 +33,14 @@ class TestCore:
     def test_paranome(self, data, tmpdir):
         logging.info("Testing paranome (requires diamond+mcl)")
         s1, s2 = data
-        d = SequenceData(s1, out_path=tmpdir, tmp_path=tmpdir, cds=False, to_stop=True)
+        d = SequenceData(s1, out_path=tmpdir, tmp_path=tmpdir, cds=False, cscore=None, to_stop=True)
         d.get_paranome()
         # MCL is not deterministic, but the number of families is somewhere around 35
         assert 30 < len(d.mcl) < 40  
 
         # round tripping for families?
         # write to file/read from file
-        families = d.write_paranome()
+        families = d.write_paranome(False)
         fams = read_gene_families(families)
         fams = get_gene_families(d, fams)
         assert len(d.mcl) == len(fams)  # Round tripped
@@ -55,7 +55,7 @@ class TestCore:
         kwargs = {"out_path": tmpdir, "tmp_path": tmpdir, "cds":False, "to_stop":False}
         d1 = SequenceData(s1, **kwargs)
         d2 = SequenceData(s2, **kwargs)
-        d1.get_rbh_orthologs(d2, eval=1e-3)
+        d1.get_rbh_orthologs(d2,None,False, eval=1e-3)
         df = d1.rbh[d2.prefix]
         # test below fails with PAML 4.9i (works with 4.9j)
         # test below fails with diamond 0.9.18 (works with 2.0.5)
