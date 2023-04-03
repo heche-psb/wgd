@@ -360,12 +360,12 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         if kmedoids:
             df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters, segment = segment, multipliconpairs=multipliconpairs,listelement=listelement)
         else:
-            fit_apgmm_guide(hdr,guide,anchor,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=segment,multipliconpairs=multipliconpairs,listelement=listelement)
+            df_ap_mp = fit_apgmm_guide(hdr,guide,anchor,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=segment,multipliconpairs=multipliconpairs,listelement=listelement)
             df_ap = fit_apgmm_ap(hdr,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
         if heuristicci:
             find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
             find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-            find_mpeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_mpeak(df_ap_mp,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
         logging.info('Done')
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])

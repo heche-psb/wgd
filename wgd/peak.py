@@ -1184,26 +1184,52 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user)
 
 def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
-    ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
-    sp_m = '{}'.format(sp)
-    if user:
-        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
-        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
+    if len(lower) == 1:
+        ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper[0]) & (gs_ks['dS']>=lower[0]),:]
+        sp_m = '{}'.format(sp)
+        if user:
+            if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+            else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
+        else:
+            if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
+            else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
+        ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+        anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+        ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
+        ap_format.index.name = 'id'
+        if user:
+            if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
+            else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
+        else:
+            if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
+            else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
+        ap_format.to_csv(fname,header=True,index=True,sep='\t')
     else:
-        if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
-        else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
-    ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
-    anchors = pd.read_csv(anchor, sep="\t", index_col=0)
-    anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
-    ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
-    ap_format.index.name = 'id'
-    if user:
-        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
-        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
-    else:
-        if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
-        else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
-    ap_format.to_csv(fname,header=True,index=True,sep='\t')
+        for indice,i in enumerate(zip(lower,upper)):
+            lower,upper = i[0],i[1]
+            text = 'Peak_{}_'.format(indice+1)
+            ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
+            sp_m = text + '{}'.format(sp)
+            if user:
+                if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+                else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
+            else:
+                if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged.tsv".format(sp_m,ci))
+                else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
+            ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+            anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+            anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+            ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
+            ap_format.index.name = 'id'
+            if user:
+                if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
+                else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
+            else:
+                if na: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_node_averaged_format.tsv".format(sp_m,ci))
+                else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted_format.tsv".format(sp_m,ci))
+            ap_format.to_csv(fname,header=True,index=True,sep='\t')
+
 
 def add_mpgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
     predict_column = pd.DataFrame(labels,index=df_index.index,columns=['AnchorKs_GMM_Component']).reset_index()
@@ -1215,18 +1241,36 @@ def add_mpgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
 
 def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
     gs_ks = gs_ks.reset_index().set_index(guide).join(mpKs)
-    ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
-    sp_m = '{}_guided_{}'.format(guide,sp)
-    if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
-    else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
-    ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
-    anchors = pd.read_csv(anchor, sep="\t", index_col=0)
-    anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
-    ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
-    ap_format.index.name = 'id'
-    if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
-    else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating_format.tsv".format(sp_m,ci))
-    ap_format.to_csv(fname,header=True,index=True,sep='\t')
+    if len(lower) == 1:
+        ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper[0]) & (gs_ks['Median_Ks']>=lower[0]),:]
+        sp_m = '{}_guided_{}'.format(guide,sp)
+        if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
+        ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+        anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+        ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
+        ap_format.index.name = 'id'
+        if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating_format.tsv".format(sp_m,ci))
+        ap_format.to_csv(fname,header=True,index=True,sep='\t')
+    else:
+        for indice,i in enumerate(zip(lower,upper)):
+            text = 'Peak_{}_'.format(indice+1)
+            lower,upper = i[0],i[1]
+            ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
+            sp_m = text + '{}_guided_{}'.format(guide,sp)
+            if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
+            else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
+            ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+            anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+            anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+            ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
+            ap_format.index.name = 'id'
+            if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
+            else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating_format.tsv".format(sp_m,ci))
+            ap_format.to_csv(fname,header=True,index=True,sep='\t')
+
 
 def get_outlierexcluded(df,cutoff = 5):
     df = df[df['dS']<cutoff]
@@ -1311,10 +1355,9 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     return np.exp(mean)-std*2,np.exp(mean)+std*2
 
 def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None, ci=95):
-    text = "AnchorKs_PeakCI_"
-    if guide != None: fname = os.path.join(outdir, "{}{}_guided_{}.pdf".format(text,guide,sp))
-    elif na: fname = os.path.join(outdir, "{}{}_node_averaged.pdf".format(text,sp))
-    else: fname = os.path.join(outdir, "{}{}_node_weighted.pdf".format(text,sp))
+    if guide != None: fname = os.path.join(outdir, "{}Ks_PeakCI_{}.pdf".format(guide,sp))
+    elif na: fname = os.path.join(outdir, "AnchorKs_PeakCI_{}_node_averaged.pdf".format(sp))
+    else: fname = os.path.join(outdir, "AnchorKs_PeakCI_{}_node_weighted.pdf".format(sp))
     f, ax = plt.subplots()
     x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
     bin_width = 0.1
@@ -1322,16 +1365,19 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     alphas = np.linspace(0.3, 0.7, len(init_means))
     ci_l = (1-ci/100)/2
     ci_u = 1-(1-ci/100)/2
+    CI_95s = []
     for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
         Hs, Bins, patches = ax.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
         CHF = get_totalH(Hs)
         scaling = CHF*0.1
         ax.plot(x_points_strictly_positive,scaling*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(mean),s=std), c=cs[i], ls='-', lw=1.5, alpha=0.8, label='Peak {} mode {:.2f}'.format(i+1,np.exp(mean - std**2)))
         CI_95 = stats.lognorm.ppf([ci_l, ci_u], scale=np.exp(mean), s=std)
+        CI_95s.append(CI_95)
         plt.axvline(x = CI_95[0], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(i+1,ci,CI_95[0]))
         plt.axvline(x = CI_95[1], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(i+1,ci,CI_95[1]))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
-    if guide != None: plt.ylabel("Number of retained duplicates", fontsize = 10)
+    if guide == 'segment': plt.ylabel("Number of segment pair", fontsize = 10)
+    elif guide != None: plt.ylabel("Number of {}".format(guide), fontsize = 10)
     elif na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
     else: plt.ylabel("Number of retained duplicates (weighted)", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
@@ -1340,7 +1386,8 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     plt.tight_layout()
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
-    return CI_95[0],CI_95[1]
+    return [i[0] for i in CI_95s],[i[1] for i in CI_95s]
+    #return CI_95[0],CI_95[1]
 
 def plot_Elbow_loss(Losses,outdir,n1=None,n2=None,method='Medoids',regime=None):
     if regime == 'original': fname = os.path.join(outdir,'{}_Elbow-Loss_Original_Anchor_Ks.pdf'.format(method))
