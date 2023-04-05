@@ -114,12 +114,13 @@ def fit_linear(df,orig_df):
     normalized = [j/(pow(10, intercept)*(l**slope)) for j,l in zip(orig_df[11],orig_df[12])]
     return normalized
 
-def genelengthpercentile5(df):
-    cutoff = np.percentile(df[11], 95)
+def genelengthpercentile5(df,hitper = 5):
+    cut = int(100-hitper)
+    cutoff = np.percentile(df[11], cut)
     df = df[df[11]>=cutoff]
     return df
 
-def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True,bins = 100):
+def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True,bins = 100, hitper = 5):
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
@@ -149,7 +150,7 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                 for i in range(bins):
                     if i != bins-1: bit_score_bins = df.loc[int((i*bin_size)):int(((i+1)*bin_size-1)),11:12].copy()
                     else: bit_score_bins = df.loc[int((i*bin_size)):,11:12].copy()
-                    data_per_bin.append(genelengthpercentile5(bit_score_bins))
+                    data_per_bin.append(genelengthpercentile5(bit_score_bins,hitper = hitper))
                 merged_data = pd.concat(data_per_bin)
                 df.loc[:,13] = fit_linear(merged_data,df)
                 combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()}
@@ -182,7 +183,7 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                         if bin_size == 0:
                             logging.info('number of hits are less than bins, will use one bin of all hits for normalization')
                             bit_score  = df_spair.loc[:,11:12].copy()
-                            data_per_bin.append(genelengthpercentile5(bit_score))
+                            data_per_bin.append(genelengthpercentile5(bit_score,hitper = hitper))
                         #a=list(df_spair.loc[:,13])
                         #b=list(df_spair.loc[:,14])
                         #print(a[1])
@@ -193,8 +194,8 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                             for k in range(bins):
                                 if k != bins-1: bit_score_bins = df_spair.loc[int((k*bin_size)):int(((k+1)*bin_size-1)),11:12].copy()
                                 else: bit_score_bins = df_spair.loc[int((k*bin_size)):,11:12].copy()
-                                print(bit_score_bins.shape)
-                                data_per_bin.append(genelengthpercentile5(bit_score_bins))
+                                #print(bit_score_bins.shape)
+                                data_per_bin.append(genelengthpercentile5(bit_score_bins,hitper = hitper))
                         merged_data = pd.concat(data_per_bin)
                         df_spair.loc[:,15] = fit_linear(merged_data,df_spair)
                         dfs.append(df_spair)
@@ -231,10 +232,10 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, np = 5):
+            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
-        self.np = np
+        self.np = normalizedpercent
         self.tmp_path  = _mkdir(tmp_path)
         self.out_path  = _mkdir(out_path)
         self.cds_fasta = cds_fasta
@@ -335,8 +336,10 @@ class SequenceData:
         df = df.loc[df[0] != df[1]]
         df = df.loc[df[10] <= eval]
         outpath = os.path.join(self.tmp_path, '{0}_{1}_hits_gene_length_normalizedBitscore.tsv'.format(self.prefix,seqs.prefix))
-        #df = normalizebitscore(self.gene_length,df,outpath)
-        if normalize: df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap,bins = self.bins).drop(columns=[11,12]).rename(columns={13:11})
+        if normalize:
+            logging.info("Normalization between {} & {}".format(self.prefix,seqs.prefix))
+            logging.info("{} bins & upper {}% hits in linear regression".format(self.bins,self.np))
+            df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap,bins = self.bins,hitper = self.np).drop(columns=[11,12]).rename(columns={13:11})
         self.dmd_hits[seqs.prefix] = df
         return df
 
@@ -1628,7 +1631,7 @@ def dmd4g2f(outdir,s,nthreads,querys,df):
 
 def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent):
     logging.info("Assigning sequences into given gene families")
-    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, np=normalizedpercent) for s in seq2assign]
+    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, normalizedpercent=normalizedpercent) for s in seq2assign]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
     if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
@@ -1680,7 +1683,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
         sgidmaps = {}
         for x in s : sgidmaps.update(x.spgenemap())
         Concat_cdsf = concatcdss(sequences,outdir)
-        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, np=normalizedpercent)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)

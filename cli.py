@@ -79,7 +79,7 @@ def cli(verbosity):
 @click.option('--collinearcoalescence','-coc', is_flag=True,help="collinear coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
 @click.option('--bins', '-bs', type=int, default=100, show_default=True, help='bins for gene length normalization')
-@click.option('--normalizedpercent', '-np', type=int, default=5, show_default=True, help='percentage of top hits used for normalization')
+@click.option('--normalizedpercent', '-np', type=int, default=5, show_default=True, help='percentage of upper hits used for normalization')
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
 @click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='hmm profile of given busco dataset')
 @click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO')
@@ -115,7 +115,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, np=normalizedpercent) for s in sequences]
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if buscosog:
         logging.info("Constructing busco-guided families")
