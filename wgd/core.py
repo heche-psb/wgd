@@ -232,7 +232,7 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5):
+            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5, nonormalization=False):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
         self.np = normalizedpercent
@@ -254,6 +254,7 @@ class SequenceData:
         self.read_cds(to_stop=to_stop, cds=cds)
         self.threads = threads
         self.bins = bins
+        self.nonormalization = nonormalization
         _write_fasta(self.pro_fasta, self.pro_seqs)
 
     def read_cds(self, to_stop=True, cds=True):
@@ -262,6 +263,7 @@ class SequenceData:
         keep the full records in a dict with these IDs. We use the newly assigned
         IDs in further analyses, but can reconvert at any time.
         """
+        self.idmapop = {'original_id':[],'safe_id':[]}
         for i, record in enumerate(SeqIO.parse(self.cds_fasta, 'fasta')):
             gid = "{0}_{1:0>5}".format(self.prefix, i)
             try:
@@ -278,7 +280,11 @@ class SequenceData:
             self.cds_sequence[gid] = na_sequence
             self.pro_sequence[gid] = aa_sequence
             self.idmap[record.id] = gid
+            self.idmapop['original_id'].append(record.id)
+            self.idmapop['safe_id'].append(gid)
             self.gene_length[gid] = len(aa_sequence)
+        df_idmap_tooutput = pd.DataFrame.from_dict(self.idmapop)
+        df_idmap_tooutput.to_csv(os.path.join(self.tmp_path, self.prefix+'.original_safe_id'),header=True,index=False,sep='\t')
         return
 
     def orig_profasta(self):
@@ -322,7 +328,7 @@ class SequenceData:
             logging.debug(out.stderr.decode())
             if out.returncode == 1: logging.error(out.stderr.decode())
 
-    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False, normalize = True,sgidmaps=None):
+    def run_diamond(self, seqs, orthoinfer, eval=1e-10, savememory=False, sgidmaps=None):
         self.merge_gene_length(seqs)
         self.make_diamond_db()
         run = "_".join([self.prefix, seqs.prefix + ".tsv"])
@@ -336,7 +342,7 @@ class SequenceData:
         df = df.loc[df[0] != df[1]]
         df = df.loc[df[10] <= eval]
         outpath = os.path.join(self.tmp_path, '{0}_{1}_hits_gene_length_normalizedBitscore.tsv'.format(self.prefix,seqs.prefix))
-        if normalize:
+        if not self.nonormalization:
             logging.info("Normalization between {} & {}".format(self.prefix,seqs.prefix))
             logging.info("{} bins & upper {}% hits in linear regression".format(self.bins,self.np))
             df = normalizebitscore(self.gene_length,df,outpath,sgidmaps=sgidmaps,idmap=self.idmap,seqmap=seqs.idmap,bins = self.bins,hitper = self.np).drop(columns=[11,12]).rename(columns={13:11})
@@ -1677,13 +1683,13 @@ def concatcdss(sequences,outdir):
     with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
-def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=100):
+def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=100,nonormalization=False):
     s0_orig = copy.deepcopy(s[0])
     if concat:
         sgidmaps = {}
         for x in s : sgidmaps.update(x.spgenemap())
         Concat_cdsf = concatcdss(sequences,outdir)
-        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent)
+        ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent,nonormalization=nonormalization)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
         memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)
