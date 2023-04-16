@@ -1538,7 +1538,7 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = N
     yb = lambda i:os.path.basename(i).strip('.tbl')
     if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
     outdict = {yb(i):{} for i in outs}
-    f_g_score = {fid:{} for fid in df.index}
+    if not bhmm: f_g_score = {fid:{} for fid in df.index}
     for out in outs:
         #print(yb(out))
         dfo = pd.read_csv(out,header = None, index_col=False,sep ='\t')
