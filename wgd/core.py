@@ -89,9 +89,12 @@ def _label_internals(tree):
 def _label_families(df):
     df.index = ["GF{:0>8}".format(i+1) for i in range(len(df.index))]
 
-def _process_unrooted_tree(treefile, fformat="newick"):
+def _process_unrooted_tree(treefile, gfid, fformat="newick"):
     tree = Phylo.read(treefile, fformat)
-    tree.root_at_midpoint()
+    try:
+        tree.root_at_midpoint()
+    except UnboundLocalError as e:
+        logging.warning("Branch length all zero for family {}".format(gfid))
     _label_internals(tree)
     return tree
 
@@ -2658,14 +2661,14 @@ class GeneFamily:
         cmd = ["iqtree", "-s", self.pro_alnf] + options.split()
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out, program="iqtree")
-        return _process_unrooted_tree(self.pro_alnf + ".treefile")
+        return _process_unrooted_tree(self.pro_alnf + ".treefile",self.id)
 
     def run_fasttree(self):
         tree_pth = self.pro_alnf + ".nw"
         cmd = ["FastTree", '-out', tree_pth, self.pro_alnf]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out, program="fasttree")
-        return _process_unrooted_tree(self.pro_alnf + ".nw")
+        return _process_unrooted_tree(self.pro_alnf + ".nw",self.id)
 
     def cluster(self):
         return cluster_ks(self.codeml_results)
