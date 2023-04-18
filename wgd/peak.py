@@ -1142,7 +1142,7 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
-    df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
+    df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     ks_or = np.array(df['dS'])
     w = np.array(df['weightoutlierexcluded'])
     ks = np.log(ks_or)
@@ -1184,7 +1184,20 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user)
 
 def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
-    if len(lower) == 1:
+    if type(lower) == float:
+        ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
+        sp_m = '{}'.format(sp)
+        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted.tsv".format(sp_m))
+        ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+        anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+        ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
+        ap_format.index.name = 'id'
+        if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged_format.tsv".format(sp_m))
+        else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
+        ap_format.to_csv(fname,header=True,index=True,sep='\t')
+    elif len(lower) == 1:
         ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper[0]) & (gs_ks['dS']>=lower[0]),:]
         sp_m = '{}'.format(sp)
         if user:
@@ -1241,7 +1254,18 @@ def add_mpgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
 
 def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
     gs_ks = gs_ks.reset_index().set_index(guide).join(mpKs)
-    if len(lower) == 1:
+    if type(lower) == float:
+        ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
+        sp_m = '{}_guided_{}'.format(guide,sp)
+        fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
+        ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
+        anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
+        ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
+        ap_format.index.name = 'id'
+        fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
+        ap_format.to_csv(fname,header=True,index=True,sep='\t')
+    elif len(lower) == 1:
         ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper[0]) & (gs_ks['Median_Ks']>=lower[0]),:]
         sp_m = '{}_guided_{}'.format(guide,sp)
         if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
@@ -1381,6 +1405,7 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     elif na: plt.ylabel("Number of retained duplicates (node averaged)", fontsize = 10)
     else: plt.ylabel("Number of retained duplicates (weighted)", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
+    ax.set_xlim(0, 5)
     sns.despine(offset=1)
     plt.title('Anchor $K_\mathrm{S}$'+' distribution of {}'.format(sp))
     plt.tight_layout()
