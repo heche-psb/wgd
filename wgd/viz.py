@@ -794,7 +794,7 @@ def filter_by_dfy(seg,dfy,minlen,spy):
     rm_indices = []
     for i in seg.index:
         if seg.loc[i,'genome'] == spy:
-            scfa = str(seg.loc[i,'list'])
+            scfa = seg.loc[i,'list']
             if scfa_len[scfa] <= minlen: rm_indices.append(i)
     seg = seg.drop(rm_indices)
     return seg
@@ -1179,6 +1179,7 @@ def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
+    # Note that the Chr ID in gff3 file should not be alleen int or float
     gdf = list(df.groupby("species"))
     n = len(gdf)
     figs = {}
