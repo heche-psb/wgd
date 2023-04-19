@@ -794,7 +794,7 @@ def filter_by_dfy(seg,dfy,minlen,spy):
     rm_indices = []
     for i in seg.index:
         if seg.loc[i,'genome'] == spy:
-            scfa = seg.loc[i,'list']
+            scfa = str(seg.loc[i,'list'])
             if scfa_len[scfa] <= minlen: rm_indices.append(i)
     seg = seg.drop(rm_indices)
     return seg
