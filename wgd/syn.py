@@ -45,7 +45,7 @@ def gff2table(gff, feature, attribute):
     rows = []
     with open(gff, "r") as f:
         for l in f.readlines():
-            if l.startswith("#"):
+            if l.startswith("#") or l.strip()=='':
                 continue
             x = l.split("\t")
             #Note here the empty lines from input will make error
