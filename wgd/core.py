@@ -1377,7 +1377,8 @@ def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads):
         cmd = pfam_annot(cmd,pfam)
         cmd = dmnb_annot(cmd,dmnb)
         cmds.append(cmd)
-    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    #Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=10)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
     #out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
     os.chdir(parent)
 

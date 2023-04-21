@@ -321,12 +321,12 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     fig.tight_layout()
     return fig
 
-def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
+def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
     colors = cm.rainbow(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
-    Hs_maxs,y_lim_beforekde_s = [],[]
+    Hs_maxs,y_lim_beforekde_s,HDRs = [],[],{}
     if weighted:
         for num,color in zip(range(nums),colors):
             #if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
@@ -347,9 +347,6 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekde_s.append(y_lim_beforekde)
-            #kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
-            #kde_y = kde(kde_x)
-            #mode, maxim = kde_mode(kde_x, kde_y)
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             ax.plot(kde_x, kde_y*scaling, color=color,alpha=0.4, ls = '--',lw = 1)
@@ -358,6 +355,10 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
             ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+            upper_HPD,lower_HPD = calculateHPD(y,hdr)
+            ax.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
+            ax.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1)
+            HDRs[num] = (lower_HPD,upper_HPD)
     else:
         for num,color in zip(range(nums),colors):
             if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
@@ -375,9 +376,6 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekde_s.append(y_lim_beforekde)
-            #kde = stats.gaussian_kde(y,bw_method=0.1)
-            #kde_y = kde(kde_x)
-            #mode, maxim = kde_mode(kde_x, kde_y)
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             ax.plot(kde_x, kde_y*scaling, color=color,alpha=0.4, ls = '--',lw = 1)
@@ -386,7 +384,11 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
             ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
-    ax.legend(loc='upper right', fontsize='large',frameon=False)
+            upper_HPD,lower_HPD = calculateHPD(y,hdr)
+            ax.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
+            ax.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1)
+            HDRs[num] = (lower_HPD,upper_HPD)
+    ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
@@ -396,7 +398,7 @@ def plot_ak_component_kde(df,nums,bins=50,ylabel="Duplication events",weighted=T
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
-    return fig
+    return fig,HDRs
 
 def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
     ndists = len(args)
@@ -1579,7 +1581,7 @@ def find_level345(df):
 def calculateHPD(train_in,per):
     sorted_in = np.sort(train_in)
     #The lower_bound might be as zero which abort the HDR
-    upper_bound_indice = int(np.ceil(per*len(sorted_in)/100))
+    upper_bound_indice = int(np.floor(per*len(sorted_in)/100))
     lower_bound_indice = int(np.ceil((100-per)*len(sorted_in)/100))
     #upper_bound = np.percentile(train_in, per)
     #lower_bound = np.percentile(train_in, 100-per)
@@ -1598,7 +1600,7 @@ def calculateHPD(train_in,per):
     lower,upper = sorted(candidates, key=lambda y: y[0])[0][1][0],sorted(candidates, key=lambda y: y[0])[0][1][1]
     return sorted_in[upper],sorted_in[lower]
 
-def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=None,multipliconpairs=None,listelement=None):
+def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1641,12 +1643,21 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig = plot_ak_component_kde(df_c.dropna(),n,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
+        fig,HDRs = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
+        getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,guide,cutoff)
         if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted_kde.pdf".format(guide,n))
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
     return df
+
+def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
+    for num in HDRs.keys():
+        df_tmp = df_c[df_c['AnchorKs_GMM_Component']==num]
+        df_tmp = df_tmp.loc[(df_tmp['dS']<=min([cutoff,HDRs[num][1]])) & (df_tmp['dS']>=HDRs[num][0]),:]
+        df_tmp = df_tmp.loc[:,['gene1','gene2','dS','Segment_dS','AnchorKs_GMM_Component']].rename(columns={"gene1":"gene_x","gene2":"gene_y"})
+        fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
+        df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
 def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,weighted,plot):
     if anchor == None:

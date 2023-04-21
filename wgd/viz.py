@@ -1198,6 +1198,7 @@ def all_dotplots(df, segs, multi, anchors=None, ancestor=None, **kwargs):
             logging.info("{} vs. {}".format(spx, spy))
             get_dots(dfx, dfy, segs, multi, dupStack = True, **kwargs)
     logging.info("Making dotplots and marco-synteny plots")
+    getscafflength(n,gdf,**kwargs)
     if n > 1: get_marco_whole(list(map(lambda x:x[1],gdf)),segs, multi,**kwargs)
     for i in range(n):
         for j in range(i, n):
@@ -1395,6 +1396,18 @@ def get_dots(dfx, dfy, seg, multi, minlen=-1, maxsize=200, outdir = '', dupStack
         #yl = list(dfy["scaffstart"].drop_duplicates()) + [df['y'].max()]
         yl = list(dfy.drop_duplicates(subset=['scaffstart']).loc[:,'scaffstart'])
         return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick 
+
+def getscafflength(n,gdf,outdir='',maxsize='',minlen='',ancestor=''):
+    Lens = []
+    for i in range(n):
+        sp, df = gdf[i]
+        lens = df.groupby("scaffold")["start"].agg(max)
+        lens.name = "length"
+        lens = pd.DataFrame(lens).sort_values("length", ascending=False)
+        lens.loc[:,'species'] = [sp for j in range(lens.shape[0])]
+        Lens.append(lens)
+    Df = pd.concat(Lens,ignore_index=False)
+    Df.to_csv("{}".format(os.path.join(outdir,'scaffold_length.tsv')),sep='\t',header=True,index=True)
 
 def filter_data_dotplot(df, minlen):
     lens = df.groupby("scaffold")["start"].agg(max)
