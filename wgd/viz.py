@@ -14,6 +14,8 @@ from matplotlib.path import Path
 import matplotlib.patches as patches
 from matplotlib.pyplot import cm
 from scipy import stats,interpolate,signal
+from io import StringIO
+from Bio import Phylo
 
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -44,18 +46,101 @@ _labels = {
         "dN" : "$K_\mathrm{A}$",
         "dN/dS": "$\omega$"}
 
-def getspair_ks(spair,df,spgenemap):
+def getspair_ks(spair,df,spgenemap,reweight,sptree=None):
     df_perspair = {}
     allspair = []
     paralog_pair = []
     for i in spair:
-        pair = '_'.join(sorted([j.strip() for j in i.split(';')]))
-        if i.split(';')[0] == i.split(';')[1]: paralog_pair.append(pair)
+        pair = '__'.join(sorted([j.strip() for j in i.split(';')]))
+        if i.split(';')[0].strip() == i.split(';')[1].strip(): paralog_pair.append(pair)
         if pair not in allspair: allspair.append(pair)
     #df['sp1'],df['sp2'] = [spgenemap[g] for g in df['gene1']],[spgenemap[g] for g in df['gene2']]
-    df['spair'] = ['_'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
+    df['spair'] = ['__'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
+    if sptree != None: corrected_ks_spair,Outgroup_spnames = correctks(df,sptree,paralog_pair[0],reweight)
+    else: corrected_ks_spair,Outgroup_spnames = None,None
     for p in allspair: df_perspair[p] = df[df['spair']==p]
-    return df_perspair,allspair,paralog_pair
+    return df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames
+
+def findoutgroup(focusp,first_children_of_root):
+    for clade in first_children_of_root:
+        clade.name = clade.name + "_Outgroup"
+        for tip in clade.get_terminals():
+            if tip.name == focusp:
+                clade.name = clade.name.replace("_Outgroup","_Ingroup")
+                break
+
+def gettrios(focusp,Ingroup_spnames,Outgroup_spnames):
+    all_spairs,spairs,trios,Trios_dict = [],[],[],{}
+    for sister in Ingroup_spnames:
+        if sister == focusp:
+            continue
+        sppair = "{}".format("__".join(sorted([sister,focusp])))
+        spairs.append(sppair)
+        all_spairs.append(sppair)
+        Trios_dict[sppair] = []
+        for outgroup in Outgroup_spnames:
+            # The order in (focus,sister,outgroup)
+            all_spairs.append("{}".format("__".join(sorted([sister,outgroup]))))
+            all_spairs.append("{}".format("__".join(sorted([focusp,outgroup]))))
+            trios.append((focusp,sister,outgroup))
+            Trios_dict[sppair].append((focusp,sister,outgroup))
+    return all_spairs,spairs,trios,Trios_dict
+
+def getspairks(spairs,df,reweight,method='mode'):
+    bins = 50
+    kdesity = 100
+    kde_x = np.linspace(0,5,num=bins*kdesity)
+    spairs_ks = {}
+    for spair in spairs:
+        df_tmp = df[df['spair']==spair]
+        x = df_tmp['dS']
+        y = x[np.isfinite(x)]
+        w = reweighted(df_tmp) if reweight else df_tmp['weightoutlierexcluded']
+        if method == 'mode':
+            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+            kde_y = kde(kde_x)
+            mode, maxim = kde_mode(kde_x, kde_y)
+            spairs_ks[spair] = mode
+        elif method == 'median':
+            median = np.median(kde_y)
+            spairs_ks[spair] = median
+    return spairs_ks
+
+def ksadjustment(Trios_dict,ks_spair):
+    corrected_ks_spair = {}
+    for spair,trios in Trios_dict.items():
+        Ks_adjusted_all = []
+        for trio in trios:
+            Ks_focus_outgroup = ks_spair["{}".format("__".join(sorted([trio[0],trio[2]])))]
+            Ks_sister_outgroup = ks_spair["{}".format("__".join(sorted([trio[1],trio[2]])))]
+            Ks_focus_sister = ks_spair["{}".format("__".join(sorted([trio[0],trio[1]])))]
+            Ks_focus_specific = ((Ks_focus_outgroup - Ks_sister_outgroup) + Ks_focus_sister)/2
+            Ks_adjusted = Ks_focus_specific * 2
+            Ks_adjusted_all.append(Ks_adjusted)
+        final_adjusted_Ks = np.array(Ks_adjusted_all).mean()
+        corrected_ks_spair[spair] = final_adjusted_Ks
+    return corrected_ks_spair
+
+def correctks(df,sptree,focus,reweight):
+    focusp = focus.split('__')[0]
+    tree = Phylo.read(sptree, "newick")
+    for i,clade in enumerate(tree.get_nonterminals()): clade.name = "internal_node_{}".format(i)
+    tree.root.name = 'assumed_root'
+    focussp_clade = next(tree.find_clades({"name": focusp}))
+    Depths = tree.root.depths(unit_branch_lengths=True)
+    first_children_of_root = []
+    for clade,depth in Depths.items():
+        if depth == 1: first_children_of_root.append(clade)
+    findoutgroup(focusp,first_children_of_root)
+    Outgroup_clade = first_children_of_root[0] if first_children_of_root[0].name.endswith('_Outgroup') else first_children_of_root[1]
+    Ingroup_clade = first_children_of_root[0] if first_children_of_root[0].name.endswith('_Ingroup') else first_children_of_root[1]
+    Outgroup_spnames = [i.name.replace('_Outgroup','').replace('_Ingroup','') for i in Outgroup_clade.get_terminals()]
+    Ingroup_spnames = [i.name.replace('_Outgroup','').replace('_Ingroup','') for i in Ingroup_clade.get_terminals()]
+    all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
+    ks_spair = getspairks(all_spairs,df,reweight,method='mode')
+    print(ks_spair)
+    corrected_ks_spair = ksadjustment(Trios_dict,ks_spair)
+    return corrected_ks_spair,Outgroup_spnames
 
 def get_totalH(Hs):
     CHF = 0
@@ -84,20 +169,20 @@ def kde_mode(kde_x, kde_y):
 def reweighted(df_per):
     return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
 
-def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=False,reweight=True,ksd=False):
+def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False):
     if not ksd: spgenemap = getgsmap(gsmap)
     else: spgenemap = gsmap
     fnames = os.path.join(outdir,'{}_per_spair.ksd.svg'.format(title))
     fnamep = os.path.join(outdir,'{}_per_spair.ksd.pdf'.format(title))
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair,paralog_pair = getspair_ks(spair,df,spgenemap)
+    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,spgenemap,reweight,sptree=sptree)
     cs = cm.rainbow(np.linspace(0, 1, len(allspair)))
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
     funs = [lambda x: x, np.log10, np.log10, np.log10]
     #fig, axs = plt.subplots(2, 2)
     fig, ax = plt.subplots()
-    df_pers = [df_perspair[i] for i in allspair]
+    #df_pers = [df_perspair[i] for i in allspair]
     bins = 50
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -114,15 +199,23 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
         Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
+        if corrected_ks_spair != None:
+            if pair != paralog_pair[0] and len(set(Outgroup_spnames).intersection(set(pair.split("__")))) == 0:
+                #since paralogous genes and orthologous genes between focus and outgroup speices have no corrected Ks data
+                ax.axvline(x = corrected_ks_spair[pair], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
         if pair not in paralog_pair:
             kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
-            logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
+            logging.info('The mode of species pair {} is {:.2f}'.format(pair,mode))
             CHF = get_totalH(Hs)
             scale = CHF*0.1
             if plotkde: ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
-            if plotkde: ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1)
+            ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
+            if corrected_ks_spair != None:
+                if pair != paralog_pair[0] and len(set(Outgroup_spnames).intersection(set(pair.split("__")))) == 0:
+                    ax.arrow(x=mode, y=maxim*scale, dx=corrected_ks_spair[pair]-mode, dy=0, length_includes_head=True,width=abs(corrected_ks_spair[pair]-mode),head_width=abs(corrected_ks_spair[pair]-mode)*0.005, head_length=abs((corrected_ks_spair[pair]-mode)*0.005), color=cs[i])
             #if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,label=pair)
             #else: ax.hist(y, weights=w, color=cs[i], alpha=0.3, rwidth=0.8,bins=50,label=pair)
         #w = [df_per['weightoutlierexcluded'] for df_per in df_pers]
@@ -136,7 +229,9 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
             #ax.set_xlabel(xlabel)
             #ax.legend(loc=1,bbox_to_anchor=(1.0, 0.9),fontsize='small')
     ax.set_xlabel(_labels["dS"])
-    ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
+    #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
+    ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
+    #legend = ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5),frameon=False)
     #ax.legend(loc=1,fontsize=8,frameon=False)
     #axs[0,0].set_ylabel(ylabel)
     #axs[1,0].set_ylabel(ylabel)
@@ -147,10 +242,10 @@ def multi_sp_plot(df,spair,gsmap,outdir,title='',ylabel='',viz=False,plotkde=Fal
     #fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
     #plt.title(title,loc='center')
     ax.set_title(title)
-    fig.tight_layout()
+    #fig.tight_layout()
     #plt.subplots_adjust(top=0.85)
-    fig.savefig(fnames)
-    fig.savefig(fnamep)
+    fig.savefig(fnames,bbox_inches='tight')
+    fig.savefig(fnamep,bbox_inches='tight')
     plt.close()
 
 def reflect_logks(ks,w):

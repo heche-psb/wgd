@@ -421,6 +421,7 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     default='cluster', show_default=True,
     help="Tree inference method for node weighting")
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
+@click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -439,7 +440,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, tree_method,spair):
+        strip_gaps, tree_method,spair, speciestree):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -473,7 +474,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
-    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True)
+    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True,sptree=speciestree)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -490,6 +491,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--outdir', '-o', default="wgd_viz", show_default=True, help='output directory')
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--gsmap', '-gs', default=None, show_default=True, help='gene name-species name map')
+@click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
 @click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
 @click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
 @click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
@@ -509,7 +511,7 @@ def viz(**kwargs):
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height,speciestree):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile
@@ -529,7 +531,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
     ylabel = "Duplications" if spair == () else "Homologous pairs"
-    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight)
+    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
