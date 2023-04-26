@@ -1059,34 +1059,53 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir, infer_tre
     proseq = {}
     ctree_length = 0
     slist_set = set(slist)
+    Gs_dict = {}
+    with open(gsmap,"r") as f:
+        lines = f.readlines()
+        for k in lines:
+            k = k.strip('\n').strip(' ').split(' ')
+            Gs_dict[k[0]] = k[1]
     for i in range(famnum):
         famid = "GF{:0>8}".format(i+1)
         cds_aln = cds_alns[famid]
         pro_aln = pro_alns[famid]
         added_sp = set()
         for j in range(len(pro_aln)):
-            with open(gsmap,"r") as f:
-                lines = f.readlines()
-                for k in lines:
-                    k = k.strip('\n').strip(' ').split(' ')
-                    if k[0] == cds_aln[j].id:
+            #with open(gsmap,"r") as f:
+            #    lines = f.readlines()
+            #    for k in lines:
+            #        k = k.strip('\n').strip(' ').split(' ')
+                    #if k[0] == cds_aln[j].id:
                         # here the repeated occurance of one ap will lead to errornously multiply that sequence
-                        spn = k[1]
-                        if spn in added_sp:
-                            if spn.endswith('_ap1'): spn=spn[:-1]+'2'
-                            else: spn=spn[:-1]+'1'
-                        added_sp.add(spn)
-                        cds_aln[j].id = spn
-                        sequence = cds_aln[j].seq
-                        if cdsseq.get(spn) is None: cdsseq[spn] = str(sequence)
-                        else: cdsseq[spn] = cdsseq[spn] + str(sequence)
+                        #spn = k[1]
+                        #if spn in added_sp:
+                        #    if spn.endswith('_ap1'): spn=spn[:-1]+'2'
+                        #    else: spn=spn[:-1]+'1'
+                        #added_sp.add(spn)
+                        #cds_aln[j].id = spn
+                        #sequence = cds_aln[j].seq
+                        #if cdsseq.get(spn) is None: cdsseq[spn] = str(sequence)
+                        #else: cdsseq[spn] = cdsseq[spn] + str(sequence)
                     #if k[0] == pro_aln[j].id:
                     #    spn = k[1]
-                        pro_aln[j].id = spn
-                        sequence = pro_aln[j].seq
-                        if proseq.get(spn) is None: proseq[spn] = str(sequence)
-                        else: proseq[spn] = proseq[spn] + str(sequence)
-                        break
+                        #pro_aln[j].id = spn
+                        #sequence = pro_aln[j].seq
+                        #if proseq.get(spn) is None: proseq[spn] = str(sequence)
+                        #else: proseq[spn] = proseq[spn] + str(sequence)
+                        #break
+            spn = Gs_dict[cds_aln[j].id]
+            if spn in added_sp:
+                if spn.endswith('_ap1'): spn=spn[:-1]+'2'
+                else: spn=spn[:-1]+'1'
+            added_sp.add(spn)
+            cds_aln[j].id = spn
+            sequence = cds_aln[j].seq
+            if cdsseq.get(spn) is None: cdsseq[spn] = str(sequence)
+            else: cdsseq[spn] = cdsseq[spn] + str(sequence)
+            pro_aln[j].id = spn
+            sequence = pro_aln[j].seq
+            if proseq.get(spn) is None: proseq[spn] = str(sequence)
+            else: proseq[spn] = proseq[spn] + str(sequence)
         if slist_set != added_sp: logging.info('Error in concatenation process that multiple genes were concatenated to the same species. Please check the input file that if two genes in the same family could be assigned to the same species!')
         cds_alns_rn[famid] = cds_aln
         pro_alns_rn[famid] = pro_aln

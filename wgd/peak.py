@@ -169,13 +169,13 @@ def get_totalH(Hs):
 def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Counts",regime='multiplicon'):
     #labels = labels[(X<5) & (X>0)]
     #X = X[(X<5) & (X>0)]
-    colors = cm.rainbow(np.linspace(0, 1, n))
+    colors = cm.viridis(np.linspace(0, 1, n))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
     df = pd.DataFrame.from_dict({'label':labels,'dS':X})
     for i,color in enumerate(colors):
-        mean,std,weight = means[i][0],stds[i][0][0],weights[i]
+        mean,std,weight = means[i][0],np.sqrt(stds[i][0][0]),weights[i]
         df_comp = df[df['label']==i]
         x = np.array(list(df_comp['dS']))
         y = x[np.isfinite(x)]
@@ -200,7 +200,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
 def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regime='multiplicon'):
     labels = labels[(X<5) & (X>0)]
     X = X[(X<5) & (X>0)]
-    colors = cm.rainbow(np.linspace(0, 1, n))
+    colors = cm.viridis(np.linspace(0, 1, n))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
@@ -228,7 +228,7 @@ def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regi
     return fig
 
 def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon'):
-    colors = cm.rainbow(np.linspace(0, 1, nums))
+    colors = cm.viridis(np.linspace(0, 1, nums))
     fig, ax = plt.subplots()
     if plot == 'identical':
         if weighted:
@@ -275,13 +275,13 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     return fig
 
 def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
-    colors = cm.rainbow(np.linspace(0, 1, nums))
+    colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
     if weighted:
         for num,color in zip(range(nums),colors):
-            mean,std,weight = means[num][0],stds[num][0][0],weights[num]
+            mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
             if nums == 1: df_comp = df.copy()
             else: df_comp = df[df['AnchorKs_GMM_Component']==num]
             w = df_comp['weightoutlierexcluded']
@@ -297,7 +297,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
     else:
         for num,color in zip(range(nums),colors):
-            mean,std,weight = means[num][0],stds[num][0][0],weights[num]
+            mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
             if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
             else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
             x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
@@ -322,7 +322,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     return fig
 
 def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
-    colors = cm.rainbow(np.linspace(0, 1, nums))
+    colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
@@ -423,7 +423,7 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
             #color_random = cm.rainbow(np.linspace(0, 1, n))
             #time = time + 1
             #comp_time = 0
-            for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
+            for num, color in zip(range(nums),cm.viridis(np.linspace(0, 1, nums))):
                 dist_comp = dis[dis['component']==num]
                 w = dist_comp['weightoutlierexcluded']
                 x = f(dist_comp[k])
@@ -531,7 +531,7 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
             #time = time + 1
             #comp_time = 0
             if plot == 'identical':
-                for num, color in zip(range(nums),cm.rainbow(np.linspace(0, 1, nums))):
+                for num, color in zip(range(nums),cm.viridis(np.linspace(0, 1, nums))):
                     dist_comp = dis[dis['component']==num]
                     w = dist_comp['weightoutlierexcluded']
                     x = f(dist_comp[k])
@@ -560,7 +560,7 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
                     #kde_x, kde_y = get_kde(train_in,ax)
                     #ax.plot(kde_x,kde_y)
             else:
-                cs = [color for color in cm.rainbow(np.linspace(0, 1, nums))]
+                cs = [color for color in cm.viridis(np.linspace(0, 1, nums))]
                 dist_comps = [dis[dis['component']==num] for num in range(nums)]
                 ws = [i['weightoutlierexcluded'] for i in dist_comps]
                 xs = [f(i[k]) for i in dist_comps]
@@ -761,7 +761,7 @@ def draw_kde_CI(kdemethod,outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=
     f, ax = plt.subplots()
     if bw_method == 'silverman': logging.info("Assmuing the dates is unimodal and close to normal, applying silverman’s rule of thumb")
     else: logging.info("Assmuing the dates is far from normal or multimodal, applying the Improved Sheather Jones (ISJ) algorithm")
-    for i,color in zip(range(boots),cm.rainbow(np.linspace(0, 1, boots))):
+    for i,color in zip(range(boots),cm.viridis(np.linspace(0, 1, boots))):
         sample = random.choices(train_in, k=len(train_in))
         #kde = stats.gaussian_kde(sample)
         if kdemethod == 'scipy': kde_y=stats.gaussian_kde(sample,bw_method=bw_method).pdf(kde_x)
@@ -819,7 +819,7 @@ def draw_components_kde_bootstrap(kdemethod,outdir,num,ksdf_predict,weighted,boo
         f, ax = plt.subplots()
         if weighted:
             train_in = pretrain_in.dropna(subset=['weightoutlierexcluded'])
-            for i,color in zip(range(boots),cm.rainbow(np.linspace(0, 1, boots))):
+            for i,color in zip(range(boots),cm.viridis(np.linspace(0, 1, boots))):
                 #sample = random.choices(train_in['dS'],weights = train_in['weightoutlierexcluded'], k=len(train_in))
                 sample = random.choices(train_in['dS'], k=len(train_in))
                 if kdemethod == 'scipy': kde_y=stats.gaussian_kde(sample,weights=train_in['weightoutlierexcluded'].tolist(),bw_method=bin_width).pdf(kde_x)
@@ -832,7 +832,7 @@ def draw_components_kde_bootstrap(kdemethod,outdir,num,ksdf_predict,weighted,boo
             plt.hist(train_in['dS'],bins = np.linspace(0, 50, num=51,dtype=int)/10,weights=train_in['weightoutlierexcluded'],density=True,color = 'black', alpha=0.15, rwidth=0.8)
         else:
             train_in = pretrain_in.dropna(subset=['node_averaged_dS_outlierexcluded'])
-            for i,color in zip(range(boots),cm.rainbow(np.linspace(0, 1, boots))):
+            for i,color in zip(range(boots),cm.viridis(np.linspace(0, 1, boots))):
                 sample = random.choices(train_in['node_averaged_dS_outlierexcluded'], k=len(train_in))
                 if kdemethod == 'scipy': kde_y=stats.gaussian_kde(sample,bw_method=bin_width).pdf(kde_x)
                 if kdemethod == 'naivekde': kde_y = NaiveKDE(bw=bin_width).fit(sample).evaluate(kde_x)
@@ -952,7 +952,7 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=Tr
     CIs = {}
     if weighted:
         if plot == 'identical':
-            for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+            for i,c in zip(range(n),cm.viridis(np.linspace(0, 1, n))):
                 css.append(c)
                 df = dfo[dfo['KMedoids_Cluster']==i]
                 df = df.dropna(subset=['weightoutlierexcluded'])
@@ -971,13 +971,13 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=Tr
         else:
             dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
             dfs = [df.dropna(subset=['weightoutlierexcluded']) for df in dfs]
-            cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+            cs = [c for c in cm.viridis(np.linspace(0, 1, n))]
             Xs = [getX(df,'dS') for df in dfs]
             ws = [getX(df,'weightoutlierexcluded') for df in dfs]
             labels = ['component {}'.format(i) for i in range(n)]
             plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True,label=labels)
     elif plot == 'identical':
-        for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+        for i,c in zip(range(n),cm.viridis(np.linspace(0, 1, n))):
             css.append(c)
             dfo = dfo.drop_duplicates(subset=['family', 'node'])
             df = dfo[dfo['KMedoids_Cluster']==i]
@@ -995,7 +995,7 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=Tr
     else:
         dfo = dfo.drop_duplicates(subset=['family', 'node'])
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
-        cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+        cs = [c for c in cm.viridis(np.linspace(0, 1, n))]
         Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
         labels = ['component {}'.format(i) for i in range(n)]
         plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label=labels)
@@ -1017,7 +1017,7 @@ def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment'):
     df.index.name = 'label'
     df.loc[:,['Segment_Ks']] = X
     df = df.reset_index()
-    for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+    for i,c in zip(range(n),cm.viridis(np.linspace(0, 1, n))):
         if n == 1: dfo = df.copy()
         else: dfo = df[df['KMedoids_Cluster']==i]
         data = getX(dfo,'Segment_Ks')
@@ -1044,7 +1044,7 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,t
     CIs = {}
     if weighted:
         if plot == 'identical':
-            for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+            for i,c in zip(range(n),cm.viridis(np.linspace(0, 1, n))):
                 css.append(c)
                 df = dfo[dfo['KMedoids_Cluster']==i]
                 df = df.dropna(subset=['weightoutlierexcluded'])
@@ -1054,12 +1054,12 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,t
         else:
             dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
             dfs = [df.dropna(subset=['weightoutlierexcluded']) for df in dfs]
-            cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+            cs = [c for c in cm.viridis(np.linspace(0, 1, n))]
             Xs = [getX(df,'dS') for df in dfs]
             ws = [getX(df,'weightoutlierexcluded') for df in dfs]
             plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=ws,color=cs,alpha=0.5,rwidth=0.8,stacked=True)
     elif plot == 'identical':
-        for i,c in zip(range(n),cm.rainbow(np.linspace(0, 1, n))):
+        for i,c in zip(range(n),cm.viridis(np.linspace(0, 1, n))):
             css.append(c)
             dfo = dfo.drop_duplicates(subset=['family', 'node'])
             df = dfo[dfo['KMedoids_Cluster']==i]
@@ -1068,7 +1068,7 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,t
     else:
         dfo = dfo.drop_duplicates(subset=['family', 'node'])
         dfs = [dfo[dfo['KMedoids_Cluster']==i] for i in range(n)]
-        cs = [c for c in cm.rainbow(np.linspace(0, 1, n))]
+        cs = [c for c in cm.viridis(np.linspace(0, 1, n))]
         Xs = [getX(df,'node_averaged_dS_outlierexcluded') for df in dfs]
         plt.hist(Xs,bins = np.linspace(0, 5, num=int(5/bin_width)+1),color=cs,alpha=0.5,rwidth=0.8,stacked=True,label='component {}'.format(i))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)

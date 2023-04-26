@@ -422,6 +422,7 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     help="Tree inference method for node weighting")
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
+@click.option('--onlyrootout', '-or', is_flag=True, help='only consider the outgroup at root')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -440,7 +441,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, tree_method,spair, speciestree):
+        strip_gaps, tree_method,spair, speciestree, onlyrootout):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -474,7 +475,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
-    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,title=prefix,ylabel=ylabel,ksd=True,sptree=speciestree)
+    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,sptree=speciestree)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -494,25 +495,27 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
 @click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
 @click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
+@click.option('--onlyrootout', '-or', is_flag=True, help='only consider the outgroup at root')
 @click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
 @click.option('--em_initializations', '-init', type=int, default=200, show_default=True, help='maximum EM initializations')
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
-@click.option('--minlen', '-ml', default=-1, show_default=True, help="minimum length of a genomic element to be included in dotplot.")
-@click.option('--maxsize', '-ms', default=50, show_default=True, help="maximum family size to include in analysis.")
+@click.option('--minlen', '-ml', default=-1, show_default=True, help="minimum length of a genomic element to be included in dotplot")
+@click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
 @click.option('--anchor', '-a', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
 @click.option('--listsegments', '-ls', default=None, show_default=True, help='list_elements.txt file')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
+@click.option('--minseglen', '-mg', default=0.01, show_default=True, help="minimum length ratio of segments to show in marco-synteny")
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height,speciestree):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height,speciestree,onlyrootout,minseglen):
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile
     if datafile!=None: prefix = os.path.basename(datafile)
@@ -521,7 +524,8 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
         df_anchor,df_multi = get_anchors('',userdf=anchor),get_multi('',userdf2=multiplicon)
         segprofile,segs = get_segments_profile('',userdf3=segments,userdf4=listsegments)
-        figs = all_dotplots(table, segs, df_multi, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
+        segs,table = filter_by_minlength(table,segs,minlen)
+        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
@@ -531,7 +535,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
     ylabel = "Duplications" if spair == () else "Homologous pairs"
-    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree)
+    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchor)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -548,7 +552,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.argument('gff_files', nargs=-1, type=click.Path(exists=True))
 @click.option('--ks_distribution', '-ks', default=None,
     help="ks distribution tsv file (optional, see `wgd ksd`)")
-@click.option('--outdir', '-o', default='./wgd_syn', show_default=True, 
+@click.option('--outdir', '-o', default='wgd_syn', show_default=True, 
     help='output directory')
 @click.option('--feature', '-f', default='gene', show_default=True,
     help="keyword for parsing the genes from the GFF file (column 3)")
@@ -556,7 +560,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
 @click.option('--minlen', '-ml', default=-1, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
-@click.option('--maxsize', '-ms', default=50, show_default=True,
+@click.option('--maxsize', '-ms', default=200, show_default=True,
     help="maximum family size to include in analysis.")
 @click.option('--ks_range', '-r', nargs=2, default=(0.001, 5), show_default=True,
     type=float, help='Ks range to use for colored dotplot')
@@ -565,6 +569,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
+@click.option('--minseglen', '-mg', default=0.01, show_default=True, help="minimum length ratio of segments to show in marco-synteny")
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -572,13 +577,13 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, segments, ancestor):
+        minlen, maxsize, ks_range, iadhore_options, segments, ancestor, minseglen):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi
-    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, Ks_dotplots, syntenic_dotplot_ks_colored
+    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -619,10 +624,10 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     fig = syntenic_depth_plot(segprofile)
     fig.savefig(os.path.join(outdir, "{}.syndepth.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.syndepth.pdf".format(prefix)))
-
+    segs,table = filter_by_minlength(table,segs,minlen)
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
+    figs = all_dotplots(table, segs, multi, anchors, minseglen, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
