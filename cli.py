@@ -504,17 +504,17 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
 @click.option('--anchor', '-a', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
-@click.option('--listsegments', '-ls', default=None, show_default=True, help='list_elements.txt file')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--minseglen', '-mg', default=0.01, show_default=True, help="minimum length ratio of segments to show in marco-synteny")
+@click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,listsegments,genetable,rel_height,speciestree,onlyrootout,minseglen):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile
@@ -523,8 +523,8 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     if datafile ==None:
         table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
         df_anchor,df_multi = get_anchors('',userdf=anchor),get_multi('',userdf2=multiplicon)
-        segprofile,segs = get_segments_profile('',userdf3=segments,userdf4=listsegments)
-        segs,table = filter_by_minlength(table,segs,minlen)
+        segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
+        segs,table = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
@@ -569,7 +569,8 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
-@click.option('--minseglen', '-mg', default=0.01, show_default=True, help="minimum length ratio of segments to show in marco-synteny")
+@click.option('--minseglen', '-mg', default=100000, show_default=True, help="min length of segments in ratio if <= 1")
+@click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -577,13 +578,13 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, segments, ancestor, minseglen):
+        minlen, maxsize, ks_range, iadhore_options, segments, ancestor, minseglen, keepredun):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi
-    from wgd.viz import default_plot, apply_filters, syntenic_depth_plot, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength
+    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -619,12 +620,8 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         exit(1)
 
     anchors.to_csv(os.path.join(outdir, "anchors.csv"))
-    segprofile,segs = get_segments_profile(out_path)
-    segprofile.to_csv(os.path.join(outdir, "segprofile.csv"))
-    fig = syntenic_depth_plot(segprofile)
-    fig.savefig(os.path.join(outdir, "{}.syndepth.svg".format(prefix)))
-    fig.savefig(os.path.join(outdir, "{}.syndepth.pdf".format(prefix)))
-    segs,table = filter_by_minlength(table,segs,minlen)
+    segs = get_segments_profile(multi,keepredun,out_path)
+    segs,table = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
     # dotplot
     #logging.info("Generating dot plots")
     figs = all_dotplots(table, segs, multi, anchors, minseglen, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 

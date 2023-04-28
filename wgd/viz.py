@@ -759,15 +759,18 @@ def syntenic_depth_plot(segprofile):
             ax.barh(np.arange(len(pairs)), counts, color="k", alpha=0.2)
             ax.set_yticks(np.arange(len(pairs)))
             ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
-            ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)
+            #ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)
+            ax.set_ylabel("{} : {}".format(cols[i], cols[j]))
             k += 1
     for ax in axs:
         ymn, ymx = ax.get_ylim()
         ax.set_ylim(-0.5, ymx)
-        ax.set_xlabel("# segments")
-    axs[0].set_ylabel("A:B ratio")
+        #ax.set_xlabel("# segments")
+    #axs[0].set_ylabel("A:B ratio")
+    fig.suptitle('Collinear ratio', x=0.5, y=1.02, ha='center', va='top')
+    plt.figtext(0.5, 0.02, 'Number of segments', ha='center', va='top')
     sns.despine(trim=False, offset=3)
-    fig.tight_layout()
+    plt.tight_layout()
     return fig
 
 
@@ -919,14 +922,12 @@ def filter_by_dfy(seg,dfy,minlen,spy):
     seg = seg.drop(rm_indices)
     return seg
 
-def sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg, multi):
+def sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg):
     lens = dfx.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
     df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
-    if minlen < 0: minlen_1x = df1x.len.max() * 0.1
-    df1x = df1x.loc[df1x.len > minlen_1x]
     seg.loc[:,"segment"] = seg.index
-    seg = filter_by_dfy(seg,dfy,minlen,spy) #This filter step makes singon segments on level plot
+    #seg = filter_by_dfy(seg,dfy,minlen,spy) #This filter step makes singon segments on level plot
     seg_unfilterded = seg.loc[seg['genome']==spx].copy()
     segs_info = seg.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = segs_info.unstack(level=-1).fillna(0)
@@ -935,7 +936,8 @@ def sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg, multi):
     elif spx not in profile.columns:
         logging.info('No collinear segments were found involving genome of {}'.format(spx))
     else:
-        if spx != spy: multi_goodinuse = profile.loc[profile[spy]>0,[spy,spx]].copy()
+        #if spx != spy: multi_goodinuse = profile.loc[profile[spy]>0,[spy,spx]].copy()
+        if spx != spy: multi_goodinuse = profile.loc[:,[spy,spx]].copy() # here I didn't require the level of spy > 0
         else: multi_goodinuse = profile.loc[profile[spy]>0,[spy]].copy()
         seg_filterded = seg_unfilterded.set_index('multiplicon').merge(multi_goodinuse,left_index=True, right_index=True).drop(columns=spy)
         if len(seg_filterded) == 0:
@@ -986,8 +988,9 @@ def plothlines(minseglen,highest_level,segs_levels,sp,gene_start,scafflength,sca
                 left = gene_start[f]/max(scafflength)
                 right = gene_start[l]/max(scafflength)
                 ple = right - left
-                if ple < minseglen*le:
-                    continue
+                # Since the previous step has done the filtering already
+                #if ple < minseglen*le:
+                #    continue
                 if spx_level is None: level = segs_levels[segid]
                 else: level = segs_levels[segid] + spx_level[segid] - 1
                 hscaled = 0.75*height_increment
@@ -995,40 +998,41 @@ def plothlines(minseglen,highest_level,segs_levels,sp,gene_start,scafflength,sca
                 color = 'green' if sp == spy else 'blue'
                 hatchs = '//////' if color == 'green' else '\\\\\\\\\\\\'
                 if ple > 0:
-                    ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.5))
+                    ax.add_patch(Rectangle((left, (3*i)+1),ple,0.5,fc ='green',ec ='none',lw = 1, zorder=2,alpha=0.4))
                     if spx_level is None:
                         for lev in range(iternum):
-                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5, hatch=hatchs))
+                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4, hatch=hatchs))
                     else:
                         spx_times = 0
                         level_x = spx_level[segid] - 1
                         if level_x == 0:
                             for lev in range(iternum):
-                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5, hatch=hatchs))
+                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4, hatch=hatchs))
                         else:
                             for lev in range(iternum):
+                                # Here first pile the green (self) segments, above which piled the blue (other sp) segments
                                 if spx_times < level_x:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//////'))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.4,hatch='//////'))
                                 else:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4,hatch=hatchs))
                                 spx_times = spx_times + 1
                 else:
-                    ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc = 'green',ec ='none',lw = 1, zorder=2,alpha=0.5))
+                    ax.add_patch(Rectangle((right, (3*i)+1),-ple,0.5,fc = 'green',ec ='none',lw = 1, zorder=2,alpha=0.4))
                     if spx_level is None:
                         for lev in range(iternum):
-                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
+                            ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4,hatch=hatchs))
                     else:
                         spx_times = 0
                         level_x = spx_level[segid] - 1
                         if level_x == 0:
                             for lev in range(iternum):
-                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
+                                ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4,hatch=hatchs))
                         else:
                             for lev in range(iternum):
                                 if spx_times < level_x:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.5,hatch='//////'))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc ='green',ec ='none',lw = 1, zorder=1,alpha=0.4,hatch='//////'))
                                 else:
-                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.5,hatch=hatchs))
+                                    ax.add_patch(Rectangle((left, (3*i)+1.6+height_increment*(lev)),-ple,hscaled,fc =color,ec ='none',lw = 1, zorder=1,alpha=0.4,hatch=hatchs))
                                 spx_times = spx_times + 1
     y = lambda x : ["{:.2f}".format(i) for i in x]
     ax.set_yticks(yticks)
@@ -1145,9 +1149,10 @@ def plot_marco_whole(scaf_info,seg_f,gene_start,outdir,minseglen):
                 f,l,li = df.loc[i,'first'],df.loc[i,'last'],df.loc[i,'list']
                 if not li in lb_le_persp[sp].keys():
                     continue
-                ratio = (gene_start[l]-gene_start[f])/lb_le_persp[sp][li]
-                if ratio < minseglen:
-                    continue
+                # Since previous step has already filtered
+                #ratio = (gene_start[l]-gene_start[f])/lb_le_persp[sp][li]
+                #if ratio < minseglen:
+                #    continue
                 f,l = 0.75*gene_start[f]/sp_wholelengths[sp]+sp_segs_starts[sp][li],0.75*gene_start[l]/sp_wholelengths[sp]+sp_segs_starts[sp][li]
                 coord_sp[sp].append([(f,sp_segs_y[sp]),(l,sp_segs_y[sp])])
         vertices,color = get_vertices(coord_sp,sp_bottom_up)
@@ -1261,12 +1266,13 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
                     continue
                 if f==f2 and l==l2:
                     continue
-                ratioy = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
-                ratiox = (genex_start[l]-genex_start[f])/sp1_scafflabel_length[li1]
+                # Since the filtering has been done in previous step
+                #ratioy = (geney_start[l2]-geney_start[f2])/sp2_scafflabel_length[li2]
+                #ratiox = (genex_start[l]-genex_start[f])/sp1_scafflabel_length[li1]
                 #here only the long segments are plotted (>5% of the residing chromosome)
                 #if ratiox >= 0.05 or ratioy >= 0.05:
-                if ratiox < minseglen or ratioy < minseglen:
-                    continue
+                #if ratiox < minseglen or ratioy < minseglen:
+                #    continue
                 #if ratiox >= 0.05 and ratioy >= 0.05:
                 if len(cix) == 1 and len(ciy) == 1: color = 'gray'
                     #elif len(cix) == 2 or len(ciy) == 2: color = 'green'
@@ -1392,8 +1398,9 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
             figs[spx + "-vs-" + spy] = fig
     return figs
 
-def filter_by_minlength(genetable,segs,minlen):
-    gdf,Index_torm,I2 = list(genetable.copy().groupby("species")),[],[]
+def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
+    gdf,Index_torm,I2,I3 = list(genetable.copy().groupby("species")),[],[],[]
+    Sf_len_lab_persp = {sp:{} for sp,df in gdf}
     for sp,df in gdf:
         lens = df.groupby("scaffold")["start"].agg(max)
         lens.name = "len"
@@ -1410,10 +1417,40 @@ def filter_by_minlength(genetable,segs,minlen):
         segs_tmp = segs.loc[(segs['genome']==sp) & (~segs['list'].isin(lens.index)),:]
         gt_tmp = genetable.loc[(genetable['species']==sp) & (~genetable['scaffold'].isin(lens.index)),:]
         for i in segs_tmp.index: Index_torm.append(i)
-        for i in gt_tmp.index: I2.append(i)
+        for j in gt_tmp.index: I2.append(j)
+        for lab in lens.index: Sf_len_lab_persp[sp][lab] = lens.loc[lab,'len']
     segs = segs.drop(Index_torm)
     genetable = genetable.drop(I2)
+    # Here I removed the redundant multiplicons
+    if not keepredun:
+        Mul_to_rm = list(multi[multi['is_redundant']==-1].loc[:,'id'])
+        Segs_to_rm = segs.loc[segs['multiplicon'].isin(Mul_to_rm),:]
+        for i in Segs_to_rm.index: I3.append(i)
+        segs = segs.drop(I3)
+    segs = Filter_miniseglen(segs,Sf_len_lab_persp,minseglen,genetable)
+    counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = counted.unstack(level=-1).fillna(0)
+    fig = syntenic_depth_plot(profile)
+    fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
+    fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
+    profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs,genetable
+
+def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
+    rm_indice = []
+    gene_start_info = {sp:{} for sp in scaf_info.keys()}
+    work1 = genetable.reset_index().loc[:,['gene','species','start']]
+    work2 = work1.groupby('species')
+    for i,j,k in map(lambda x:(x[0],x[1]['gene'],x[1]['start']) ,work2):
+        for gene,start in zip(j,k): gene_start_info[i][gene] = start
+    for indice,sp,f,l,sf_la in zip(segs.index,segs['genome'],segs['first'],segs['last'],segs['list']):
+        seg_len = abs(gene_start_info[sp][f] - gene_start_info[sp][l])
+        if minseglen <= 1:
+            if seg_len < scaf_info[sp][sf_la] * minseglen: rm_indice.append(indice)
+        else:
+            if seg_len < minseglen: rm_indice.append(indice)
+    segs = segs.drop(rm_indice)
+    return segs
 
 def Ks_dotplots(segs,dff, df, ks, an, minseglen, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25, outdir='', **kwargs):
     """
@@ -1507,7 +1544,7 @@ def Ks_dotplots(segs,dff, df, ks, an, minseglen, anchors=None, color_map='Spectr
 def get_dots(dfx, dfy, seg, multi, minseglen, minlen=-1, maxsize=200, outdir = '', dupStack = False):
     spx=dfx.loc[:,'species'][0]
     spy=dfy.loc[:,'species'][0]
-    if dupStack: sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg, multi)
+    if dupStack: sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg)
     else:
         dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
         dfy,scaffytick = filter_data_dotplot(dfy, minlen)

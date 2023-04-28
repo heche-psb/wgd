@@ -191,18 +191,17 @@ def get_multi(out_path,userdf2=None):
 def get_anchor_ksd(ks_distribution, anchors):
     return ks_distribution.join(anchors).dropna()
 
-def get_segments_profile(out_path,userdf3=None,userdf4=None):
+def get_segments_profile(multi,keepredun,out_path,userdf3=None):
     if userdf3!=None: segs = pd.read_csv(userdf3, sep="\t", index_col=0)
     else: segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
-    if userdf4!=None: le = pd.read_csv(userdf4, sep="\t", index_col=0)
-    else: le = pd.read_csv(os.path.join(out_path, "list_elements.txt"), sep="\t", index_col=0)
-    segs = segs.join(le.set_index("segment"), how="inner")
+    if not keepredun:
+        I3 = []
+        Mul_to_rm = list(multi[multi['is_redundant']==-1].loc[:,'id'])
+        Segs_to_rm = segs.loc[segs['multiplicon'].isin(Mul_to_rm),:]
+        for i in Segs_to_rm.index: I3.append(i)
+        segs = segs.drop(I3)
     segs["segment"] = segs.index
-    counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
-    profile = counted.unstack(level=-1).fillna(0)
-    if userdf3!=None: segs = pd.read_csv(userdf3, sep="\t", index_col=0)
-    else: segs = pd.read_csv(os.path.join(out_path, "segments.txt"), sep="\t", index_col=0)
-    return profile,segs
+    return segs
 
 
 
