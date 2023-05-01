@@ -1,9 +1,10 @@
+<div align="center">
+# `wgd v2` - a suite tool of WGD inference and timing
+
 [![Build Status](https://travis-ci.com/arzwa/wgd.svg?branch=dev)](https://travis-ci.com/arzwa/wgd)
 
-VIB/UGent center for plant systems biology 
-[Bioinformatics & evolutionary genomics group](https://www.vandepeerlab.org/)
-
-# `wgd v2` - a suite tool of WGD inference and phylogenetic dating
+[Bioinformatics & Evolutionary Genomics Group](https://www.vandepeerlab.org/), VIB-UGent Center for Plant Systems Biology
+</div>
 
 `wgd` is a python package designed for the inference of ancient whole-genome duplication (WGD) events from genomic data. For the propose of illustrating both the principle and usage of `wgd`, we compile this step-by-step tutorial on how to seek evidence for a putative WGD event from a freshly obtained genomic data in hand. The primary theoretical elucidation is in the `Introduction` section. For readers who mainly want to learn the usage of `wgd`, skipping the `Introduction` section and starting right from the `Installation` section is also fine. Nevertheless, we recommend readers to spend some time on understanding the mechanism and considerations of how the Ks distribution becomes a widely used object to be used in detecting the signature of WGD events. This tutorial also serves as a corresponding code practice for a chapter of a soon-to-be published book. For those who are interested, we recommend turning to that book chapter for more detailed description and insightful discussions. 
 

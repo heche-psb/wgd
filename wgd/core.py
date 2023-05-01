@@ -1656,7 +1656,7 @@ def rmtmp(tmpdir,outdir,querys):
         os.chdir(cwd)
         
 def dmd4g2f(outdir,s,nthreads,querys,df):
-    print('dmd4')
+    return None
 
 def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent):
     logging.info("Assigning sequences into given gene families")
