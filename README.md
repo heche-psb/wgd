@@ -14,7 +14,7 @@
 
 </div>
 
-`wgd v2` is a python package designed for the inference of ancient whole-genome duplication (WGD) events from genomic data. For the propose of illustrating both the principle and usage of `wgd`, we compile this step-by-step tutorial on how to seek evidence for a putative WGD event from a freshly obtained genomic data in hand. The primary theoretical elucidation is in the `Introduction` section. For readers who mainly want to learn the usage of `wgd`, skipping the `Introduction` section and starting right from the `Installation` section is also fine. Nevertheless, we recommend readers to spend some time on understanding the mechanism and considerations of how the Ks distribution becomes a widely used object to be used in detecting the signature of WGD events. This tutorial also serves as a corresponding code practice for a chapter of a soon-to-be published book. For those who are interested, we recommend turning to that book chapter for more detailed description and insightful discussions. 
+`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first give an introduction over the scope and mechanism of `wgd v2` and then the practical information of installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. If you use `wgd v2` in your research, please cite us. 
 
 ## Introduction
 
@@ -142,10 +142,9 @@ We modfiy the interspecific dotplot manually to highlight the syntenic regions w
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915
 
 ```
-Zwaenepoel, A., and Van de Peer, Y. 
-wgd - simple command line tools for the analysis of ancient whole-genome
-duplications. Bioinformatics., bty915,
-https://doi.org/10.1093/bioinformatics/bty915
+Arthur Zwaenepoel, Yves Van de Peer, wgd—simple command line tools for the analysis of ancient whole-genome duplications, Bioinformatics, Volume 35, Issue 12, June 2019, Pages 2153–2155, https://doi.org/10.1093/bioinformatics/bty915
+
+Hengchi Chen, Arthur Zwaenepoel (2023). Inference of Ancient Polyploidy from Genomic Data. In: Van de Peer, Y. (eds) Polyploidy. Methods in Molecular Biology, vol 2545. Humana, New York, NY. https://doi.org/10.1007/978-1-0716-2561-3_1
 ```
 
 For citation of the tools used in wgd, please consult the documentation at
