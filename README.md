@@ -6,11 +6,11 @@
 
 [**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.org/)**, VIB-UGent Center for Plant Systems Biology**
 
-[Introduction](#Introduction) | 
-[Installation](#Installation) | 
-[Table of Parameters](#Parameters) | 
-[Tutorial](#Tutorial) | 
-[Citation](#Citation)
+[**Introduction**](#Introduction) | 
+[**Installation**](#Installation) | 
+[**Table of Parameters**](#Parameters) | 
+[**Tutorial**](#Tutorial) | 
+[**Citation**](#Citation)
 
 </div>
 
