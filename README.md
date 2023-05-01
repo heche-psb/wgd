@@ -1,4 +1,5 @@
 <div align="center">
+
 # `wgd v2` - a suite tool of WGD inference and timing
 
 [![Build Status](https://travis-ci.com/arzwa/wgd.svg?branch=dev)](https://travis-ci.com/arzwa/wgd)
