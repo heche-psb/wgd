@@ -49,7 +49,7 @@ If multiply versions of `wgd` were installed in the system, please add the right
 export PATH="$PATH:~/.local/bin/wgd"
 ```
 
-## Table of Parameters
+## Parameters
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
 
