@@ -91,9 +91,15 @@ wgd dmd
 -bsog, --buscosog, flag option, defining whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis will be initiated
 -bhmm, --buscohmm, defining the HMM profile datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
 -bctf, --buscocutoff, defining the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
-
 ```
 
+```
+wgd focus
+--------------------------------------------------------------------------------
+-o, --outdir, defining the output directory, default wgd_focus
+-t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-n, --nthreads, defining the number of threads to use, default 4
+```
 ## Step 3 Construction of Ks Distribution
 
 ### Gene Family Delineation
