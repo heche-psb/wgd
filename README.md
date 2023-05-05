@@ -56,115 +56,146 @@ There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`v
 ```
 wgd dmd
 --------------------------------------------------------------------------------
--o, --outdir, defining the output directory, default wgd_dmd
--t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
--c, --cscore, defining the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
--I, --inflation, defining the inflation factor for MCL program, default 2.0
--e, --eval, defining the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10
---to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
--f, --focus, defining the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
--ap, --anchorpoints, defining the anchor points data file, default None
--coc, --collinearcoalescence, flag option, defining whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
--sm, --segments, defining the segments data file used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
--le, --listelements, defining the listsegments data file used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
--gtb, --genetable, defining the gene table datafile used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
--kf, --keepfasta, flag option, defining whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
--kd, --keepduplicates, flag option, defining whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
--gm, --globalmrbh, flag option, defining whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
--n, --nthreads, defining the number of threads to use, default 4
--oi, --orthoinfer, flag option, defining whether to initiate orthogroup infernece, if the flag was set, the orthogroup infernece program will be initiated
--oo, --onlyortho, flag option, defining whether to only conduct orthogroup infernece, if the flag was set, only the orthogroup infernece program will be conducted while the other analysis won't be initiated
--gn, --getnsog, flag option, defining whether to initiate the searching for nested single-copy gene families (NSOGs), if the flag was set, additional NSOGs analysis will be performed besides the basic orthogroup infernece, this option only works together with --orthoinfer option
--tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
--ts, --treeset, defining the parameters setting for gene tree inference, default None, this option can be provided multiple times
--mc, --msogcut, defining the ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference, default 0.8.
--ga, --geneassign, flag option, defining whether to initiate the gene-to-family assignment analysis, if the flag was set, the analysis will be initiated
--am, --assign_method, defining which method to conduct the gene-to-family assignment analysis, default hmmer, this option only works together with --geneassign option
--sa, --seq2assign, defining the queried sequences data file in gene-to-family assignment analysis, default None, this option can be provided multiple times, this option only works together with --geneassign option
--fa, --fam2assign, defining the queried familiy data file in gene-to-family assignment analysis, default None, this option only works together with --geneassign option
--cc, --concat, flag option, defining whether to initiate the concatenation pipeline for orthogroup infernece, if the flag was set, the analysis will be initiated, this option only works together with --orthoinfer option
--te, --testsog, flag option, defining whether to initiate the unbiased test of single-copy gene families, if the flag was set, the analysis will be initiated, this option only works together with --orthoinfer option
--bs, --bins, defining the number of bins divided in gene length normalization, default 100, this option only works together with --orthoinfer option
--np, --normalizedpercent, defining the percentage of upper hits used for gene length normalization, default 5, this option only works together with --orthoinfer option
--nn, --nonormalization, flag option, defining whether to call off the normalization, if the flag was set, no normalization will be conducted, this option only works together with --orthoinfer option
--bsog, --buscosog, flag option, defining whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis will be initiated
--bhmm, --buscohmm, defining the HMM profile datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
--bctf, --buscocutoff, defining the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
+-o, --outdir, the output directory, default wgd_dmd
+-t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-c, --cscore, the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
+-I, --inflation, the inflation factor for MCL program, default 2.0
+-e, --eval, the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+-f, --focus, the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
+-ap, --anchorpoints, the anchor points data file, default None
+-coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
+-sm, --segments, the segments data file used in collinear coalescence analysis if initiated, default None
+-le, --listelements, the listsegments data file used in collinear coalescence analysis if initiated, default None
+-gtb, --genetable, the gene table datafile used in collinear coalescence analysis if initiated, default None
+-kf, --keepfasta, flag option, whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
+-kd, --keepduplicates, flag option, whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
+-gm, --globalmrbh, flag option, whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
+-n, --nthreads, the number of threads to use, default 4
+-oi, --orthoinfer, flag option, whether to initiate orthogroup infernece, if the flag was set, the orthogroup infernece program will be initiated
+-oo, --onlyortho, flag option, whether to only conduct orthogroup infernece, if the flag was set, only the orthogroup infernece program will be conducted while the other analysis won't be initiated
+-gn, --getnsog, flag option, whether to initiate the searching for nested single-copy gene families (NSOGs), if the flag was set, additional NSOGs analysis will be performed besides the basic orthogroup infernece
+-tree, --tree_method, which gene tree inference program to invoke, default fasttree
+-ts, --treeset, the parameters setting for gene tree inference, default None, this option can be provided multiple times
+-mc, --msogcut, the ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference, default 0.8.
+-ga, --geneassign, flag option, whether to initiate the gene-to-family assignment analysis, if the flag was set, the analysis will be initiated
+-am, --assign_method, which method to conduct the gene-to-family assignment analysis, default hmmer
+-sa, --seq2assign, the queried sequences data file in gene-to-family assignment analysis, default None, this option can be provided multiple times
+-fa, --fam2assign, the queried familiy data file in gene-to-family assignment analysis, default None
+-cc, --concat, flag option, whether to initiate the concatenation pipeline for orthogroup infernece, if the flag was set, the analysis will be initiated
+-te, --testsog, flag option, whether to initiate the unbiased test of single-copy gene families, if the flag was set, the analysis will be initiated
+-bs, --bins, the number of bins divided in gene length normalization, default 100
+-np, --normalizedpercent, the percentage of upper hits used for gene length normalization, default 5
+-nn, --nonormalization, flag option, whether to call off the normalization, if the flag was set, no normalization will be conducted
+-bsog, --buscosog, flag option, whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis will be initiated
+-bhmm, --buscohmm, the HMM profile datafile in the busco-guided single-copy gene family analysis, default None
+-bctf, --buscocutoff, the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None
 ```
 
 ```
 wgd focus
 --------------------------------------------------------------------------------
--o, --outdir, defining the output directory, default wgd_focus
--t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
--n, --nthreads, defining the number of threads to use, default 4
---to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
---strip_gaps, flag option, defining whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
--a, --aligner, defining which alignment program to use, default mafft
--tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
--ts, --treeset, defining the parameters setting for gene tree inference, default None, this option can be provided multiple times
---concatenation, flag option, defining whether to initiate the concatenation-based species tree inference, if the flag was set, concatenation-based species tree will be infered
---coalescence, flag option, defining whether to initiate the coalescence-based species tree inference, if the flag was set, coalescence-based species tree will be infered
--sp, --speciestree, defining species tree darafile for dating, default None
--d, --dating, defining which molecular dating program to use, default none
--ds, --datingset, defining the parameters setting for dating program, default None, this option can be provided multiple times
--ns, --nsites, defining the nsites information for r8s dating, default None
--ot, --outgroup, defining the outgroup information for r8s dating, default None
--pt, --partition, flag option, defining whether to initiate partition dating analysis for codon, if the flag was set, an additional partition dating analysis will be initiated
--am, --aamodel, defining which protein model to be used in mcmctree, default poisson
--ks, flag option, defining whether to initiate Ks analysis
---annotation, defining which annotation program to use, default none
---pairwise, flag option, defining whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
--ed, --eggnogdata, defining the eggnog annotation datafile, default None
---pfam, defining which option to use for pfam annotation, default none
---dmnb, defining the diamond database for annotation, default None
---hmm, defining the HMM profile for annotation, default None
---evalue, defining the e-value cut-off for annotation, default 1e-10
---exepath, defining the path to the interproscan executable, default None
--f, --fossil, defining the fossil calibration information in Beast, default ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500')
- -rh, --rootheight, defining the root height calibration info in Beast, default (4,0.5,400)
--cs, --chainset, defining the parameters of MCMC chain in Beast, default (10000,100)
---beastlgjar, defining the path to beastLG.jar, default None
---beagle, flag option, defining whether to use beagle in Beast, if the flag was set, beagle will be used
---protdating, flag option, defining whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
+-o, --outdir, the output directory, default wgd_focus
+-t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-n, --nthreads, the number of threads to use, default 4
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--strip_gaps, flag option, whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
+-a, --aligner, which alignment program to use, default mafft
+-tree, --tree_method, which gene tree inference program to invoke, default fasttree
+-ts, --treeset, the parameters setting for gene tree inference, default None, this option can be provided multiple times
+--concatenation, flag option, whether to initiate the concatenation-based species tree inference, if the flag was set, concatenation-based species tree will be infered
+--coalescence, flag option, whether to initiate the coalescence-based species tree inference, if the flag was set, coalescence-based species tree will be infered
+-sp, --speciestree, species tree darafile for dating, default None
+-d, --dating, which molecular dating program to use, default none
+-ds, --datingset, the parameters setting for dating program, default None, this option can be provided multiple times
+-ns, --nsites, the nsites information for r8s dating, default None
+-ot, --outgroup, the outgroup information for r8s dating, default None
+-pt, --partition, flag option, whether to initiate partition dating analysis for codon, if the flag was set, an additional partition dating analysis will be initiated
+-am, --aamodel, which protein model to be used in mcmctree, default poisson
+-ks, flag option, whether to initiate Ks analysis
+--annotation, which annotation program to use, default none
+--pairwise, flag option, whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
+-ed, --eggnogdata, the eggnog annotation datafile, default None
+--pfam, which option to use for pfam annotation, default none
+--dmnb, the diamond database for annotation, default None
+--hmm, the HMM profile for annotation, default None
+--evalue, the e-value cut-off for annotation, default 1e-10
+--exepath, the path to the interproscan executable, default None
+-f, --fossil, the fossil calibration information in Beast, default ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500')
+ -rh, --rootheight, the root height calibration info in Beast, default (4,0.5,400)
+-cs, --chainset, the parameters of MCMC chain in Beast, default (10000,100)
+--beastlgjar, the path to beastLG.jar, default None
+--beagle, flag option, whether to use beagle in Beast, if the flag was set, beagle will be used
+--protdating, flag option, whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
 ```
 
 ```
 wgd ksd
 --------------------------------------------------------------------------------
--o, --outdir, defining the output directory, default wgd_ksd
--t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
--n, --nthreads, defining the number of threads to use, default 4
---to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
---pairwise, flag option, defining whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
---strip_gaps, flag option, defining whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
--tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
--sr, --spair, defining the species pair to be plotted, default None, this option can be provided multiple times
--sp, --speciestree, defining the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
--or, --onlyrootout, flag option, defining whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
+-o, --outdir, the output directory, default wgd_ksd
+-t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-n, --nthreads, the number of threads to use, default 4
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--pairwise, flag option, whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
+--strip_gaps, flag option, whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
+-tree, --tree_method, which gene tree inference program to invoke, default fasttree
+-sr, --spair, the species pair to be plotted, default None, this option can be provided multiple times
+-sp, --speciestree, the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
+-or, --onlyrootout, flag option, whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
 ```
 
 ```
 wgd mix
 --------------------------------------------------------------------------------
--f, --filters, defining the cutoff alignment length, default 300
--r, --ks_range, defining the Ks range to be considered, default (0.005, 3)
--b, --bins, defining the number of bins in Ks distribution, default 50
--o, --outdir, defining the output directory, default wgd_mix
---method, defining which mixture model to use, default gmm
--n, --components, defining the range of the number of components to fit, default (1, 4)
--g, --gamma, defining the gamma parameter for bgmm models, default 0.001
--ni, --n_init, defining the number of k-means initializations, default 200
--mi, --max_iter, defining the maximum number of iterations, default 1000
+-f, --filters, the cutoff alignment length, default 300
+-r, --ks_range, the Ks range to be considered, default (0.005, 3)
+-b, --bins, the number of bins in Ks distribution, default 50
+-o, --outdir, the output directory, default wgd_mix
+--method, which mixture model to use, default gmm
+-n, --components, the range of the number of components to fit, default (1, 4)
+-g, --gamma, the gamma parameter for bgmm models, default 0.001
+-ni, --n_init, the number of k-means initializations, default 200
+-mi, --max_iter, the maximum number of iterations, default 1000
 ```
 
 ```
 wgd peak
 --------------------------------------------------------------------------------
-
+-ap, --anchorpoints, the anchor points data file, default None
+-sm, --segments, the segments data file, default None
+-le, --listelements, the listsegments data file, default None 
+-mp, --multipliconpairs, the multipliconpairs data file, default None
+-o, --outdir, the output directory, default wgd_peak
+-af, --alignfilter, cutoff for alignment identity, length and coverage, default 0.0, 0, 0.0
+-r, --ksrange, range of Ks to be analyzed, default (0, 5)
+-bw, --bin_width, bandwidth of Ks distribution, default 0.1
+-ic, --weights_outliers_included, flag option, whether to include Ks outliers, if the flag was set, Ks outliers will be included in the analysis
+-m, --method, which mixture model to use, default gmm
+--seed, random seed given to initialization, default 2352890
+-ei, --em_iter, the number of EM iterations to perform, default 200
+-ni, --n_init, the number of k-means initializations, default 200
+-n, --components, the range of the number of components to fit, default (1, 4)
+--boots, the number of bootstrap replicates of kde, default 200
+--weighted, flag option, whether to use node-weighted method of de-redundancy, if the flag was set, the node-weighted method will be used
+-p, --plot, the plotting method to be used, default identical
+-bm, --bw_method, the bandwidth method to be used, default silverman
+--n_medoids, the number of medoids to fit, default 2
+-km, --kdemethod, the kde method to be used, default scipy
+--n_clusters, the number of clusters to plot Elbow loss function, default 5
+--kmedoids, flag option, whether to initiate K-Medoids clustering analysis, if the flag was set, the analysis will be initiated
+-gd, --guide, the regime residing anchors, default: segment
+-prct, --prominence_cutoff, the prominence cutoff of acceptable peaks, default 0.1
+-kd, --kstodate, the range of Ks to be dated, default (0.5, 1.5)
+-f, --family, the family to filter Ks upon, default None
+--manualset, flag option, whether to output anchor pairs with manually set Ks range, if the flag was set, manually set Ks range will be used
+-rh, --rel_height, the relative height at which the peak width is measured, default 0.4
+--ci, the confidence level of log-normal distribution to date, default 95
+--hdr, the highest densidy region (HDR) in a given distribution to date, default 95
+--heuristic, flag option, whether to initiate heuristic method of defining CI for dating, if the flag was set, the heuristic method will be initiated
+-kc, --kscutoff, the Ks saturation cutoff in dating, default 5
 ```
 
 
