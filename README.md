@@ -99,7 +99,38 @@ wgd focus
 -o, --outdir, defining the output directory, default wgd_focus
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -n, --nthreads, defining the number of threads to use, default 4
+--to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--strip_gaps, flag option, defining whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
+-a, --aligner, defining which alignment program to use, default mafft
+-tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
+-ts, --treeset, defining the parameters setting for gene tree inference, default None, this option can be provided multiple times
+--concatenation, flag option, defining whether to initiate the concatenation-based species tree inference, if the flag was set, concatenation-based species tree will be infered
+--coalescence, flag option, defining whether to initiate the coalescence-based species tree inference, if the flag was set, coalescence-based species tree will be infered
+-sp, --speciestree, defining species tree darafile for dating, default None
+-d, --dating, defining which molecular dating program to use, default none
+-ds, --datingset, defining the parameters setting for dating program, default None, this option can be provided multiple times
+-ns, --nsites, defining the nsites information for r8s dating, default None
+-ot, --outgroup, defining the outgroup information for r8s dating, default None
+-pt, --partition, flag option, defining whether to initiate partition dating analysis for codon, if the flag was set, an additional partition dating analysis will be initiated
+-am, --aamodel, defining which protein model to be used in mcmctree, default poisson
+-ks, flag option, defining whether to initiate Ks analysis
+--annotation, defining which annotation program to use, default none
+--pairwise, flag option, defining whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
+-ed, --eggnogdata, defining the eggnog annotation datafile, default None
+--pfam, defining which option to use for pfam annotation, default none
+--dmnb, defining the diamond database for annotation, default None
+--hmm, defining the HMM profile for annotation, default None
+--evalue, defining the e-value cut-off for annotation, default 1e-10
+--exepath, defining the path to the interproscan executable, default None
+-f, --fossil, defining the fossil calibration information in Beast, default ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500')
+ -rh, --rootheight, defining the root height calibration info in Beast, default (4,0.5,400)
+-cs, --chainset, defining the parameters of MCMC chain in Beast, default (10000,100)
+--beastlgjar, defining the path to beastLG.jar, default None
+--beagle, flag option, defining whether to use beagle in Beast, if the flag was set, beagle will be used
+--protdating, flag option, defining whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
 ```
+
 ## Step 3 Construction of Ks Distribution
 
 ### Gene Family Delineation
