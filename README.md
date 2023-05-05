@@ -58,6 +58,19 @@ wgd dmd
 --------------------------------------------------------------------------------
 -o, --outdir, defining the output directory, default wgd_dmd
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-c, --cscore, defining the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
+-I, --inflation, defining the inflation factor for MCL program, default 2.0
+-e, --eval, defining the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10
+--to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+-f, --focus, defining the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
+-ap, --anchorpoints, defining the anchor points data file to be merged with MRBHs, default None, if None was given, this anchor-merging step will be skipped
+-sm, --segments, defining the segments data file used in collinear coalescence analysis if initiated, default None
+-le, --listelements, defining the listsegments data file used in collinear coalescence analysis if initiated, default None
+-kf, --keepfasta, flag option, defining whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
+-kd, --keepduplicates, flag option, defining whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
+-gm, --globalmrbh, flag option, defining whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
+
 
 ```
 
