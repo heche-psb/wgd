@@ -4,6 +4,8 @@
 
 [![Build Status](https://travis-ci.com/arzwa/wgd.svg?branch=dev)](https://travis-ci.com/arzwa/wgd)
 
+**Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
+
 [**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.org/)**, VIB-UGent Center for Plant Systems Biology**
 
 [**Introduction**](#Introduction) | 
