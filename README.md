@@ -64,13 +64,33 @@ wgd dmd
 --to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
 --cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
 -f, --focus, defining the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
--ap, --anchorpoints, defining the anchor points data file to be merged with MRBHs, default None, if None was given, this anchor-merging step will be skipped
--sm, --segments, defining the segments data file used in collinear coalescence analysis if initiated, default None
--le, --listelements, defining the listsegments data file used in collinear coalescence analysis if initiated, default None
+-ap, --anchorpoints, defining the anchor points data file, default None
+-coc, --collinearcoalescence, flag option, defining whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
+-sm, --segments, defining the segments data file used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
+-le, --listelements, defining the listsegments data file used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
+-gtb, --genetable, defining the gene table datafile used in collinear coalescence analysis if initiated, default None, this option only works together with --collinearcoalescence option
 -kf, --keepfasta, flag option, defining whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
 -kd, --keepduplicates, flag option, defining whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
 -gm, --globalmrbh, flag option, defining whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
-
+-n, --nthreads, defining the number of threads to use, default 4
+-oi, --orthoinfer, flag option, defining whether to initiate orthogroup infernece, if the flag was set, the orthogroup infernece program will be initiated
+-oo, --onlyortho, flag option, defining whether to only conduct orthogroup infernece, if the flag was set, only the orthogroup infernece program will be conducted while the other analysis won't be initiated
+-gn, --getnsog, flag option, defining whether to initiate the searching for nested single-copy gene families (NSOGs), if the flag was set, additional NSOGs analysis will be performed besides the basic orthogroup infernece, this option only works together with --orthoinfer option
+-tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
+-ts, --treeset, defining the parameters setting for gene tree inference, default None, this option can be provided multiple times
+-mc, --msogcut, defining the ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference, default 0.8.
+-ga, --geneassign, flag option, defining whether to initiate the gene-to-family assignment analysis, if the flag was set, the analysis will be initiated
+-am, --assign_method, defining which method to conduct the gene-to-family assignment analysis, default hmmer, this option only works together with --geneassign option
+-sa, --seq2assign, defining the queried sequences data file in gene-to-family assignment analysis, default None, this option can be provided multiple times, this option only works together with --geneassign option
+-fa, --fam2assign, defining the queried familiy data file in gene-to-family assignment analysis, default None, this option only works together with --geneassign option
+-cc, --concat, flag option, defining whether to initiate the concatenation pipeline for orthogroup infernece, if the flag was set, the analysis will be initiated, this option only works together with --orthoinfer option
+-te, --testsog, flag option, defining whether to initiate the unbiased test of single-copy gene families, if the flag was set, the analysis will be initiated, this option only works together with --orthoinfer option
+-bs, --bins, defining the number of bins divided in gene length normalization, default 100, this option only works together with --orthoinfer option
+-np, --normalizedpercent, defining the percentage of upper hits used for gene length normalization, default 5, this option only works together with --orthoinfer option
+-nn, --nonormalization, flag option, defining whether to call off the normalization, if the flag was set, no normalization will be conducted, this option only works together with --orthoinfer option
+-bsog, --buscosog, flag option, defining whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis will be initiated
+-bhmm, --buscohmm, defining the HMM profile datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
+-bctf, --buscocutoff, defining the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
 
 ```
 
