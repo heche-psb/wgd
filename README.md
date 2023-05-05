@@ -55,9 +55,9 @@ There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`v
 
 ```
 wgd dmd
-
--o, --outdir, defining the output directory, default `wgd_dmd`
--t, --tmpdir, defining the temporary working directory, default `None`, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+--------------------------------------------------------------------------------
+-o, --outdir, defining the output directory, default wgd_dmd
+-t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 
 ```
 
