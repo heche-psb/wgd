@@ -53,9 +53,8 @@ export PATH="$PATH:~/.local/bin/wgd"
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
 
+### wgd dmd
 ```
-wgd dmd
---------------------------------------------------------------------------------
 -o, --outdir, defining the output directory, default wgd_dmd
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -c, --cscore, defining the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
@@ -93,9 +92,8 @@ wgd dmd
 -bctf, --buscocutoff, defining the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
 ```
 
+### wgd focus
 ```
-wgd focus
---------------------------------------------------------------------------------
 -o, --outdir, defining the output directory, default wgd_focus
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -n, --nthreads, defining the number of threads to use, default 4
@@ -130,6 +128,40 @@ wgd focus
 --beagle, flag option, defining whether to use beagle in Beast, if the flag was set, beagle will be used
 --protdating, flag option, defining whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
 ```
+
+### wgd ksd
+```
+wgd ksd
+--------------------------------------------------------------------------------
+-o, --outdir, defining the output directory, default wgd_ksd
+-t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
+-n, --nthreads, defining the number of threads to use, default 4
+--to_stop, flag option, defining whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, defining whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--pairwise, flag option, defining whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
+--strip_gaps, flag option, defining whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
+-tree, --tree_method, defining which gene tree inference program to invoke, default fasttree
+-sr, --spair, defining the species pair to be plotted, default None, this option can be provided multiple times
+-sp, --speciestree, defining the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
+-or, --onlyrootout, flag option, defining whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
+```
+
+### wgd mix
+```
+wgd mix
+--------------------------------------------------------------------------------
+-f, --filters, defining the cutoff alignment length, default 300
+-r, --ks_range, defining the Ks range to be considered, default (0.005, 3)
+-b, --bins, defining the number of bins in Ks distribution, default 50
+-o, --outdir, defining the output directory, default wgd_mix
+--method, defining which mixture model to use, default gmm
+-n, --components, defining the range of the number of components to fit, default (1, 4)
+-g, --gamma, defining the gamma parameter for bgmm models, default 0.001
+-ni, --n_init, defining the number of k-means initializations, default 200
+-mi, --max_iter, defining the maximum number of iterations, default 1000
+```
+
+
 
 ## Step 3 Construction of Ks Distribution
 
