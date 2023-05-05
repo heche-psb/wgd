@@ -53,8 +53,9 @@ export PATH="$PATH:~/.local/bin/wgd"
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
 
-### wgd dmd
 ```
+wgd dmd
+--------------------------------------------------------------------------------
 -o, --outdir, defining the output directory, default wgd_dmd
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -c, --cscore, defining the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
@@ -92,8 +93,9 @@ There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`v
 -bctf, --buscocutoff, defining the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None, this option only works together with --buscosog option
 ```
 
-### wgd focus
 ```
+wgd focus
+--------------------------------------------------------------------------------
 -o, --outdir, defining the output directory, default wgd_focus
 -t, --tmpdir, defining the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -n, --nthreads, defining the number of threads to use, default 4
@@ -129,7 +131,6 @@ There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`v
 --protdating, flag option, defining whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
 ```
 
-### wgd ksd
 ```
 wgd ksd
 --------------------------------------------------------------------------------
@@ -146,7 +147,6 @@ wgd ksd
 -or, --onlyrootout, flag option, defining whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
 ```
 
-### wgd mix
 ```
 wgd mix
 --------------------------------------------------------------------------------
@@ -161,6 +161,11 @@ wgd mix
 -mi, --max_iter, defining the maximum number of iterations, default 1000
 ```
 
+```
+wgd peak
+--------------------------------------------------------------------------------
+
+```
 
 
 ## Step 3 Construction of Ks Distribution
