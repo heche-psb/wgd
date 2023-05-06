@@ -277,102 +277,90 @@ wgd dmd sequence1 sequence2 sequence3 -gm
 ```
 wgd dmd sequence1 sequence2 sequence3 -oi (option)
 ```
-Note that users can add the analysis including NSOGs and BUSCO-guided SOGs etc, by adding the corresponding flag, for instance --getnsog and --buscosog.
+Note that users can add the analysis including NSOGs and BUSCO-guided SOGs etc, by adding the corresponding flags, for instance --getnsog and --buscosog.
 
 **The collinear coalescence inference of phylogeny**
 ```
 wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata --collinearcoalescence
 ```
 
+### wgd focus
 
-
-## Step 3 Construction of Ks Distribution
-
-### Gene Family Delineation
-
-An all-against-all protein sequence similarity search using `DIAMOND` and Markov Clustering using `MCL` are performed to delineate paralogous gene families using the following command. (Please make sure that both the program `DIAMOND` and `MCL` have been add into the environment variables)
-
+**The concatenation-based/coalescence-based phylogenetic inference**
 ```
-wgd dmd data/Vvi.cds -I 3.0 -o data/Vvi_wgd_dmd
-wgd dmd data/Atr.cds -I 3.0 -o data/Atr_wgd_dmd
+wgd focus families sequence1 sequence2 sequence3 --concatenation/--coalescence
 ```
 
-Note that the option -I defines the inflation factor for MCL clustering, here we set an empirical 3.0. The option -e defines the e-value cut-off for similarity and here we use default e-10. We recommend the `DIAMOND` instead of the `BLAST` as the searching engine for both the time efficiency and accuracy.
-
-After above command, we are supposed to get the paralogous gene family files [Vvi.cds.tsv](https://github.com/heche-psb/wgd/tree/dev/data/Vvi_wgd_dmd/Vvi.cds.tsv/) and [Atr.cds.tsv](https://github.com/heche-psb/wgd/tree/dev/data/Atr_wgd_dmd/Atr.cds.tsv/) for *V. vinifera* and *A. trichopoda*, respectively, each line of which represents a paralogous gene family. 
-
-### Estimation of Ks Distance
-
-Given the paralogous gene family information, we can start estimating the Ks distance for each pair of gene duplicates for each paralogous gene family using the following command. `PAML` is required for this step, please turn to Ziheng Yang's [lab page](http://abacus.gene.ucl.ac.uk/software/#phylogenetic-analysis-by-maximum-likelihood-paml) for detailed guidance of installation. Besides, `PAML 4.9j` works well in our test and is thereby recommended. The program `MAFFT` is required for the sequence alignment.
-
+**The functional annotation of gene families**
 ```
-wgd ksd -n 8 --pairwise data/Vvi_wgd_dmd/Vvi.cds.tsv data/Vvi.cds -o data/Vvi_wgd_ksd
-wgd ksd -n 8 --pairwise data/Atr_wgd_dmd/Atr.cds.tsv data/Atr.cds -o data/Atr_wgd_ksd
+wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed data --dmnb data
 ```
 
-Note that here we set the option `--pairwise` to run `codeml` on all gene pairs separately. If `--pairwise` is not set, the aggressive algorithm built-in `codeml` would enforce all paralogs in the same family to have a single shared aligned nucleotide sequence with the removal of all gaps, probably resulting in a great loss of information. We recommend the set of `--pairwise` to fully exploit the information in the sequence data.
-
-
-![](data/Vvi_wgd_ksd/Vvi.cds.tsv.ksd.svg)
-![](data/Atr_wgd_ksd/Atr.cds.tsv.ksd.svg)
-
-The Ks distribution of *V. vinifera* shows a considerable enrichment of gene duplicates around Ks~1, while the Ks distribution of *A. trichopoda* seems to follow the uniform/quasi-exponential mixture (see detailed discussion in the book chapter), indicating that *V. vinifera* might experience a relatively recent WGD event (or any other multiplication level for instance whole genome triplication) while *A. trichopoda* not. Such observation serves as the first piece of evidence for the inference of WGD events, which we will further seek to corroborate by the synteny analysis in step 4.
-
-## Step 4 Synteny Analysis
-
-### Intragenomic Synteny
-
-The multiplication of the entire genome is supposed to instantaneously generate an additional copy of each chromosome, retaining both the gene order and gene content of the original copy. Despite chromosomal rearrangements and rampant gene loss following WGD, gene order and gene content are expected to be more or less retained on at least some chromosomes in reasonable time frames. Such chromosomal region is named *Syntenic Region*, which is assumed to be originated from the duplication of a common ancestral genomic region and considered as strong evidence for WGD once detected. A straightforward way to depict the synteny relationship within a genome is to draw a `whole-genome dotplot`, where both the x-axis and y-axis represent the same genome, and each square represents a single chromosome-to-chromosome comparison. Homologs are shown as dots while anchor pairs, defined as homologous pairs on syntenic regions, are marked in a distinct color. To delineate the synteny relationship, we use [I-ADHoRe 3.0](https://github.com/VIB-PSB/i-ADHoRe) to obtain such dotplots using the following command. 
-
+**The phylogenetic dating of WGDs**
 ```
-wgd syn -f mRNA data/Vvi_wgd_dmd/Vvi.cds.tsv data/Vvi.gff3 -ks data/Vvi_wgd_ksd/Vvi.cds.tsv.ks.tsv -o data/Vvi_wgd_syn
-wgd syn -f mRNA data/Atr_wgd_dmd/Atr.cds.tsv data/Atr.gff3 -ks data/Atr_wgd_ksd/Atr.cds.tsv.ks.tsv -o data/Atr_wgd_syn
+wgd focus families sequence1 sequence2 sequence3 -d mcmctree -sp spdata
 ```
 
-![](data/Vvi_wgd_syn/Vvi.cds-vs-Vvi.cds.dot.png)
-![](data/Atr_wgd_syn/Atr.cds-vs-Atr.cds.dot.png)
+### wgd ksd
 
-When multiple anchors are located adjacently, a red diagonal line, reflecting a syntenic block, can be observed. We can find quite some syntenic blocks in the intragenomic dotplot of *V. vinifera* and a close examination reveals that for many chromosomal regions, we find two copies showing conserved gene order on other chromosomes, suggesting an ancestral genome triplication (hexaploidization). While for *A. trichopoda*, the anchors are negligible, implying no recent WGD.
-
-![](data/Vvi_wgd_syn/Vvi.cds.tsv.syndepth.svg)
-![](data/Atr_wgd_syn/Atr.cds.tsv.syndepth.svg)
-
-Let's take a look at the synteny depth (or multiplication level) bar plot, in which we can find that *V. vinifera* has obviously more "level>2" synteny regions , among which the multiplication level 3 is dominant, suggesting the hexaploidization origin. While *A. trichopoda* has near-zero "level>2" synteny regions.
-
-We can draw a duplication level plot to make this pattern clearer using i-adhore by command:
-
+**The construction of whole paranome *K*<sub>S</sub> age distribution**
 ```
-perl dupliStacks.pl data/Vvi_wgd_syn/iadhore.conf
-``` 
-Note that [dupliStacks.pl](https://github.com/VIB-PSB/i-ADHoRe/blob/master/post_processing/dupliStacks.pl) is an external perl script in `i-ADHoRe`, which we will merge into `wgd` soon. We don't keep the intermediate files in the [data](https://github.com/heche-psb/wgd/tree/dev/data) folder, only the final discussed results are kept.
-
-![](data/Vvi_wgd_syn/duplication-level.svg)
-
-The duplication level plot further shows that most syntenic regions consist of three homologous segments, which again is suggestive of *V. vitifera*’s ancestral hexaploidy. 
-
-We can also find evidence for this putative WGD event from the correspondence of peak in Ks distributions for anchor pairs and whole-paranome.
-
-![](data/Vvi_wgd_syn/Vvi.cds.tsv.ksd.svg)
-![](data/Atr_wgd_syn/Atr.cds.tsv.ksd.svg)
-
-### Intergenomic Synteny
-
-Besides the intragenomic synteny evidence, the intergenomic synteny is another strong indicator for the inference of putative WGD events. This step we perform an intergenomic comparison to profile the synteny relationship between *V. vinifera* and *A. trichopoda*. The orthologous gene family needed here is obtained by `OrthoFinder` using command:
-
-```
-orthofinder -f data/prot -t 16 -og
+wgd ksd families sequence
 ```
 
-The result file [Orthogroups.tsv](https://github.com/heche-psb/wgd/tree/dev/data/Orthogroups.tsv) is used for next step. We implement the following command.
-
+**The construction of orthologous *K*<sub>S</sub> age distribution**
 ```
-wgd syn -f mRNA data/Orthogroups.tsv data/Atr.gff3 data/Vvi.gff3 -o data/Vvi_Atr_wgd_syn
+wgd ksd families sequence1 sequence2
 ```
 
-![](data/Vvi_Atr_wgd_syn/A.trichopoda-vs-V.vinifera.dot.png)
-![](data/Vvi_Atr_wgd_syn/Orthogroups.tsv.syndepth.svg) 
+**The construction of *K*<sub>S</sub> age distribution with rate correction**
+```
+wgd ksd families sequence1 sequence2 sequence3 -sr data -sp data
+```
 
-We modfiy the interspecific dotplot manually to highlight the syntenic regions which is 3:1 ratio. The synteny depth bar plot shows that except for an obvious 1:1 ratio, mainly a ratio of 2:1 and 3:1 is uncovered. Combined with the results of the intragenomic comparisons, we can rather confidently conclude that *V. vinifera* experienced a paleo-hexaploidization event after its divergence of *A. trichopoda*.
+### wgd mix
+
+**The mixture model clustering analysis of *K*<sub>S</sub> age distribution**
+```
+wgd mix ksdata
+```
+
+### wgd peak
+
+**The search of crediable *K*<sub>S</sub> range used in WGD dating**
+```
+wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata
+```
+Note that users can add the flag --heuristic to implement the heuristic search analysis
+
+### wgd syn
+
+**The intra-specific synteny inference**
+```
+wgd syn families gff
+```
+
+**The inter-specific synteny inference**
+```
+wgd syn families gff1 gff2
+```
+
+### wgd viz
+
+**The visualization of *K*<sub>S</sub> age distribution**
+```
+wgd viz -d ksdata
+```
+
+**The visualization of *K*<sub>S</sub> age distribution with rate correction**
+```
+wgd viz -d ksdata -sr srdata -sp spdata -gs gsdata
+```
+
+**The visualization of synteny**
+```
+wgd viz -ap apdata -sm smdata -mt mtdata -gt gtdata
+```
 
 ## Citation
  
