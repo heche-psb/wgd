@@ -35,7 +35,7 @@ setup(
        'kiwisolver==1.2.0',
        'MarkupSafe==1.1.1',
        'matplotlib==3.2.2',
-       'numpy==1.19.0',
+       'numpy>=1.19.0',
        'packaging==20.4',
        'pandas>=1.1.0',
        'Pillow==7.1.2',
