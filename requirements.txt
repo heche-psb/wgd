@@ -4,7 +4,7 @@ click==7.1.2
 colorama==0.4.4
 commonmark==0.9.1
 cycler==0.10.0
-fastcluster==1.2.6
+fastcluster==1.1.28
 humanfriendly==8.2
 importlib-metadata==3.1.0
 iniconfig==1.1.1
@@ -36,7 +36,7 @@ PyYAML==5.3.1
 rich==12.5.1
 scikit-learn==0.23.1
 scikit-learn-extra==0.2.0
-scipy>=1.6.3
+scipy<=1.5.4
 seaborn==0.10.1
 six==1.15.0
 threadpoolctl==2.1.0
