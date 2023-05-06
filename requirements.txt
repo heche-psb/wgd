@@ -10,6 +10,7 @@ importlib-metadata==3.1.0
 iniconfig==1.1.1
 Jinja2==2.11.2
 joblib==0.11
+KDEpy==1.1.0
 kiwisolver==1.2.0
 MarkupSafe==1.1.1
 matplotlib==3.2.2
@@ -30,6 +31,7 @@ pytz==2020.1
 PyYAML==5.3.1
 rich==9.3.0
 scikit-learn==0.23.1
+scikit-learn-extra==0.2.0
 scipy>=1.5.0
 seaborn==0.10.1
 six==1.15.0
