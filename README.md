@@ -26,7 +26,13 @@ The *K*<sub>S</sub> method is established on a model of gene family evolution th
 
 ## Installation
 
-To install `wgd` in a virtual environment, the following command lines could be used.
+The easiest way to install `wgd v2` is using PYPI
+
+```
+pip install wgd
+```
+
+To install `wgd v2` in a virtual environment, the following command lines could be used.
 
 ```
 git clone <wgd repo>
