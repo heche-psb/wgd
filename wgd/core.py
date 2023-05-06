@@ -17,12 +17,12 @@ from Bio import Phylo
 from joblib import Parallel, delayed
 from concurrent.futures import ProcessPoolExecutor
 from wgd.codeml import Codeml
-from wgd.cluster import cluster_ks
+from wgd.cluster import cluster_ks #fastcluster is not compatible with some versions of numpy which causes problems for python3.8 and higher
 from wgd.mcmctree import mcmctree
 from wgd.beast import beast
 from timeit import default_timer as timer
 import copy
-import psutil
+#import psutil
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy import stats
 from sklearn.cluster import AgglomerativeClustering
@@ -30,12 +30,12 @@ import matplotlib.pyplot as plt
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
-def memory_reporter():
-    d = psutil.virtual_memory()
-    logging.info("Available memory for processes : {}GB ".format(d[1]/1e9))
-    logging.info("Memory usage in percent : {}% ".format(d[2]))
-    logging.info("The memory used : {}GB ".format(d[3]/1e9))
-    logging.info("The memory not used but readily available : {}GB ".format(d[4]/1e9))
+#def memory_reporter():
+#    d = psutil.virtual_memory()
+#    logging.info("Available memory for processes : {}GB ".format(d[1]/1e9))
+#    logging.info("Memory usage in percent : {}% ".format(d[2]))
+#    logging.info("The memory used : {}GB ".format(d[3]/1e9))
+#    logging.info("The memory not used but readily available : {}GB ".format(d[4]/1e9))
 
 def _write_fasta(fname, seq_dict):
     with open(fname, "w") as f:
@@ -240,6 +240,8 @@ class SequenceData:
             to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5, nonormalization=False):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
+        else:
+            tmp_path = tmp_path + "/"+ "wgdtmp_" + str(uuid.uuid4())
         self.np = normalizedpercent
         self.tmp_path  = _mkdir(tmp_path)
         self.out_path  = _mkdir(out_path)

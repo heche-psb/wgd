@@ -113,9 +113,9 @@ def dmd(**kwargs):
     _dmd(**kwargs)
 
 def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
-    memory_reporter()
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog
     start = timer()
+    if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent, nonormalization=nonormalization) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if buscosog:
@@ -219,6 +219,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
     from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST, get_only_protaln, Run_MCMCTREE_concprot, Concat_prot
     start = timer()
+    if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     if dating=='r8s' and not speciestree is None and nsites is None:
         logging.error("Please provide nsites parameter for r8s dating")
         exit(0)
@@ -446,6 +447,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     from wgd.core import read_gene_families, merge_seqs
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
     start = timer()
+    if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     if len(sequences) == 0: 
         logging.error("Please provide at least one sequence file")
         exit(0)
