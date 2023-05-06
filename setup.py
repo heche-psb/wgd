@@ -45,7 +45,6 @@ setup(
        'pluggy==0.13.1',
        'plumbum==1.6.9',
        'progressbar2==3.51.4',
-       'psutil==5.7.0',
        'py==1.9.0',
        'Pygments==2.7.2',
        'pyqtwebengine<5.13',
