@@ -11,7 +11,7 @@
 [**Introduction**](#Introduction) | 
 [**Installation**](#Installation) | 
 [**Parameters**](#Parameters) | 
-[**Tutorial**](#Tutorial) | 
+[**Usage**](#Usage) | 
 [**Citation**](#Citation)
 
 </div>
@@ -247,9 +247,9 @@ wgd viz (option)
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
 ```
 
-## Tutorial
+## Usage
 
-Here we provided an exemplary usage for each program.
+Here we provided the basic usage for each program.
 
 ### wgd dmd
 
