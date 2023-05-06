@@ -54,7 +54,7 @@ export PATH="$PATH:~/.local/bin/wgd"
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
 
 ```
-wgd dmd
+wgd dmd sequences (option)
 --------------------------------------------------------------------------------
 -o, --outdir, the output directory, default wgd_dmd
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
@@ -68,7 +68,7 @@ wgd dmd
 -coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
 -sm, --segments, the segments data file used in collinear coalescence analysis if initiated, default None
 -le, --listelements, the listsegments data file used in collinear coalescence analysis if initiated, default None
--gtb, --genetable, the gene table datafile used in collinear coalescence analysis if initiated, default None
+-gt, --genetable, the gene table datafile used in collinear coalescence analysis if initiated, default None
 -kf, --keepfasta, flag option, whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
 -kd, --keepduplicates, flag option, whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
 -gm, --globalmrbh, flag option, whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
@@ -94,7 +94,7 @@ wgd dmd
 ```
 
 ```
-wgd focus
+wgd focus families sequences (option)
 --------------------------------------------------------------------------------
 -o, --outdir, the output directory, default wgd_focus
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
@@ -132,7 +132,7 @@ wgd focus
 ```
 
 ```
-wgd ksd
+wgd ksd families sequences (option)
 --------------------------------------------------------------------------------
 -o, --outdir, the output directory, default wgd_ksd
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
@@ -144,11 +144,12 @@ wgd ksd
 -tree, --tree_method, which gene tree inference program to invoke, default fasttree
 -sr, --spair, the species pair to be plotted, default None, this option can be provided multiple times
 -sp, --speciestree, the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
+-rw, --reweight, flag option, whether to recalculate the weight per species pair, if the flag was set, the weight will be recalculated
 -or, --onlyrootout, flag option, whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
 ```
 
 ```
-wgd mix
+wgd mix ks_datafile (option)
 --------------------------------------------------------------------------------
 -f, --filters, the cutoff alignment length, default 300
 -r, --ks_range, the Ks range to be considered, default (0.005, 3)
@@ -162,12 +163,12 @@ wgd mix
 ```
 
 ```
-wgd peak
+wgd peak ks_datafile (option)
 --------------------------------------------------------------------------------
--ap, --anchorpoints, the anchor points data file, default None
--sm, --segments, the segments data file, default None
--le, --listelements, the listsegments data file, default None 
--mp, --multipliconpairs, the multipliconpairs data file, default None
+-ap, --anchorpoints, the anchor points datafile, default None
+-sm, --segments, the segments datafile, default None
+-le, --listelements, the listsegments datafile, default None 
+-mp, --multipliconpairs, the multipliconpairs datafile, default None
 -o, --outdir, the output directory, default wgd_peak
 -af, --alignfilter, cutoff for alignment identity, length and coverage, default 0.0, 0, 0.0
 -r, --ksrange, range of Ks to be analyzed, default (0, 5)
@@ -198,6 +199,46 @@ wgd peak
 -kc, --kscutoff, the Ks saturation cutoff in dating, default 5
 ```
 
+```
+wgd syn families gffs (option)
+--------------------------------------------------------------------------------
+-ks, --ks_distribution, ks distribution datafile, default None
+-o, --outdir, the output directory, default wgd_syn
+-f, --feature, the feature for parsing gene IDs from GFF files, default gene
+-a, --attribute, the attribute for parsing the gene IDs from the GFF files, default ID
+-ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffold will be set
+-ms, --maxsize, the maximum family size to include, default 200
+-r, --ks_range, the Ks range in colored dotplot, default (0, 5)
+--iadhore_options, the parameter setting in iadhore, default 
+-ac, --ancestor, the assumed ancestor species, default None, a option that is still in development
+-mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 100000
+-kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
+```
+
+```
+wgd viz (option)
+--------------------------------------------------------------------------------
+-d, --datafile, the Ks datafile, default None
+-o, --outdir, the output directory, default wgd_viz
+-sr, --spair, the species pair to be plotted, default None, this option can be provided multiple times
+-gs, --gsmap, the gene name-species name map, default None
+-sp, --speciestree, the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
+-pk, --plotkde, flag option, whether to plot kde curve upon histogram, if the flag was set, kde curve will be added
+-rw, --reweight, flag option, whether to recalculate the weight per species pair, if the flag was set, the weight will be recalculated
+-or, --onlyrootout, flag option, whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
+-iter, --em_iterations, the maximum EM iterations, default 200
+-init, --em_initializations, the maximum EM initializations, default 200
+-prct, --prominence_cutoff, the prominence cutoff of acceptable peaks, default 0.1
+-sm, --segments, the segments data file, default None
+-ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffold will be set
+-ms, --maxsize, the maximum family size to include, default 200
+-ap, --anchorpoints, the anchor points datafile, default None
+-mt, --multiplicon, the multiplicons datafile, default None
+-gt, --genetable, the gene table datafile, default None
+-rh, --rel_height, the relative height at which the peak width is measured, default 0.4
+-mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 100000
+-kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
+```
 
 ## Step 3 Construction of Ks Distribution
 
