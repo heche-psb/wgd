@@ -127,7 +127,6 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
     df = df.sort_values(12,ascending=False).reset_index(drop=True)
-    bins = bins
     if hicluster:
         X = [[i] for i in df[12]]
         df[13] = AgglomerativeClustering(n_clusters=bins).fit(X).labels_
@@ -146,6 +145,9 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
         df[13] = fit_linregress(df.loc[:,11:12])
     else:
         if len(df)%bins == 0: bin_size = len(df)/bins
+        elif len(df) < 100:
+            logging.info("The number of hits is less than 100, will aggregate all the hits in one bin")
+            bin_size,bins = len(df),1
         else: bin_size = (len(df)-(len(df)%bins))/bins
         if allbins:
             if sgidmaps is None:

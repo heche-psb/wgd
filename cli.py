@@ -53,15 +53,15 @@ def cli(verbosity):
 @click.option('--focus','-f', default=None,
     help="Species whose WGD is to be dated")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True,
-    help='anchorpoints.txt file from i-adhore')
+    help='anchor points datafile')
 @click.option('--segments', '-sm', default=None, show_default=True,
-    help='segments.txt file from i-adhore')
-@click.option('--listsegments', '-ls', default=None, show_default=True,
-    help='list_elements.txt file from i-adhore')
+    help='segments datafile')
+@click.option('--listelements', '-le', default=None, show_default=True,
+    help='list elements datafile')
 @click.option('--keepfasta','-kf', is_flag=True,
     help="keep the fasta file of homologs family")
 @click.option('--keepduplicates','-kd', is_flag=True,
-    help="Keep ID duplicates of focus species")
+    help="Keep ID duplicates in MRBHs")
 @click.option('--globalmrbh','-gm', is_flag=True,
     help="global MRBH regardless of focus species")
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
@@ -82,9 +82,9 @@ def cli(verbosity):
 @click.option('--normalizedpercent', '-np', type=int, default=5, show_default=True, help='percentage of upper hits used for normalization')
 @click.option('--nonormalization','-nn', is_flag=True,help="call off the normalization process")
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
-@click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='hmm profile of given busco dataset')
+@click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='HMM profile of given busco dataset')
 @click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO')
-@click.option('--genetable', '-gtb', default= None, show_default=True, help='gene table file')
+@click.option('--genetable', '-gt', default= None, show_default=True, help='gene table file')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -112,7 +112,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listsegments, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,memory_reporter,segmentsaps,bsog
     memory_reporter()
     start = timer()
@@ -124,7 +124,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         endt(tmpdir,start,s)
     if collinearcoalescence:
         logging.info("Analyzing collinear coalescence")
-        segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
+        segmentsaps(genetable,listelements,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
         genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent)
@@ -154,7 +154,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))
 @click.argument('sequences', nargs=-1, type=click.Path(exists=True))
-@click.option('--outdir', '-o', default="wgd_focus_post", show_default=True,help='output directory')
+@click.option('--outdir', '-o', default="wgd_focus", show_default=True,help='output directory')
 @click.option('--tmpdir', '-t', default=None, show_default=True,help='tmp directory')
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
 @click.option('--to_stop', is_flag=True,help="don't translate through STOP codons")
@@ -179,7 +179,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--pfam', type=click.Choice(['none', 'denovo', 'realign']),default='none',show_default=True,help='PFAM domains for annotation')
 @click.option('--dmnb', default=None, show_default=True,help='Diamond database for annotation')
 @click.option('--hmm', default=None, show_default=True,help='profile for hmmscan')
-@click.option('--evalue', default=1e-3, show_default=True,help='E-value threshold for annotation')
+@click.option('--evalue', default=1e-10, show_default=True,help='E-value threshold for annotation')
 @click.option('--exepath', default=None, show_default=True,help='Path to interproscan installation folder')
 @click.option('--fossil', '-f', nargs=5, default= ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500'), show_default=True, help='fossil calibration info (id,taxa,mean,std,offset)')
 @click.option('--rootheight', '-rh', nargs=3,default= (4,0.5,400), show_default=True, help='root height calibration info (mean,std,offset)')
@@ -297,9 +297,9 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 # Get peak and confidence interval of Ks distribution
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('ks_distribution', type=click.Path(exists=True))
-@click.option('--anchor', '-a', default=None, show_default=True, help='anchor pair infomation')
-@click.option('--segment', '-sg', default=None, show_default=True, help='segment information')
-@click.option('--listelement', '-le', default=None, show_default=True, help='listelement information')
+@click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchor pair infomation')
+@click.option('--segments', '-sm', default=None, show_default=True, help='segments information')
+@click.option('--listelements', '-le', default=None, show_default=True, help='listelements information')
 @click.option('--multipliconpairs', '-mp', default=None, show_default=True, help='multipliconpairs information')
 @click.option('--outdir', '-o', default='wgd_peak', show_default=True,
     help='output directory')
@@ -315,14 +315,13 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--seed',type=int, default=2352890, show_default=True, help="random seed given to initialize parameters")
 @click.option('--em_iter', '-ei',type=int, default=200, show_default=True, help="number of EM iterations to perform")
 @click.option('--n_init', '-ni',type=int, default=200, show_default=True, help="number of initializations to perform")
-@click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
+@click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--boots', type=int, default=200, show_default=True, help="number of bootstrap replicates of kde")
 @click.option('--weighted', is_flag=True,help="node-weighted instead of node-averaged method")
 @click.option('--plot', '-p', type=click.Choice(['stacked', 'identical']), default='identical', show_default=True, help="plotting method")
 @click.option('--bw_method', '-bm', type=click.Choice(['silverman', 'ISJ']), default='silverman', show_default=True, help="bandwidth method")
 @click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
 @click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
-@click.option('--alpha',type=float, default=0.5, show_default=True, help="alpha value to control Interpercentile range")
 @click.option('--n_clusters',type=int, default=5, show_default=True, help="number of clusters to plot Elbow loss function")
 @click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
 @click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster', 'segment']), default='segment', show_default=True, help="regime residing anchors")
@@ -341,7 +340,7 @@ def peak(**kwargs):
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, alpha, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci,manualset,segment,hdr,heuristic,listelement,multipliconpairs,kscutoff):
+def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI, formatv2
     from wgd.core import _mkdir
     outpath = _mkdir(outdir)
@@ -358,16 +357,16 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
         exit()
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
-    if anchor!= None:
+    if anchorpoints!= None:
         if kmedoids:
-            df_ap = fit_kmedoids(guide, anchor, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, alpha=alpha, n_kmedoids = n_clusters, segment = segment, multipliconpairs=multipliconpairs,listelement=listelement)
+            df_ap = fit_kmedoids(guide, anchorpoints, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, n_kmedoids = n_clusters, segment = segments, multipliconpairs=multipliconpairs,listelement=listelements)
         else:
-            df_ap_mp = fit_apgmm_guide(hdr,guide,anchor,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=segment,multipliconpairs=multipliconpairs,listelement=listelement,cutoff = kscutoff)
-            df_ap = fit_apgmm_ap(hdr,anchor,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
+            df_ap_mp = fit_apgmm_guide(hdr,guide,anchorpoints,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=segments,multipliconpairs=multipliconpairs,listelement=listelements,cutoff = kscutoff)
+            df_ap = fit_apgmm_ap(hdr,anchorpoints,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,weighted,plot)
         if heuristic:
-            find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-            find_apeak(df_ap,anchor,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-            find_mpeak(df_ap_mp,anchor,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_mpeak(df_ap_mp,anchorpoints,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
         logging.info('Done')
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
@@ -418,10 +417,11 @@ def _peak(ks_distribution, anchor, outdir, alignfilter, ksrange, bin_width, weig
     help="remove all gap-containing columns in the alignment")
 @click.option('--tree_method', '-tree', 
     type=click.Choice(['cluster', 'fasttree', 'iqtree']), 
-    default='cluster', show_default=True,
+    default='fasttree', show_default=True,
     help="Tree inference method for node weighting")
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
+@click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
 @click.option('--onlyrootout', '-or', is_flag=True, help='only consider the outgroup at root')
 def ksd(**kwargs):
     """
@@ -441,7 +441,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, tree_method,spair, speciestree, onlyrootout):
+        strip_gaps, tree_method,spair, speciestree, reweight, onlyrootout):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -475,7 +475,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         ylabel = "RBH orthologs"
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
-    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,sptree=speciestree)
+    if len(spair)!= 0:  multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -502,7 +502,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 @click.option('--minlen', '-ml', default=-1, show_default=True, help="minimum length of a genomic element to be included in dotplot")
 @click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
-@click.option('--anchor', '-a', default=None, show_default=True, help='anchorpoints.txt file')
+@click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
@@ -514,7 +514,7 @@ def viz(**kwargs):
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchor,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile
@@ -522,7 +522,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     _mkdir(outdir)
     if datafile ==None:
         table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
-        df_anchor,df_multi = get_anchors('',userdf=anchor),get_multi('',userdf2=multiplicon)
+        df_anchor,df_multi = get_anchors('',userdf=anchorpoints),get_multi('',userdf2=multiplicon)
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
         segs,table = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
@@ -535,7 +535,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
     ylabel = "Duplications" if spair == () else "Homologous pairs"
-    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchor)
+    if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
@@ -562,12 +562,11 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="minimum length of a genomic element to be included in dotplot.")
 @click.option('--maxsize', '-ms', default=200, show_default=True,
     help="maximum family size to include in analysis.")
-@click.option('--ks_range', '-r', nargs=2, default=(0.001, 5), show_default=True,
+@click.option('--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
     type=float, help='Ks range to use for colored dotplot')
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
-@click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
 @click.option('--minseglen', '-mg', default=100000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
@@ -578,7 +577,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, segments, ancestor, minseglen, keepredun):
+        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -700,7 +699,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         help='gamma parameter for bgmm models'
 )
 @click.option(
-        '--n_init', '-ni', default=1, show_default=True,
+        '--n_init', '-ni', default=200, show_default=True,
         help='number of k-means initializations'
 )
 @click.option(
