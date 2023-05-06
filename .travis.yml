@@ -19,4 +19,4 @@ before_install:
 install:
     - pip install -r requirements.txt
     - pip install .
-script: pytest test/test_core.py
+script: pytest
