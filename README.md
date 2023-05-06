@@ -10,7 +10,7 @@
 
 [**Introduction**](#Introduction) | 
 [**Installation**](#Installation) | 
-[**Table of Parameters**](#Parameters) | 
+[**Parameters**](#Parameters) | 
 [**Tutorial**](#Tutorial) | 
 [**Citation**](#Citation)
 
@@ -53,6 +53,7 @@ export PATH="$PATH:~/.local/bin/wgd"
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
 
+The program `wgd dmd` can realize the delineation of whole paranome, RBHs, MRBHs, orthogroups and some other orthogroup-related functions, including circumscription of nested single-copy orthogroups (NSOGs), unbiased uest of single-copy orthogroups (SOGs) over missing inparalogs, construction of BUSCO-guided single-copy orthogroups (SOGs),and the collinear coalescence inference of phylogeny
 ```
 wgd dmd sequences (option)
 --------------------------------------------------------------------------------
@@ -93,6 +94,7 @@ wgd dmd sequences (option)
 -bctf, --buscocutoff, the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None
 ```
 
+The program `wgd focus` can realize the concatenation-based and coalescence-based phylogenetic inference, functional annotation of gene families and phylogenetic dating of WGDs
 ```
 wgd focus families sequences (option)
 --------------------------------------------------------------------------------
@@ -131,6 +133,7 @@ wgd focus families sequences (option)
 --protdating, flag option, whether to only initiate the protein-concatenation based dating analysis, if the flag was set, the analysis will be initiated
 ```
 
+The program `wgd ksd` can realize the construction of *K*<sub>S</sub> age distribution and rate correction
 ```
 wgd ksd families sequences (option)
 --------------------------------------------------------------------------------
@@ -148,6 +151,7 @@ wgd ksd families sequences (option)
 -or, --onlyrootout, flag option, whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
 ```
 
+The program `wgd mix` can realize the mixture model clustering analysis of *K*<sub>S</sub> age distribution
 ```
 wgd mix ks_datafile (option)
 --------------------------------------------------------------------------------
@@ -162,6 +166,7 @@ wgd mix ks_datafile (option)
 -mi, --max_iter, the maximum number of iterations, default 1000
 ```
 
+The program `wgd peak` can realize the search of crediable *K*<sub>S</sub> range used in WGD dating
 ```
 wgd peak ks_datafile (option)
 --------------------------------------------------------------------------------
@@ -199,6 +204,7 @@ wgd peak ks_datafile (option)
 -kc, --kscutoff, the Ks saturation cutoff in dating, default 5
 ```
 
+The program `wgd syn` can realize the intra- and inter-specific synteny inference
 ```
 wgd syn families gffs (option)
 --------------------------------------------------------------------------------
@@ -215,6 +221,7 @@ wgd syn families gffs (option)
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
 ```
 
+The program `wgd viz` can realize the visualization of *K*<sub>S</sub> age distribution and synteny
 ```
 wgd viz (option)
 --------------------------------------------------------------------------------
@@ -239,6 +246,45 @@ wgd viz (option)
 -mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 100000
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
 ```
+
+## Tutorial
+
+Here we provided an exemplary usage for each program.
+
+### wgd dmd
+
+**The delineation of whole paranome**
+```
+wgd dmd sequence
+``` 
+
+**The delineation of RBHs**
+```
+wgd dmd sequence1 sequence2
+```
+
+**The delineation of local MRBHs**
+```
+wgd dmd sequence1 sequence2 sequence3 -f sequence1
+```
+
+**The delineation of global MRBHs**
+```
+wgd dmd sequence1 sequence2 sequence3 -gm
+```
+
+**The delineation of orthogroups**
+```
+wgd dmd sequence1 sequence2 sequence3 -oi (option)
+```
+Note that users can add the analysis including NSOGs and BUSCO-guided SOGs etc, by adding the corresponding flag, for instance --getnsog and --buscosog.
+
+**The collinear coalescence inference of phylogeny**
+```
+wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata --collinearcoalescence
+```
+
+
 
 ## Step 3 Construction of Ks Distribution
 
