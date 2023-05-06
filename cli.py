@@ -21,8 +21,8 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
     default='info', help="Verbosity level, default = info.")
 def cli(verbosity):
     """
-    wgd - Copyright (C) 2018-2020 Arthur Zwaenepoel\n
-    Contact: arzwa@psb.vib-ugent.be
+    wgd - Copyright (C) 2023-2024 Hengchi Chen\n
+    Contact: heche@psb.vib-ugent.be
     """
     logging.basicConfig(
         format='%(message)s',
@@ -89,7 +89,7 @@ def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
 
-    Requires diamond and mcl. Note the two key  parameters, being the e-value
+    Requires diamond and mcl. Note the two key parameters, being the e-value
     cut-off and inflation factor. It is advised to explore the effects of these
     on your analysis.
 

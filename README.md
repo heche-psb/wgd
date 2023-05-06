@@ -2,7 +2,7 @@
 
 # `wgd v2` : a suite tool of WGD inference and timing
 
-[![Build Status](https://travis-ci.com/arzwa/wgd.svg?branch=dev)](https://travis-ci.com/arzwa/wgd)
+[![Build Status](https://app.travis-ci.com/heche-psb/wgd.svg?branch=phylodating)](https://travis-ci.com/heche-psb/wgd)
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
 
@@ -293,7 +293,7 @@ wgd focus families sequence1 sequence2 sequence3 --concatenation/--coalescence
 
 **The functional annotation of gene families**
 ```
-wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed data --dmnb data
+wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed eddata --dmnb dbdata
 ```
 
 **The phylogenetic dating of WGDs**
@@ -315,7 +315,7 @@ wgd ksd families sequence1 sequence2
 
 **The construction of *K*<sub>S</sub> age distribution with rate correction**
 ```
-wgd ksd families sequence1 sequence2 sequence3 -sr data -sp data
+wgd ksd families sequence1 sequence2 sequence3 -sr srdata -sp spdata
 ```
 
 ### wgd mix
