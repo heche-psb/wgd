@@ -2,7 +2,7 @@ import pytest
 import os
 import logging
 import shutil
-from wgd.core import SequenceData, get_gene_families, read_gene_families, normalizebitscore
+from wgd.core import SequenceData, get_gene_families, read_gene_families
 from wgd.core import KsDistributionBuilder
 
 # some config: set logging level, and get directory

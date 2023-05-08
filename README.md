@@ -12,6 +12,7 @@
 [**Installation**](#Installation) | 
 [**Parameters**](#Parameters) | 
 [**Usage**](#Usage) | 
+[**Illustration**](#Illustration) |
 [**Citation**](#Citation)
 
 </div>
@@ -367,6 +368,21 @@ wgd viz -d ksdata -sr srdata -sp spdata -gs gsdata
 ```
 wgd viz -ap apdata -sm smdata -mt mtdata -gt gtdata
 ```
+
+## Illustration
+
+We illustrate our program on an exemplary WGD inference and dating upon species *Aquilegia coerulea*.
+
+The *Aquilegia coerulea* was reported to experience an paleo-polyploidization event after the divergence of core eudicots, which is likely shared by all Ranunculales.
+
+First above all, let's delineate the whole paranome *K*<sub>S</sub> age distribution and have a basic observation for potentially conceivable WGDs, using the command line below.
+
+```
+wgd dmd Aquilegia_coerulea
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea
+```
+
+The constructed whole paranome *K*<sub>S</sub> age distribution of *Aquilegia coerulea* is as below, we can see that 
 
 ## Citation
  

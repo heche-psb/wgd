@@ -1701,7 +1701,7 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,weig
     plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime='original')
     return df
 
-def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', alpha = 0.5, n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
+def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
@@ -1745,8 +1745,8 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
     df_c = write_labels(df,df_withindex,labels,outdir,n,regime=guide)
-    plot_kmedoids(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
-    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=alpha,regime=guide)
+    plot_kmedoids(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide)
+    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide)
     return df
 
 def retreive95CI(family,ksdf_filtered,outdir,lower,upper):
