@@ -382,9 +382,23 @@ wgd dmd Aquilegia_coerulea
 wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea
 ```
 
-The constructed whole paranome *K*<sub>S</sub> age distribution of *Aquilegia coerulea* is as below, we can see that there seems to be a hump at *K*<sub>S</sub> 1.
+The constructed whole paranome *K*<sub>S</sub> age distribution of *Aquilegia coerulea* is as below, we can see that there seems to be a hump at *K*<sub>S</sub> 1 but not clear.
 
-![](data/Aquilegia_coerulea.tsv.ksd.svg)
+![](data/Aquilegia_coerulea.tsv.ksd_wp.svg)
+
+We then construct the anchor *K*<sub>S</sub> age distribution using the command line below.
+
+```
+wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv
+```
+
+As shown below, there are some retained anchor pairs with *K*<sub>S</sub> between 1 and 2, which seems to suggest a WGD event.
+
+![](data/Aquilegia_coerulea.tsv.ksd_wp_ap.svg)
+
+The associated dupStack plot shows that there are numerous duplicated segments across most of the chromosomes, except for the chr_07, which seems to experience more severe fragmentization than the other chromosomes.
+
+![](data/Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.svg)
 
 ## Citation
  
