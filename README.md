@@ -404,6 +404,10 @@ The associated dotplot in oxford grid also presents numerous densely aggregated 
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
 
+A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
+
+![](data/Syndepth.svg)
+
 ## Citation
  
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915
