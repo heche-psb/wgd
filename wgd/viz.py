@@ -729,7 +729,8 @@ def default_plot(
             x = f(dist[k])
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            if funs[0] == f: ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=c, alpha=a, rwidth=0.8)
+            if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=a, rwidth=0.8)
+            if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=a, rwidth=0.8)
             else: ax.hist(y, weights=w, color=c, alpha=a, rwidth=0.8,**kwargs)
             xlabel = _labels[k]
             if f == np.log10:
@@ -738,6 +739,8 @@ def default_plot(
     axs[0,0].set_ylabel(ylabel)
     axs[1,0].set_ylabel(ylabel)
     axs[0,0].set_xticks([0,1,2,3,4,5])
+    axs[1,0].set_xticks([-4,-3,-2,-1,0,1])
+    axs[0,1].set_xticks([-4,-3,-2,-1,0,1])
     # finalize plot
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
@@ -1399,7 +1402,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
     return figs
 
 def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
-    gdf,Index_torm,I2,I3 = list(genetable.copy().groupby("species")),[],[],[]
+    gdf,Index_torm,I2,I3,I4 = list(genetable.copy().groupby("species")),[],[],[],[]
     Sf_len_lab_persp = {sp:{} for sp,df in gdf}
     for sp,df in gdf:
         lens = df.groupby("scaffold")["start"].agg(max)
@@ -1416,17 +1419,23 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
             logging.info("Dropped {} scaffolds in {} because they are on scaffolds shorter than {}".format(noriginal-len(lens.index),sp,minlen))
         segs_tmp = segs.loc[(segs['genome']==sp) & (~segs['list'].isin(lens.index)),:]
         gt_tmp = genetable.loc[(genetable['species']==sp) & (~genetable['scaffold'].isin(lens.index)),:]
+        multi_tmpx = multi.loc[(multi['genome_x']==sp) & (~multi['list_x'].isin(lens.index)),:]
+        multi_tmpy = multi.loc[(multi['genome_y']==sp) & (~multi['list_y'].isin(lens.index)),:]
         for i in segs_tmp.index: Index_torm.append(i)
         for j in gt_tmp.index: I2.append(j)
         for lab in lens.index: Sf_len_lab_persp[sp][lab] = lens.loc[lab,'len']
+        for k in multi_tmpx.index: I4.append(k)
+        for l in multi_tmpy.index: I4.append(l)
     segs = segs.drop(Index_torm)
     genetable = genetable.drop(I2)
+    multi = multi.drop(I4)
     # Here I removed the redundant multiplicons
     if not keepredun:
         Mul_to_rm = list(multi[multi['is_redundant']==-1].loc[:,'id'])
         Segs_to_rm = segs.loc[segs['multiplicon'].isin(Mul_to_rm),:]
         for i in Segs_to_rm.index: I3.append(i)
         segs = segs.drop(I3)
+        multi = multi[multi['is_redundant']==0]
     segs = Filter_miniseglen(segs,Sf_len_lab_persp,minseglen,genetable)
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
@@ -1434,7 +1443,7 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
     fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
     fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
-    return segs,genetable
+    return segs,genetable,multi
 
 def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     rm_indice = []
@@ -1618,7 +1627,7 @@ def syntenic_dotplot_ks_colored(
         output_file=None
 ):
     """
-    Syntenic dotplot with segment colored by mean Ks value
+    Syntenic dotplot with segment colored by median Ks value
     :param df: multiplicons pandas data frame
     :param an: anchorpoints pandas data frame
     :param ks: Ks distribution data frame
@@ -1630,11 +1639,12 @@ def syntenic_dotplot_ks_colored(
     :return: figure
     """
     cmap = plt.get_cmap(color_map)
-    if len(an["gene_x"]) == 0:
+    if len(an) == 0:
         logging.warning("No multiplicons found!")
         return
-    an["pair"] = an.apply(lambda x: '__'.join(
-            sorted([x["gene_x"], x["gene_y"]])), axis=1)
+    #an["pair"] = an.apply(lambda x: '__'.join(
+    #        sorted([x["gene_x"], x["gene_y"]])), axis=1)
+    an = an.reset_index()
     genomic_elements_ = {
         x: 0 for x in list(set(df['list_x']) | set(df['list_y']))
         if type(x) == str

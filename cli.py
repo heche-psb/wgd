@@ -526,7 +526,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
         df_anchor,df_multi = get_anchors('',userdf=anchorpoints),get_multi('',userdf2=multiplicon)
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
-        segs,table = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
+        segs,table,df_multi = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
@@ -622,10 +622,10 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
     anchors.to_csv(os.path.join(outdir, "anchors.csv"))
     segs = get_segments_profile(multi,keepredun,out_path)
-    segs,table = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
+    segs,table,multi = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, anchors, minseglen, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
+    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
@@ -647,14 +647,14 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
         # Ks colored dotplot
         logging.info("Generating Ks colored (median Ks) dotplot")
-        multiplicons = pd.read_csv(os.path.join(
-            outdir, 'iadhore-out', 'multiplicons.txt'), sep='\t')
-        anchor_points = pd.read_csv(os.path.join(
-            outdir, 'iadhore-out', 'anchorpoints.txt'), sep='\t')
+        #multiplicons = pd.read_csv(os.path.join(
+        #    outdir, 'iadhore-out', 'multiplicons.txt'), sep='\t')
+        #anchor_points = pd.read_csv(os.path.join(
+        #    outdir, 'iadhore-out', 'anchorpoints.txt'), sep='\t')
         dotplot_out = os.path.join(outdir, '{}.dotplot.ks.svg'.format(
                 os.path.basename(families)))
         syntenic_dotplot_ks_colored(
-                multiplicons, anchor_points, anchor_ks, min_ks=ks_range[0],
+                multi, anchors, anchor_ks, min_ks=ks_range[0],
                 max_ks=ks_range[1], output_file=dotplot_out,
                 min_length=minlen
         )

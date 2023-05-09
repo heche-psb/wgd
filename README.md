@@ -383,6 +383,7 @@ wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea
 ```
 
 The constructed whole paranome *K*<sub>S</sub> age distribution of *Aquilegia coerulea* is as below, we can see that there seems to be a hump at *K*<sub>S</sub> 1.
+
 ![](data/Aquilegia_coerulea.tsv.ksd.svg)
 
 ## Citation
