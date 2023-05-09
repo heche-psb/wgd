@@ -396,9 +396,13 @@ As shown below, there are some retained anchor pairs with *K*<sub>S</sub> betwee
 
 ![](data/Aquilegia_coerulea.tsv.ksd_wp_ap.svg)
 
-The associated dupStack plot shows that there are numerous duplicated segments across most of the chromosomes, except for the chr_07, which seems to experience more severe fragmentization than the other chromosomes.
+The associated `dupStack` plot shows that there are numerous duplicated segments across most of the chromosomes, except for the chr_07, which seems to experience more severe fragmentization than the other chromosomes.
 
 ![](data/Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.svg)
+
+The associated dotplot in oxford grid also presents numerous densely aggregated anchor points throughout most of the chromosomes.
+
+![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
 
 ## Citation
  
