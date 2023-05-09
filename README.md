@@ -408,6 +408,16 @@ A further associated Syndepth plot shows that there are more than 80 duplicated 
 
 ![](data/Syndepth.svg)
 
+We can fit an ELMM mixture model upon the whole paranome *K*<sub>S</sub> age distribution to see more accurately the significance and location of potential WGDs, using the command line below.
+
+```
+wgd viz -d wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv
+```
+
+The result of ELMM mixture model clustering shows that there is a likely WGD component at *K*<sub>S</sub> 1.19.
+
+![](data/elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_weighted.svg)
+
 ## Citation
  
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915

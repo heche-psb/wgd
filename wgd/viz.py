@@ -716,22 +716,24 @@ def default_plot(
     !!! note: Assumes the data frames are filtered as desired. 
     """
     ndists = len(args)
-    alphas = alphas or list(np.linspace(0.2, 1, ndists))
-    colors = colors or ['black'] * ndists 
+    #alphas = alphas or list(np.linspace(0.2, 1, ndists))
+    #colors = colors or ['black'] * ndists 
+    colors = ['gray','green'] if ndists == 2 else ['gray']
     # assemble panels
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
     funs = [lambda x: x, np.log10, np.log10, np.log10]
     fig, axs = plt.subplots(2, 2)
-    for (c, a, dist) in zip(colors, alphas, args):
+    #for (c, a, dist) in zip(colors, alphas, args):
+    for (c, dist) in zip(colors, args):
         for ax, k, f in zip(axs.flatten(), keys, funs):
             w = node_weights(dist)
             x = f(dist[k])
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=a, rwidth=0.8)
-            if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=a, rwidth=0.8)
-            else: ax.hist(y, weights=w, color=c, alpha=a, rwidth=0.8,**kwargs)
+            if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
+            if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
+            else: ax.hist(y, weights=w, color=c, alpha=1, rwidth=0.8,**kwargs)
             xlabel = _labels[k]
             if f == np.log10:
                 xlabel = "$\log_{10}" + xlabel[1:-1] + "$"
