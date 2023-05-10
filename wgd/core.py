@@ -1692,7 +1692,7 @@ def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
         #    s[i].dmd_hits[s[j].prefix] = e
         for j in range(i, len(s)): back_dmdhits(i,j,s,eval)
         s[i].rndmd_hit()
-    memory_reporter()
+    #memory_reporter()
     for i in range(1, len(s)):
         s[0].merge_dmd_hits(s[i])
         s[0].merge_seq(s[i])
@@ -1718,7 +1718,7 @@ def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthr
         Concat_cdsf = concatcdss(sequences,outdir)
         ss = SequenceData(Concat_cdsf, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent,nonormalization=nonormalization)
         logging.info("tmpdir = {} for {}".format(ss.tmp_path,ss.prefix))
-        memory_reporter()
+        #memory_reporter()
         ss.get_paranome(inflation=inflation, eval=eval, savememory = True,sgidmaps = sgidmaps)
         txtf = ss.write_paranome(True)
     #Concat_cdsf = concatcdss(sequences,outdir)
@@ -2001,7 +2001,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     fams_df,counts_df,reps_df = [],[],[]
     sh = txt.shape[0]
     gsmaps = [y(txt.iloc[i,0].split(', ')) for i in range(sh)]
-    memory_reporter()
+    #memory_reporter()
     #Parallel(n_jobs=nthreads)(delayed(seqdict)(gsmaps[i],ss,i,ftmp) for i in range(sh))
     #for i in range(sh):
     #r = Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(first_tsv_genecounts)(gsmaps[i],slist,ss,msogcut) for i in range(sh))
@@ -2039,7 +2039,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
     logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
     Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
-    memory_reporter()
+    #memory_reporter()
     if getsog:
         fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
         tree_famsf,tree_fams,nested_dfs,aln_fam_is = [],{},[],[]
@@ -2061,7 +2061,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
             nfs_count = {i:nfs.count(i) for i in set(nfs)}
             getnestedfasta(fnest,nested_coc,ss,nfs_count)
         else: logging.info("No nested single-copy families delineated")
-        memory_reporter()
+        #memory_reporter()
     if testsog: unbiasedsog(fsog,fams_coc,counts_coc,nthreads,s,outdir,eval,s0_orig)
 
 def get_sog_multiplicons(df,species_num):
