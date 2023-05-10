@@ -426,7 +426,7 @@ wgd peak wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv --anchorpoints wgd_syn/iadhore-ou
 
 The anchor *K*<sub>S</sub> age distribution also has a likely WGD component with mode 1.28.
 
-![](data/Original_AnchorKs_GMM_Component3_node_weighted_Lognormal.pdf)
+![](data/Original_AnchorKs_GMM_Component3_node_weighted_Lognormal.svg)
 
 ## Citation
  
