@@ -418,6 +418,16 @@ The result of ELMM mixture model clustering shows that there is a likely WGD com
 
 ![](data/elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_weighted.svg)
 
+Let's do a mixture model clustering for anchor *K*<sub>S</sub> too, using the command line below.
+
+```
+wgd peak wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv --anchorpoints wgd_syn/iadhore-out/anchorpoints.txt --segments wgd_syn/iadhore-out/segments.txt --listelements wgd_syn/iadhore-out/list_elements.txt --multipliconpairs wgd_syn/iadhore-out/multiplicon_pairs.txt --weighted
+```
+
+The anchor *K*<sub>S</sub> age distribution also has a likely WGD component with mode 1.28.
+
+![](data/Original_AnchorKs_GMM_Component3_node_weighted_Lognormal.pdf)
+
 ## Citation
  
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915
