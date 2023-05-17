@@ -54,7 +54,7 @@ If multiply versions of `wgd` were installed in the system, please add the right
 export PATH="$PATH:~/.local/bin/wgd"
 ```
 
-Note that the version of numpy is important (for many other packages are the same of course), especially for fastcluster package. In our test, the numpy 1.19.0 works fine on python3.6/8. If you met some errors or warnings about numpy, maybe considering pre-install numpy as 1.19.0 before you install wgd.
+Note that the version of `numpy` is important (for many other packages are the same of course), especially for `fastcluster` package. In our test, the `numpy` 1.19.0 works fine on `python3.6/8`. If you met some errors or warnings about numpy, maybe considering pre-install `numpy` as 1.19.0or other close-by versions before you install `wgd`.
 
 ## Parameters
 
