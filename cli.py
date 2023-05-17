@@ -805,7 +805,7 @@ def mix_(
 
 
 if __name__ == '__main__':
-    start = time.time()
+    start = timer()
     cli()
-    end = time.time()
+    end = timer()
     logging.info("Total run time: {}s".format(int(end-start)))

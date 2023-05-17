@@ -428,6 +428,8 @@ The anchor *K*<sub>S</sub> age distribution also has a likely WGD component with
 
 ![](data/Original_AnchorKs_GMM_Component3_node_weighted_Lognormal.svg)
 
+Now that we have seen the evidence of numerous duplicated segments and the aggregation of duplicates age in *K*<sub>S</sub> around 1.2 for anchor pairs and non-anchor pairs throughout the whole genome. We can claim with some confidence that *Aquilegia coerulea* might have experienced a paleo-polyploidization event. Next, Let's have a further look about its phylogenetic location. We know that there are uncertainties about whether this putative paleo-polyploidization event is shared with all eudicots or not. We can choose some other eudicot genomes to see the ordering of speciation and polyploidization events. Here we choose *Vitis vinifera*, *Protea cynaroides* and *Acorus americanus* in the following *K*<sub>S</sub> analysis.
+
 ## Citation
  
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915
