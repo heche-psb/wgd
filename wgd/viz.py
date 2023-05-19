@@ -196,7 +196,11 @@ def reweighted(df_per):
     return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
 
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None):
-    if extraparanomeks != None: df = pd.concat([df,pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')])
+    if extraparanomeks != None:
+        df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
+        df_para = apply_filters(df_para, [("dS", 0., 5.)])
+        df_para["family"] = df_para["family"].apply(lambda x:"ExtraParalog_"+x)
+        df = pd.concat([df,df_para])
     # I add this dropduplicates to prevent the same paralogous pair from occuring twice and also use preferentially paranome
     df = df[~df.index.duplicated(keep='last')]
     if not ksd: spgenemap = getgsmap(gsmap)
