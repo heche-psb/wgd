@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='wgd',
-    version='2.0.12',
+    version='2.0.13',
     packages=['wgd'],
     url='http://github.com/heche-psb/wgd',
     license='GPL',
@@ -37,7 +37,7 @@ setup(
        'kiwisolver==1.2.0',
        'MarkupSafe==1.1.1',
        'matplotlib==3.2.2',
-       'numpy>=1.19.0',
+       'numpy>=1.19.0,!=1.24.3',
        'numexpr>=2.7.3',
        'packaging==20.4',
        'pandas<=1.4.4',

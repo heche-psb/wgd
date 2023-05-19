@@ -808,7 +808,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         for i in range(len(s)):
             if s[i].prefix == focus: x = x+i
         if x == 0:
-            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
+            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
             for j in range(1, len(s)):
                 df = getrbhf(s[0],s[j],outdir)
                 if table.empty: table = df
@@ -818,7 +818,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             #if not keepduplicates: table = table.drop_duplicates([focus])
             table.insert(0, focus, table.pop(focus))
         else:
-            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
+            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
             for k in range(0,x):
                 df = getrbhf(s[x],s[k],outdir)
                 if table.empty: table = df
@@ -826,7 +826,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                     table = table.merge(df)
                     if not keepduplicates: table.drop_duplicates([focus])
             if not len(s) == 2 and not x+1 == len(s):
-                Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
+                Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
                 for l in range(x+1,len(s)):
                     df = getrbhf(s[x],s[l],outdir)
                     table = table.merge(df)
@@ -870,7 +870,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 seq_pro.update(s[i].pro_sequence)
             rbhgfdirname = outdir + '/' + 'MRBH_GF_FASTA' + '/'
             os.mkdir(rbhgfdirname)
-            Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(getfastaf)(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(getfastaf)(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
            # for i, fam in enumerate(seqid_table):
            #     for seqs in fam:
            #         fname = os.path.join(rbhgfdirname, 'GF{:0>5}'.format(i+1) + ".pep")
@@ -885,7 +885,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
                 seqid_table = read_MultiRBH_gene_families(focusapname)
                 rbhgfapdirname = outdir + '/' + 'MRBH_AP_GF_FASTA' + '/'
                 os.mkdir(rbhgfapdirname)
-                Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(getfastaf)(i,fam,rbhgfapdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
+                Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(getfastaf)(i,fam,rbhgfapdirname,seq_pro,idmap,seq_cds) for i, fam in enumerate(seqid_table))
                 #for i, fam in enumerate(seqid_table):
                 #    for seqs in fam:
                 #        fname = os.path.join(rbhgfapdirname, 'GF{:0>5}'.format(i+1) + ".pep")
@@ -1260,7 +1260,7 @@ def Run_BEAST(Concat_caln, Concat_paln, Concat_calnf, cds_alns_rn, pro_alns_rn, 
         beast_i = beast(calnf, cds_aln_rn, pro_aln_rn, tmpdir, outdir, speciestree, datingset, slist, fossil, chainset, rootheight)
         beasts.append(beast_i)
     beast_i.run_beast(beastlgjar,beagle)
-    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(i.run_beast)(beastlgjar,beagle) for i in beasts)
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(i.run_beast)(beastlgjar,beagle) for i in beasts)
 
 # Run MCMCtree
 def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_rn, pro_alns_rn, calnfs, palnfs, tmpdir, outdir, speciestree, datingset, aamodel, partition, slist, nthreads):
@@ -1303,7 +1303,7 @@ def Run_MCMCTREE(Concat_caln, Concat_paln, Concat_calnf, Concat_palnf, cds_alns_
         McMctree = mcmctree(calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
         McMctrees.append(McMctree)
         #McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
-    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=20)(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(McMctree.run_mcmctree)(CI_table,PM_table,wgd_mrca) for McMctree in McMctrees)
     Getback_CIPM(outdir,CI_table,PM_table,wgd_mrca,calnfs_rn,Concat_calnf_paml,partition)
     df_CI = pd.DataFrame.from_dict(CI_table,orient='index',columns=['CI_lower','CI_upper'])
     df_PM = pd.DataFrame.from_dict(PM_table,orient='index',columns=['PM'])
@@ -2756,7 +2756,7 @@ class KsDistributionBuilder:
         self.n_threads = n_threads
 
     def get_distribution(self):
-        Parallel(n_jobs=self.n_threads,backend='multiprocessing',batch_size=200)(
+        Parallel(n_jobs=self.n_threads,backend='multiprocessing')(
             delayed(_get_ks)(family) for family in self.families)
         df = pd.concat([pd.read_csv(x.out, index_col=0) 
             for x in self.families], sort=True)
