@@ -16,6 +16,7 @@ from matplotlib.pyplot import cm
 from scipy import stats,interpolate,signal
 from io import StringIO
 from Bio import Phylo
+from sklearn import mixture
 
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -195,7 +196,283 @@ def kde_mode(kde_x, kde_y):
 def reweighted(df_per):
     return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None):
+def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
+    """
+    Compute Gaussian mixtures for different numbers of components
+    """
+    # The EM algorithm can't deal with weighted data, so we're actually ignoring all the associated weights.
+    N = np.arange(n1, n2 + 1)
+    models = [None for i in N]
+    info_table = {}
+    for i in N:
+        logging.info("Fitting GMM with {} components".format(i))
+        models[i-n1] = mixture.GaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed).fit(X)
+        if models[i-n1].converged_:
+            logging.info("Convergence reached")
+        info_components(models[i-n1],i,info_table)
+    aic = [m.aic(X) for m in models]
+    bic = [m.bic(X) for m in models]
+    besta = models[np.argmin(aic)]
+    bestb = models[np.argmin(bic)]
+    logging.info("The best fitted model via AIC is with {} components".format(np.argmin(aic)+n1))
+    aic_info(aic,n1)
+    logging.info("The best fitted model via BIC is with {} components".format(np.argmin(bic)+n1))
+    bic_info_wgd(bic,n1)
+    plot_aic_bic(aic, bic, n1, n2, out_file)
+    return models, aic, bic, besta, bestb, N
+
+def fit_bgmm(X, seed, gamma, n1, n2, em_iter=100, n_init=1):
+    """
+    Variational Bayesian estimation of a Gaussian mixture
+    """
+    N = np.arange(n1, n2 + 1)
+    models = [None for i in N]
+    info_table = {}
+    for i in N:
+        logging.info("Fitting BGMM with {} components".format(i))
+        models[i-n1] = mixture.BayesianGaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed, weight_concentration_prior=gamma).fit(X)
+        if models[i-n1].converged_:
+            logging.info("Convergence reached")
+        info_components(models[i-n1],i,info_table)
+    return models, N
+
+def info_components(m,i,info_table):
+    means = []
+    covariances = []
+    weights = []
+    precisions = []
+    stds = []
+    for j in range(i):
+        mean = np.exp(m.means_[j][0])
+        covariance = m.covariances_[j][0][0]
+        std = np.sqrt(covariance)
+        weight = m.weights_[j]
+        precision = m.precisions_[j][0][0]
+        means.append(mean)
+        covariances.append(covariance)
+        stds.append(std)
+        weights.append(weight)
+        precisions.append(precision)
+        logging.info("Component {0} has mean {1:.3f} ,std {2:.3f} ,weight {3:.3f}, precision {4:.3f}".format(j+1,mean,std,weight,precision))
+    info_table['{}component'.format(i)] = {'mean':means,'covariance':covariances,'weight':weights,'precision':precisions,'stds':stds}
+
+def aic_info(aic,n1):
+    besta_loc = np.argmin(aic)
+    logging.info("Rules-of-thumb (Burnham & Anderson, 2002) compares the AIC-best model and remaining:")
+    for i, aic_i in enumerate(aic):
+        if i != besta_loc:
+            ABS = abs(aic[besta_loc] - aic_i)
+            if ABS <= 2:
+                logging.info("model with {} components also gets substantial support comparing to the AIC-best model".format(i+n1))
+            elif 2<ABS<4:
+                logging.info("model with {} components gets not-so-trivial support comparing to the AIC-best model".format(i+n1))
+            elif 4<=ABS<=7:
+                logging.info("model with {} components gets considerably less support comparing to the AIC-best model".format(i+n1))
+            elif 7<ABS<=10:
+                logging.info("model with {} components gets few support comparing to the AIC-best model".format(i+n1))
+            else:
+                logging.info("model with {} components gets essentially no support comparing to the AIC-best model".format(i+n1))
+
+def bic_info_wgd(bic,n1):
+    bestb_loc = np.argmin(bic)
+    logging.info("Rules-of-thumb (Kass & Raftery, 1995) evaluates the outperformance of the BIC-best model over remaining:")
+    for i, bic_i in enumerate(bic):
+        if i != bestb_loc:
+            ABS = abs(bic[bestb_loc] - bic_i)
+            if ABS < 2:
+                logging.info("Such outperformance is not worth more than a bare mention for model with {} components".format(i+n1))
+            elif 2<=ABS<6:
+                logging.info("Such outperformance is positively evidenced for model with {} components".format(i+n1))
+            elif 6<=ABS<=10:
+                logging.info("Such outperformance is strongly evidenced for model with {} components".format(i+n1))
+            else:
+                logging.info("Such outperformance is very strongly evidenced for model with {} components".format(i+n1))
+
+def plot_aic_bic(aic, bic, n1, n2, out_file):
+    x_range = list(range(n1, n2 + 1))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 3))
+    axes[0].plot(np.arange(1, len(aic) + 1), aic, color='k', marker='o')
+    axes[0].set_xticks(list(range(1, len(aic) + 1)))
+    axes[0].set_xticklabels(x_range)
+    axes[0].grid(ls=":")
+    axes[0].set_ylabel("AIC")
+    axes[0].set_xlabel("# components")
+    axes[1].plot(np.arange(1, len(bic) + 1), bic, color='k', marker='o')
+    axes[1].set_xticks(list(range(1, len(bic) + 1)))
+    axes[1].set_xticklabels(x_range)
+    axes[1].grid(ls=":")
+    axes[1].set_ylabel("BIC")
+    axes[1].set_xlabel("# components")
+    fig.tight_layout()
+    fig.savefig(out_file)
+    plt.close()
+
+def addapgmm(ax,X,W,components,outdir,Hs):
+    kde_x = np.linspace(0,5,num=5000)
+    X_log = np.log(np.array(X)).reshape(-1, 1)
+    aic_bic_fplot = os.path.join(outdir,"AIC_BIC.pdf")
+    models, aic, bic, besta, bestb, N = fit_gmm(aic_bic_fplot, X_log, 2352890, components[0], components[1], em_iter=200, n_init=200)
+    means,covariances,weights = besta.means_,besta.covariances_,besta.weights_
+    CHF = get_totalH(Hs)
+    scaling = CHF*0.1
+    cs = cm.tab20b(np.linspace(0, 1, len(weights)))
+    for num in range(len(weights)):
+        mean,std,weight = means[num][0],np.sqrt(covariances[num][0][0]),weights[num]
+        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='-', lw=1, alpha=0.8, label='Anchor Ks component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
+    return ax
+
+def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
+    df = df.dropna(subset=['dS','weightoutlierexcluded'])
+    df = df.loc[(df['dS']>0) & (df['dS']<5),:]
+    ks_or = np.array(df['dS'])
+    w = np.array(df['weightoutlierexcluded'])
+    deconvoluted_data = get_deconvoluted_data(ks_or,w)
+    hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
+    init_lambd = hist_property[0][0]
+    ks = np.log(ks_or)
+    max_ks,min_ks = ks.max(),ks.min()
+    ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    kde = stats.gaussian_kde(ks_refed, bw_method="scott", weights=w_refed)
+    bw_modifier = 0.4
+    kde.set_bandwidth(kde.factor * bw_modifier)
+    kde_x = np.linspace(min_ks-cutoff, max_ks+cutoff,num=500)
+    kde_y = kde(kde_x)
+    spl = interpolate.UnivariateSpline(kde_x, kde_y)
+    spl.set_smoothing_factor(0.01)
+    spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
+    spl_y = spl(spl_x)
+    peaks, properties = signal.find_peaks(spl_y)
+    prominences = signal.peak_prominences(spl_y, peaks)[0]
+    prominences_refed_R1,width_refed_R1,prominences_refed_L1,width_refed_L1 = [],[],[],[]
+    for i in range(len(peaks)):
+        peak_index = peaks[i]
+        spl_peak_refl_y = np.concatenate((np.flip(spl_y[peak_index+1:]), spl_y[peak_index:]))
+        spl_peak_refl_x = np.concatenate((np.flip(spl_x[peak_index+1:] * -1 + 2 * spl_x[peak_index]), spl_x[peak_index:]))
+        current_peak_index = int((len(spl_peak_refl_x)-1)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y, [current_peak_index], rel_height=rel_height)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_R1.append(new_prominences)
+        width_refed_R1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        w = new_width[0]/2/100
+        spl_peak_refl_y_L = np.concatenate((spl_y[:peak_index+1], np.flip(spl_y[:peak_index])))
+        spl_peak_refl_x_L = np.concatenate((spl_x[:peak_index+1], np.flip(spl_x[:peak_index]) * -1 + 2*spl_x[peak_index]))
+        current_peak_index = int((len(spl_peak_refl_x_L)-1)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y_L,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y_L, [current_peak_index], rel_height=rel_height)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_L1.append(new_prominences)
+        width_refed_L1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        w = new_width[0]/2/100
+    good_peaks_R1,good_peaks_L1 = [i>=peak_threshold for i in prominences_refed_R1],[i>=peak_threshold for i in prominences_refed_L1]
+    good_prominences,init_means,init_stdevs = [],[],[]
+    for i in range(len(peaks)):
+        if good_peaks_R1[i] or good_peaks_L1[i]:
+            init_means.append(spl_x[peaks[i]])
+            best = np.argmax((prominences_refed_R1[i], prominences_refed_L1[i]))
+            good_prominences.append(max([prominences_refed_R1[i], prominences_refed_L1[i]]))
+            width = [width_refed_R1[i], width_refed_L1[i]][best]
+            init_stdevs.append(width/2/100)
+    reduced_gaussians = False
+    if len(init_stdevs) > 4:
+        sor_by_prom = [(m,s) for m,s,_ in sorted(zip(init_means,init_stdevs,good_prominences), key=lambda y: y[2])]
+        init_means,init_stdevs = [i for i,j in sor_by_prom[:4]],[j for i,j in sor_by_prom[:4]]
+        reduced_gaussians = True
+        logging.info('Too many peak signals detected among which only 4 with highest prominences are retained')
+    buffer_maxks,buffer_std = 5,0.3
+    logging.info('An extra buffer lognormal component with mean {:.2f} and std 0.30 is appended'.format(buffer_maxks))
+    init_means.append(np.log(buffer_maxks))
+    init_stdevs.append(buffer_std)
+    logging.info('Found {} likely peak signals'.format(len(init_means)))
+    for m,s in zip(init_means,init_stdevs): logging.info('The initiative means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
+    num_comp = len(init_means)+1
+    init_weights = [1/num_comp] * num_comp
+    all_models_init_parameters,bic_dict,all_models_fitted_parameters = {},{},{}
+    all_models_init_parameters['Model1'] = [init_means, init_stdevs, init_lambd, init_weights]
+    num_comp = len(init_means) + 1
+    logging.info("Performing EM algorithm from initializated data (Model1)")
+    bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
+    #if convergence: logging.info('The EM algorithm has reached convergence')
+    #else: logging.info("The EM algorithm hasn't reached convergence")
+    all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
+    bic_dict['Model1'] = bic
+    logging.info('BIC of Model1: {:.2f}'.format(bic))
+    bic_from_same_num_comp,start_parameters,final_parameters = [],[],[]
+    logging.info("Performing EM algorithm from initializated data plus a random lognormal component (Model2)")
+    for i in range(num_EM_initializations):
+        if len(init_means) > 4:
+            updated_means,updated_stdevs = init_means[:4]+[init_means[-1]],init_stdevs[:4]+init_stdevs[-1]
+            reduced_gaussians = True
+        else:
+            updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
+            reduced_gaussians = False
+        updated_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)), 1))
+        updated_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)), 1))
+        num_comp = len(updated_means) + 1
+        updated_weights = [1/num_comp] * num_comp
+        start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
+        bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,updated_means, updated_stdevs, init_lambd, updated_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
+        bic_from_same_num_comp.append(bic)
+        final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+    updated_means, updated_stdevs, init_lambd, updated_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+    all_models_init_parameters['Model2'] = [updated_means, updated_stdevs, init_lambd, updated_weights]
+    final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
+    all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
+    bic_dict['Model2'] = min(bic_from_same_num_comp)
+    logging.info('BIC of Model2 : {:.2f}'.format(min(bic_from_same_num_comp)))
+    min_num_comp,max_num_comp = 2,5
+    num_comp_list = np.arange(min_num_comp, max_num_comp + 1)
+    model_ids = num_comp_list+1
+    for num_comp, model_id in zip(num_comp_list, model_ids):
+        logging.info("Performing EM algorithm from random initialization with {0} components (Model{1})".format(num_comp,model_id))
+        bic_from_same_num_comp = []
+        start_parameters, final_parameters = [], []
+        for i in range(num_EM_initializations):
+            init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
+            init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
+            for j in range(num_comp-2):
+                init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.01)),1))
+                init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.01)),1))
+            init_means.append(np.log(5))
+            init_stdevs.append(0.3)
+            start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
+            bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5)
+            bic_from_same_num_comp.append(bic)
+            final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+        init_means, init_stdevs, init_lambd, init_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+        all_models_init_parameters["Model{}".format(model_id)] = [init_means, init_stdevs, init_lambd, init_weights]
+        final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
+        all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
+        bic_dict["Model{}".format(model_id)] = min(bic_from_same_num_comp)
+        logging.info('BIC of Model{} : {:.2f}'.format(model_id,min(bic_from_same_num_comp)))
+    logging.info("Models are evaluated according to BIC scores")
+    model_bic = [(k,v) for k,v in bic_dict.items()]
+    modelist, bic_list = [k for k,v in model_bic],[v for k,v in model_bic]
+    best_model_id = modelist[np.argmin(bic_list)]
+    logging.info("The best fitted model via BIC is {}".format(best_model_id))
+    bic_info(modelist, bic_list)
+    model_bic_ordered = [(k,v) for k,v in sorted(bic_dict.items(), key=lambda y:y[0])]
+    model_ordered, bic_ordered = [k for k,v in model_bic_ordered],[v for k,v in model_bic_ordered]
+    final_means, final_stdevs, final_lambd, final_weights = all_models_fitted_parameters[best_model_id]
+    bin_width = 0.1
+    scaling = 0.1 * len(deconvoluted_data[deconvoluted_data <= 5])
+    x_points = np.linspace(-5, 5, int((5 + 5) *100))
+    x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
+    total_pdf = final_weights[0] * stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd)
+    ax.plot(x_points_strictly_positive,scaling*final_weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
+    lognormal_peaks = {i:round(np.exp(final_means[i] - pow(final_stdevs[i], 2)), 2) for i in range(len(final_stdevs))}
+    lognormals_sorted_by_peak = [k for k,v in sorted(lognormal_peaks.items(), key=lambda y:y[1])]
+    letter_dict = dict(zip(lognormals_sorted_by_peak, [ "a", "b", "c", "d", "e", "f", "g"][:len(final_stdevs)]))
+    colors = ["b", "r", "c", "m", "k"][:len(final_stdevs)-1] + ["y"]
+    for comp, color in zip(lognormals_sorted_by_peak, colors):
+        ax.plot(x_points_strictly_positive,scaling*final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(final_means[comp]),s=final_stdevs[comp]), c=color, ls='-', lw=1.5, alpha=0.8, label=f'Lognormal {letter_dict[comp]} optimized (mode {lognormal_peaks[comp]})')
+        total_pdf = total_pdf + final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive,scale=np.exp(final_means[comp]),s=final_stdevs[comp])
+    ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
+    return ax
+
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
     if extraparanomeks != None:
         df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
         df_para = apply_filters(df_para, [("dS", 0., 5.)])
@@ -237,6 +514,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         w = w[np.isfinite(x)]
         if pair in paralog_pair:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
+            if plotelmm: ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
         if corrected_ks_spair != None:
@@ -264,7 +542,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         x = df_working['dS']
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
-        ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
+        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
+        if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs)
     ax.set_xlabel(_labels["dS"])
     #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
     ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
@@ -298,7 +577,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
-    df = df.loc[(df['dS']>0) & (df['dS']<=5),:]
+    df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     ks_or = np.array(df['dS'])
     w = np.array(df['weightoutlierexcluded'])
     if na: deconvoluted_data = ks_or.copy()
@@ -374,8 +653,8 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
     #for m,s in zip(new_means,new_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
-    if convergence: logging.info('The EM algorithm has reached convergence')
-    else: logging.info("The EM algorithm hasn't reached convergence")
+    #if convergence: logging.info('The EM algorithm has reached convergence')
+    #else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
     bic_dict['Model1'] = bic
     logging.info('BIC of Model1: {:.2f}'.format(bic))

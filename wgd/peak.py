@@ -18,7 +18,7 @@ import itertools
 import os
 from wgd.core import _mkdir
 from sklearn_extra.cluster import KMedoids
-from wgd.viz import reflect_logks,find_peak_init_parameters,get_deconvoluted_data
+from wgd.viz import reflect_logks,find_peak_init_parameters
 from io import StringIO
 from sklearn import metrics
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
@@ -175,6 +175,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     fig, ax = plt.subplots()
     df = pd.DataFrame.from_dict({'label':labels,'dS':X})
     for i,color in enumerate(colors):
+        # here I recover the std by sqrt
         mean,std,weight = means[i][0],np.sqrt(stds[i][0][0]),weights[i]
         df_comp = df[df['label']==i]
         x = np.array(list(df_comp['dS']))
@@ -233,7 +234,8 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     if plot == 'identical':
         if weighted:
             for num,color in zip(range(nums),colors):
-                if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
+                if nums == 1: df_comp = df
+                #if nums == 1: df_comp = df.drop_duplicates(subset=['family','node'])
                 else: df_comp = df[df['AnchorKs_GMM_Component']==num]
                 w = df_comp['weightoutlierexcluded']
                 x = np.array(list(df_comp['dS']))
@@ -281,6 +283,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     fig, ax = plt.subplots()
     if weighted:
         for num,color in zip(range(nums),colors):
+            # here I recover the std by sqrt
             mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
             if nums == 1: df_comp = df.copy()
             else: df_comp = df[df['AnchorKs_GMM_Component']==num]
@@ -610,6 +613,7 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
     """
     Compute Gaussian mixtures for different numbers of components
     """
+    # The EM algorithm can't deal with weighted data, so we're actually ignoring all the associated weights.
     N = np.arange(n1, n2 + 1)
     models = [None for i in N]
     info_table = {}
@@ -630,7 +634,7 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
     plot_aic_bic(aic, bic, n1, n2, out_file)
     return models, aic, bic, besta, bestb, N
 
-def fit_bgmm(X, seed, n1, n2, em_iter=100, n_init=1):
+def fit_bgmm(X, seed, gamma, n1, n2, em_iter=100, n_init=1):
     """
     Variational Bayesian estimation of a Gaussian mixture
     """
@@ -639,14 +643,7 @@ def fit_bgmm(X, seed, n1, n2, em_iter=100, n_init=1):
     info_table = {}
     for i in N:
         logging.info("Fitting BGMM with {} components".format(i))
-        #'dirichlet_distribution' (can favor more uniform weights) while 'dirichlet_process' (default weight_concentration_prior_type)
-        #(using the Stick-breaking representation) seems better
-        # default weight_concentration_prior is 1/n_components
-        # default mean_precision_prior is 1
-        # default mean_prior is the mean of X
-        # default degrees_of_freedom_prior is n_features
-        # default covariance_prior is the covariance of X
-        models[i-n1] = mixture.GaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed).fit(X)
+        models[i-n1] = mixture.BayesianGaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed, weight_concentration_prior=gamma).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
         info_components(models[i-n1],i,info_table)
@@ -1601,7 +1598,7 @@ def calculateHPD(train_in,per):
     lower,upper = sorted(candidates, key=lambda y: y[0])[0][1][0],sorted(candidates, key=lambda y: y[0])[0][1][1]
     return sorted_in[upper],sorted_in[lower]
 
-def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
+def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1615,7 +1612,7 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
     X_log = np.log(X).reshape(-1, 1)
     out_file = os.path.join(outdir, "{}_Ks_GMM_AIC_BIC.pdf".format(guide))
     if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
-    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,guide+'_Ks','GMM')
         significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
@@ -1660,7 +1657,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
-def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,weighted,plot):
+def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1671,7 +1668,7 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,weig
     out_file = os.path.join(outdir, "Original_AnchorKs_GMM_AIC_BIC.pdf")
     logging.info("GMM modeling on Log-scale original anchor Ks data")
     if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
-    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
+    if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,'Original_AnchorKs','GMM')
         significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
