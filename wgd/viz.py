@@ -528,8 +528,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             mode, maxim = kde_mode(kde_x, kde_y)
             logging.info('The mode of species pair {} is {:.2f}'.format(pair,mode))
             CHF = get_totalH(Hs)
-            scale = CHF*0.1
-            if plotkde: ax.plot(kde_x, kde_y*scale, color=cs[i],alpha=0.4, ls = '--')
+            scaling = CHF*0.1
+            if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
             ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
             if corrected_ks_spair != None:
                 if pair in corrected_ks_spair.keys():

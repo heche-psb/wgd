@@ -429,7 +429,7 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
 @click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
-@click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
+@click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
