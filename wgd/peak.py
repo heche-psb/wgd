@@ -312,7 +312,8 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
-    ax.legend(loc='upper right', fontsize='small',frameon=False)
+    #ax.legend(loc='upper right', fontsize='small',frameon=False)
+    ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
