@@ -291,6 +291,8 @@ Note that users can add the analysis including NSOGs and BUSCO-guided SOGs etc, 
 wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata --collinearcoalescence
 ```
 
+Note that there should be no duplicated gene IDs in the sequence file.
+
 ### wgd focus
 
 **The concatenation-based/coalescence-based phylogenetic inference**

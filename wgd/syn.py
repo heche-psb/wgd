@@ -103,6 +103,9 @@ def write_genelists(outdir, table):
             if len(sdf.index) <= 2: continue
             fname = os.path.join(gdir, scaffold)
             with open(fname, "w") as o:
+                if len(list(sdf.sort_values(by=["start"]).index)) != len(set(sdf.sort_values(by=["start"]).index)):
+                    logging.error("There are duplicated gene IDs for given feature and attribute")
+                    exit(1)
                 for g in sdf.sort_values(by=["start"]).index:
                     o.write(g + sdf.loc[g,"or"] + "\n")
             lists[scaffold] = os.path.abspath(fname)
