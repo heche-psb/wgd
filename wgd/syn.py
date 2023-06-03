@@ -45,9 +45,9 @@ def gff2table(gff, feature, attribute):
     rows = []
     with open(gff, "r") as f:
         for l in f.readlines():
-            if l.startswith("#") or l.strip()=='':
+            if l.startswith("#") or l.strip("\n").strip()=='':
                 continue
-            x = l.split("\t")
+            x = l.strip("\n").strip("\t").split("\t")
             #Note here the empty lines from input will make error
             if x[2] == feature:
                 a = getattr(x[-1], attribute)
