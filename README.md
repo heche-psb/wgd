@@ -532,6 +532,56 @@ wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -sp speciestree.nw --reweigh
 We can clearly see that *Vitis vinifera* has higher substitution rate than *Protea cynaroides* in that their orthologous *K*<sub>S</sub> peaks with *Aquilegia coerulea*, although representing the same divergence event, differed in substitution distance.
 ![](data/Raw_Orthologues.ksd.svg)
 
+After the phylogenetic timing of the Ranunculales WGD, we can further infer its absolute age. First we infer the credible range of anchor pairs by *K*<sub>S</sub> heuristically using the program `wgd peak`.
+
+```
+wgd peak --heuristic wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sm wgd_syn/iadhore-out/segments.txt -le wgd_syn/iadhore-out/list_elements.txt -mp wgd_syn/iadhore-out/multiplicon_pairs.txt -o wgd_peak
+```
+
+![](data/AnchorKs_PeakCI_Aquilegia_coerulea.tsv.ks.tsv_node_weighted.svg)
+
+As shown above, we assumed a lognormal distribution at the peak location detected by the `signal` module of `scipy` library. The 95% confidence level of the lognormal distribution was applied, i.e., 0.68-2.74, in further molecular dating. The file `Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv` is what we need for next step. To build the orthogroups used in phylogenetic dating, we need to select some species and form a starting tree with proper fossil calibrations. We provide one in mcmctree format as below.
+
+```
+17 1
+((((Potamogeton_acutifolius,(Spirodela_intermedia,Amorphophallus_konjac)),(Acanthochlamys_bracteata,(Dioscorea_alata,Dioscorea_rotundata))'>0.5600<1.2863')'>0.8360<1.2863',(Acorus_americanus,Acorus_tatarinowii))'>0.8360<1.2863',((((Tetracentron_sinense,Trochodendron_aralioides),(Buxus_austroyunnanensis,Buxus_sinica))'>1.1080<1.2863',(Nelumbo_nucifera,(Telopea_speciosissima,Protea_cynaroides)))'>1.1080<1.2863',(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2))'>1.1080<1.2863')'>1.2720<2.4720';
+```
+
+As presented above, the focus species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below.
+
+```
+wgd dmd -f Aquilegia_coerulea -ap wgd_peak/Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv -o wgd_dmd_ortho Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+```
+
+The result file `merge_focus_ap.tsv` is what we need for the final step of molecular dating in program `wgd focus`.
+
+```
+wgd focus --protdating --aamodel lg wgd_dmd_ortho/merge_focus_ap.tsv -sp dating_tree.nw -o wgd_dating -d mcmctree -ds 'burnin = 2000' -ds 'sampfreq = 1000' -ds 'nsample = 20000' Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+```
+
+Here we only implemented the concatenation analysis using protein sequence by adding the flag `--protdating` and we set the parameter for `mcmctree` via the option `-ds`. Note that other dating program such as `r8s` and `beast` are also available given some mandatory parameters. The final log of the successful run is as below.
+
+```
+16:04:25 INFO     Running mcmctree using Hessian matrix of LG+Gamma  core.py:967
+                  for protein model
+23:49:37 INFO     Posterior mean for the ages of wgd is 1.128945 mcmctree.py:296
+                  billion years from Concatenated peptide
+                  alignment and 95% credibility intervals (CI)
+                  is 1.01224-1.23121 billion years
+         INFO     Total run time: 29175s                              cli.py:241
+         INFO     Done                                                cli.py:242
+```
+
+To visualize the date, we also provided a python script to plot the WGD dates in the `wgd` folder. Users need to extract the raw dates from the `mcmc.txt` for the WGD node first and save it as file `dates.txt` (or whatever preferred name). An example command is as below.
+
+```
+python $PATH/postplot.py postdis dates.txt --percentile 90 --title "WGD date" --hpd -o "Ranunculales_WGD_date.svg"
+```
+
+![](data/Ranunculales_WGD_date.svg)
+
+The posterior mean, median and mode of the Ranunculales WGD age is 112.92, 113.44 and 112.54 mya, with 90% HPD 105.07 - 122.32 mya as manifested above.
+
 ## Citation
  
 Please cite us at https://doi.org/10.1093/bioinformatics/bty915

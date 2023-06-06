@@ -11,7 +11,6 @@ from progressbar import ProgressBar
 from numpy import mean, std
 from scipy.spatial.distance import cdist
 
-
 def can_i_run_software(software):
     """
     Test if external software is executable
