@@ -2,9 +2,9 @@
 
 # `wgd v2` : a suite tool of WGD inference and timing
 
-[![Build Status](https://app.travis-ci.com/heche-psb/wgd.svg?branch=phylodating)](https://travis-ci.com/heche/wgd)
+[![Build Status](https://app.travis-ci.com/heche-psb/wgd.svg?branch=phylodating)](https://app.travis-ci.com/heche-psb/wgd)
 [![Latest PyPI version](https://img.shields.io/pypi/v/wgd.svg)](https://pypi.python.org/pypi/wgd)
-[![bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/wgd/README.html?highlight=wgd)
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/wgd/README.html)
 [![Downloads](https://pepy.tech/badge/wgd)](https://pepy.tech/project/wgd)
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
@@ -410,6 +410,10 @@ The associated `dupStack` plot shows that there are numerous duplicated segments
 The associated dotplot in oxford grid also presents numerous densely aggregated anchor points throughout most of the chromosomes.
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
+
+The dotplot in the unit of segment which is colored by the median *K*<sub>S</sub> age of anchor pairs also manifested numerous syntenic blocks.
+
+![](data/Aquilegia_coerulea.tsv.dotplot.ks.svg)
 
 A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
 

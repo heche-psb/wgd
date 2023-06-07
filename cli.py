@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
     default='info', help="Verbosity level, default = info.")
 def cli(verbosity):
     """
-    wgd - Copyright (C) 2023-2024 Hengchi Chen\n
+    wgd v2 - Copyright (C) 2023-2024 Hengchi Chen\n
     Contact: heche@psb.vib-ugent.be
     """
     logging.basicConfig(
@@ -815,7 +815,4 @@ def mix_(
 
 
 if __name__ == '__main__':
-    start = timer()
     cli()
-    end = timer()
-    logging.info("Total run time: {}s".format(int(end-start)))
