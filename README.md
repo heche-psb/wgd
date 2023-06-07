@@ -3,6 +3,9 @@
 # `wgd v2` : a suite tool of WGD inference and timing
 
 [![Build Status](https://app.travis-ci.com/heche-psb/wgd.svg?branch=phylodating)](https://travis-ci.com/heche/wgd)
+[![Latest PyPI version](https://img.shields.io/pypi/v/wgd.svg)](https://pypi.python.org/pypi/wgd)
+[![bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/wgd/README.html?highlight=wgd)
+[![Downloads](https://pepy.tech/badge/wgd)](https://pepy.tech/project/wgd)
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
 
