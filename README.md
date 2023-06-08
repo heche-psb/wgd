@@ -407,11 +407,11 @@ The associated `dupStack` plot shows that there are numerous duplicated segments
 
 ![](data/Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.svg)
 
-The associated dotplot in oxford grid also presents numerous densely aggregated anchor points throughout most of the chromosomes.
+The associated dotplot in oxford grid in the unit of base also presents numerous densely aggregated anchor points throughout most of the chromosomes.
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
 
-The dotplot in the unit of segment which is colored by the median *K*<sub>S</sub> age of anchor pairs also manifested numerous syntenic blocks.
+The dotplot in the unit of gene which is colored by the median *K*<sub>S</sub> age of anchor pairs on segment also manifested numerous syntenic blocks.
 
 ![](data/Aquilegia_coerulea.tsv.dotplot.ks.svg)
 

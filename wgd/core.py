@@ -2093,7 +2093,7 @@ def Allratio(profile,Ratios):
     profile['ratio'] = ratios
     profile[text] = ratios
     profile['level'] = levels
-    return text,Multiplicons_matrix
+    return text,Multiplicons_matrix,profile
 
 def multipliconid2aps(Multiplicons_ids,anchorpoints):
     df = pd.read_csv(anchorpoints, sep="\t", index_col=0, header=0)
@@ -2329,6 +2329,7 @@ def search_shared_aps(ap_filtered,num_sp,gene_sp_gl,cutoff):
     for mid,df in zip(Mids,Aps_per_Mul):
         df = df.drop_duplicates(subset=['gene_x', 'gene_y']).copy()
         level = list(df['level'])[0]
+        # Here I used the 'gene_y' column as grouping proxy because the structure of anchorpoints.txt is that the 'gene_y' column will be fixed as only one segment, while the 'gene_x' column is variable in segments. (For instance there is 10 segments in a multiplicon, the 'gene_y' column will always be the genes from segment 1, while the 'gene_x' column will be genes from the other 9(or 10 if self-collinearity) segments)
         occurs_gl = df.groupby('gene_y')[['gl_x','gene_x']].aggregate(lambda x:list(x))
         for gy in occurs_gl.index: occurs_gl.loc[gy,'gene_x'] = occurs_gl.loc[gy,'gene_x'] + [gy]
         occurs_gl = occurs_gl.rename(columns={"gl_x": "gl_x_y",'gene_x':'gene_xy'})
@@ -2496,7 +2497,7 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     counted = df.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     df = df.loc[:,['multiplicon','segment','genome']]
     profile = counted.unstack(level=-1).fillna(0)
-    text,MP_matrix = Allratio(profile,Ratios)
+    text,MP_matrix,profile = Allratio(profile,Ratios)
     MP_matrix_array = np.transpose(MP_matrix)
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir)
     hierarchy_dendrogram(MP_matrix_array,text.split(':'),outdir,label=False)
