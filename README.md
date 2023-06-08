@@ -121,18 +121,18 @@ wgd focus families sequences (option)
 -ts, --treeset, the parameters setting for gene tree inference, default None, this option can be provided multiple times
 --concatenation, flag option, whether to initiate the concatenation-based species tree inference, if the flag was set, concatenation-based species tree will be infered
 --coalescence, flag option, whether to initiate the coalescence-based species tree inference, if the flag was set, coalescence-based species tree will be infered
--sp, --speciestree, species tree darafile for dating, default None
+-sp, --speciestree, species tree datafile for dating, default None
 -d, --dating, which molecular dating program to use, default none
 -ds, --datingset, the parameters setting for dating program, default None, this option can be provided multiple times
 -ns, --nsites, the nsites information for r8s dating, default None
 -ot, --outgroup, the outgroup information for r8s dating, default None
 -pt, --partition, flag option, whether to initiate partition dating analysis for codon, if the flag was set, an additional partition dating analysis will be initiated
 -am, --aamodel, which protein model to be used in mcmctree, default poisson
--ks, flag option, whether to initiate Ks analysis
---annotation, which annotation program to use, default none
+-ks, flag option, whether to initiate Ks calculation
+--annotation, which annotation program to use, default None
 --pairwise, flag option, whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
 -ed, --eggnogdata, the eggnog annotation datafile, default None
---pfam, which option to use for pfam annotation, default none
+--pfam, which option to use for pfam annotation, default None
 --dmnb, the diamond database for annotation, default None
 --hmm, the HMM profile for annotation, default None
 --evalue, the e-value cut-off for annotation, default 1e-10
@@ -161,6 +161,11 @@ wgd ksd families sequences (option)
 -sp, --speciestree, the species tree to perform rate correction, default None, if None was given, the rate correction analysis will be called off
 -rw, --reweight, flag option, whether to recalculate the weight per species pair, if the flag was set, the weight will be recalculated
 -or, --onlyrootout, flag option, whether to only conduct rate correction using the outgroup at root as outgroup, if the flag was set, only the outgroup at root will be used as outgroup
+-epk, --extraparanomeks, extra paranome Ks data to plot in the mixed Ks distribution, default None
+-ap, --anchorpoints, anchorpoints.txt file to plot anchor Ks in the mixed Ks distribution, default None
+-pk, --plotkde, flag option, whether to plot kde curve of orthologous Ks distribution over histogram in the mixed Ks distribution, if the flag was set, the kde curve will be plotted
+-pag, --plotapgmm, flag option, whether to plot mixture modeling of anchor Ks in the mixed Ks distribution, if the flag was set, the mixture modeling result of anchor Ks will be plotted
+-c, --components, the range of the number of components to fit in anchor Ks mixture modeling, default (1,4)
 ```
 
 The program `wgd mix` can realize the mixture model clustering analysis of *K*<sub>S</sub> age distribution.
@@ -168,7 +173,7 @@ The program `wgd mix` can realize the mixture model clustering analysis of *K*<s
 wgd mix ks_datafile (option)
 --------------------------------------------------------------------------------
 -f, --filters, the cutoff alignment length, default 300
--r, --ks_range, the Ks range to be considered, default (0.005, 3)
+-r, --ks_range, the Ks range to be considered, default (0, 5)
 -b, --bins, the number of bins in Ks distribution, default 50
 -o, --outdir, the output directory, default wgd_mix
 --method, which mixture model to use, default gmm
@@ -206,14 +211,15 @@ wgd peak ks_datafile (option)
 --kmedoids, flag option, whether to initiate K-Medoids clustering analysis, if the flag was set, the analysis will be initiated
 -gd, --guide, the regime residing anchors, default: segment
 -prct, --prominence_cutoff, the prominence cutoff of acceptable peaks, default 0.1
--kd, --kstodate, the range of Ks to be dated, default (0.5, 1.5)
+-kd, --kstodate, the range of Ks to be dated in heuristic search, default (0.5, 1.5)
 -f, --family, the family to filter Ks upon, default None
 --manualset, flag option, whether to output anchor pairs with manually set Ks range, if the flag was set, manually set Ks range will be used
 -rh, --rel_height, the relative height at which the peak width is measured, default 0.4
 --ci, the confidence level of log-normal distribution to date, default 95
---hdr, the highest densidy region (HDR) in a given distribution to date, default 95
+--hdr, the highest density region (HDR) in a given distribution to date, default 95
 --heuristic, flag option, whether to initiate heuristic method of defining CI for dating, if the flag was set, the heuristic method will be initiated
 -kc, --kscutoff, the Ks saturation cutoff in dating, default 5
+-g, --gamma, the gamma parameter for bgmm models, default 1e-3
 ```
 
 The program `wgd syn` can realize the intra- and inter-specific synteny inference.

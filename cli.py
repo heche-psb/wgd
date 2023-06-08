@@ -333,7 +333,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--manualset', is_flag=True,help="Manually set Ks range of anchor pairs or multiplicons as CI")
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
-@click.option('--hdr', default=95, show_default=True,type=int, help='highest densidy region (HDR) in a given distribution to date')
+@click.option('--hdr', default=95, show_default=True,type=int, help='highest density region (HDR) in a given distribution to date')
 @click.option('--heuristic', is_flag=True,help="heuristic CI for dating")
 @click.option('--kscutoff', '-kc', default=5, show_default=True, type=float, help='Ks Saturation cutoff for genes in Dating')
 def peak(**kwargs):
@@ -426,10 +426,10 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
 @click.option('--onlyrootout', '-or', is_flag=True, help='only consider the outgroup at root')
 @click.option('--extraparanomeks', '-epk', default=None, help='extra paranome ks data')
-@click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
+@click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file to plot anchor Ks')
 @click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
-@click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
-@click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
+@click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor Ks')
+@click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of the number of components to fit in anchor Ks mixture modeling")
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -686,7 +686,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         show_default=True
 )
 @click.option(
-        '--ks_range', '-r', nargs=2, default=(0.005, 3), show_default=True,
+        '--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
         type=float,
         help='Ks range to use for modeling'
 )
