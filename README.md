@@ -167,7 +167,8 @@ wgd ksd families sequences (option)
 -epk, --extraparanomeks, extra paranome Ks data to plot in the mixed Ks distribution, default None
 -ap, --anchorpoints, anchorpoints.txt file to plot anchor Ks in the mixed Ks distribution, default None
 -pk, --plotkde, flag option, whether to plot kde curve of orthologous Ks distribution over histogram in the mixed Ks distribution, if the flag was set, the kde curve will be plotted
--pag, --plotapgmm, flag option, whether to plot mixture modeling of anchor Ks in the mixed Ks distribution, if the flag was set, the mixture modeling result of anchor Ks will be plotted
+-pag, --plotapgmm, flag option, whether to plot mixture modeling of anchor Ks in the mixed Ks distribution, if the flag was set, the mixture modeling of anchor Ks will be plotted
+-pem, --plotelmm, flag option, whether to plot elmm mixture modeling of paranome Ks in the mixed Ks distribution, if the flag was set, the elmm mixture modeling of paranome Ks will be plotted
 -c, --components, the range of the number of components to fit in anchor Ks mixture modeling, default (1,4)
 ```
 
@@ -258,7 +259,7 @@ wgd viz (option)
 -init, --em_initializations, the maximum EM initializations, default 200
 -prct, --prominence_cutoff, the prominence cutoff of acceptable peaks, default 0.1
 -sm, --segments, the segments data file, default None
--ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffold will be set
+-ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffolds will be set
 -ms, --maxsize, the maximum family size to include, default 200
 -ap, --anchorpoints, the anchor points datafile, default None
 -mt, --multiplicon, the multiplicons datafile, default None
@@ -266,6 +267,10 @@ wgd viz (option)
 -rh, --rel_height, the relative height at which the peak width is measured, default 0.4
 -mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 100000
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
+-epk, --extraparanomeks, extra paranome Ks data to plot in the mixed Ks distribution, default None
+-pag, --plotapgmm, flag option, whether to plot mixture modeling of anchor Ks in the mixed Ks distribution, if the flag was set, the mixture modeling of anchor Ks will be plotted
+-pem, --plotelmm, flag option, whether to plot elmm mixture modeling of paranome Ks in the mixed Ks distribution, if the flag was set, the elmm mixture modeling of paranome Ks will be plotted
+-c, --components, the range of the number of components to fit in anchor Ks mixture modeling, default (1,4)
 ```
 
 ## Usage
