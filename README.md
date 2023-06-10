@@ -614,5 +614,5 @@ Hengchi Chen, Arthur Zwaenepoel (2023). Inference of Ancient Polyploidy from Gen
 ```
 
 For citation of the tools used in wgd, please consult the documentation at
-https://wgd.readthedocs.io/en/latest/index.html#citation.
+https://wgdv2.readthedocs.io/en/latest/citation.html.
 
