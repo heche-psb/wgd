@@ -1594,6 +1594,116 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
     fig.savefig(fnames)
     plt.close()
 
+def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors):
+    dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
+    leng_info_x,leng_info_y = {},{}
+    for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
+    for scfa in dfy.columns: leng_info_y[scfa] = len(dfy[scfa].dropna())
+    sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+    sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+    sorted_labels_y = [i[0] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+    sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+    xtick,ytick = list(np.cumsum(sorted_leng_x)),list(np.cumsum(sorted_leng_y))
+    xtick_addable, ytick_addable = [0]+xtick[:-1], [0]+ytick[:-1]
+    xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+    ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    xlim,ylim = xtick[-1],ytick[-1]
+    ax.set_xlim(0, xlim)
+    ax.set_ylim(0, ylim)
+    tmp = segs.groupby('multiplicon')['genome'].agg(lambda x:set(x))
+    good_mlt = []
+    for mlt,genome in zip(tmp.index,tmp):
+        if spx in genome and spy in genome: good_mlt.append(mlt)
+    segs_filter = segs[segs['multiplicon'].isin(good_mlt)]
+    Num_segments_plotted, uniq = 0, 0
+    for mlt, df_tmp  in list(segs_filter.groupby('multiplicon')):
+        orig_anchors_tmp = orig_anchors[orig_anchors['multiplicon']==mlt]
+        extreme_indices = [orig_anchors_tmp.index[0],orig_anchors_tmp.index[-1]]
+        dfx_start_last,dfy_start_last = [],[] # list of list
+        number,num = len(df_tmp),0
+        for sp,scfa,start,last,sg,lg,segid in zip(df_tmp['genome'],df_tmp['list'],df_tmp['first_coordinate'],df_tmp['last_coordinate'],df_tmp['first'],df_tmp['last'],df_tmp['segment']):
+            num,uniq = num + 1,uniq+1
+            if abs(last - start) + 1 < mingenenum:
+                continue
+            sg_indice,lg_indice =[],[]
+            if num == number:
+                if sg in list(orig_anchors_tmp['gene_y']) and lg in list(orig_anchors_tmp['gene_y']):
+                    sg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_y'] == sg].index.tolist()
+                    lg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_y'] == lg].index.tolist()
+                    #sg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_y'] == sg]['coord_y'])
+                    #lg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_y'] == lg]['coord_y'])
+            else:
+                if sg in list(orig_anchors_tmp['gene_x']) and lg in list(orig_anchors_tmp['gene_x']):
+                    sg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_x'] == sg].index.tolist()
+                    lg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_x'] == lg].index.tolist()
+                    #sg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_x'] == sg]['coord_x'])
+                    #lg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_x'] == lg]['coord_x'])
+            if len(sg_indice) == 0 or len(lg_indice) ==0:
+                logging.info("The start and last gene of segment {} can't be found together in gene_x or _y column".format(segid))
+                continue
+            if len(sg_indice) > 1 or len(lg_indice) > 1:
+                logging.info("There are overlapping anchor pairs in multiplicon {}".format(mlt))
+            if sg_indice[0] < lg_indice[0]:
+                orientation = "+"
+                num_cover = sum([True for i in orig_anchors_tmp.index if sg_indice[0] <= i <= lg_indice[0]])
+            else:
+                orientation = "-"
+                num_cover = sum([True for i in orig_anchors_tmp.index if lg_indice[0] <= i <= sg_indice[0]])
+            if num_cover < len(orig_anchors_tmp)/2:
+                if sg_indice[0] == extreme_indices[0]:
+                    orientation == "+"
+                elif lg_indice[0] == extreme_indices[0]:
+                    orientation = "-"
+                else:
+                    orientation = "-" if orientation == "+" else "+"
+            if sp == spx:
+                startx,lastx = start + xtick_addable_dict[scfa],last + xtick_addable_dict[scfa]
+                dfx_start_last.append(([startx,lastx],orientation,uniq,segid,mlt,scfa))
+            if sp == spy:
+                starty,lasty = start + ytick_addable_dict[scfa],last + ytick_addable_dict[scfa]
+                dfy_start_last.append(([starty,lasty],orientation,uniq,segid,mlt,scfa))
+        #print((dfx_start_last,dfy_start_last))
+        for s1 in dfx_start_last:
+            for s2 in dfy_start_last:
+                if s1[2]==s2[2]: continue
+                Num_segments_plotted = Num_segments_plotted + 1
+                s1_,s2_ = s1[0],s2[0]
+                if s1[1] != s2[1]: s2_.reverse()
+                ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
+    logging.info("In total {} segment pairs were plotted".format(Num_segments_plotted))
+    ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
+    ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
+    ax.set_xlabel("{}".format(spx))
+    ax.set_ylabel("{}".format(spy))
+    ax.set_xticks(xtick)
+    ax.set_xticklabels(sorted_labels_x,rotation=45)
+    ax.set_yticks(ytick)
+    ax.set_yticklabels(sorted_labels_y,rotation=45)
+    return ax
+
+def plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,orig_anchors):
+    fig, ax = plt.subplots(1, 1, figsize=(10,10))
+    dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
+    dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
+    ax = plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors)
+    fig.tight_layout()
+    return fig, ax
+
+def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingenenum,orig_anchors,table):
+    sp_list = list(ordered_genes_perchrom_allsp.keys())
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    figs = {}
+    orig_anchors['list_y'] = orig_anchors['gene_y'].apply(lambda x:gene_list[x])
+    orig_anchors['list_x'] = orig_anchors['gene_x'].apply(lambda x:gene_list[x])
+    for i in range(len(sp_list)):
+        for j in range(i,len(sp_list)):
+            spx,spy = sp_list[i],sp_list[j]
+            fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,orig_anchors)
+            figs[spx + "-vs-" + spy] = fig
+    for prefix, fig in figs.items():
+        fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
+        fig.savefig(fname)
+
 # dot plot stuff
 def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwargs):
     """
@@ -1637,7 +1747,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
                 continue
             #for x,y in zip(df.x,df.y): ax.scatter(x, y, s=1, color="k", alpha=0.1)
             #print((len(list(itertools.chain(df.x))),len(list(itertools.chain(df.y)))))
-            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=1, color="k", alpha=0.1)
+            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=1, color="k", alpha=0.01)
             #ax.scatter(np.array(df.x,dtype=float), np.array(df.y,dtype=float), s=1, color="k", alpha=0.1)
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
@@ -1692,10 +1802,12 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
 def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
     gdf,Index_torm,I2,I3,I4 = list(genetable.copy().groupby("species")),[],[],[],[]
     Sf_len_lab_persp = {sp:{} for sp,df in gdf}
+    removed_scfa = {}
     for sp,df in gdf:
         lens = df.groupby("scaffold")["start"].agg(max)
         lens.name = "len"
         lens = pd.DataFrame(lens).sort_values("len", ascending=False)
+        orig_scfa = set(lens.index)
         noriginal = len(lens.index)
         if minlen < 0:
             Minlen = lens.len.max() * 0.1
@@ -1705,6 +1817,8 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
         else:
             lens = lens.loc[lens.len > minlen]
             logging.info("Dropped {} scaffolds in {} because they are on scaffolds shorter than {}".format(noriginal-len(lens.index),sp,minlen))
+        removed = list(orig_scfa - set(lens.index))
+        removed_scfa[sp] = removed
         segs_tmp = segs.loc[(segs['genome']==sp) & (~segs['list'].isin(lens.index)),:]
         gt_tmp = genetable.loc[(genetable['species']==sp) & (~genetable['scaffold'].isin(lens.index)),:]
         multi_tmpx = multi.loc[(multi['genome_x']==sp) & (~multi['list_x'].isin(lens.index)),:]
@@ -1731,7 +1845,7 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
     fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
     fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
-    return segs,genetable,multi
+    return segs,genetable,multi,removed_scfa
 
 def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     rm_indice = []
@@ -1933,17 +2047,28 @@ def syntenic_dotplot_ks_colored(
     #an["pair"] = an.apply(lambda x: '__'.join(
     #        sorted([x["gene_x"], x["gene_y"]])), axis=1)
     an = an.reset_index()
+    # Get all occurred scaffolds in multiplicons
     genomic_elements_ = {
         x: 0 for x in list(set(df['list_x']) | set(df['list_y']))
         if type(x) == str
     }
-
+    # Here the age is per multiplicon instead of per segment
     ks_multiplicons = {}
     all_ks = []
     for i in range(len(df)):
         row = df.iloc[i]
+        # from anchor.csv file get the anchor pairs information per multiplicon
         pairs = an[an['multiplicon'] == row['id']]['pair']
-        med_ks = np.median(ks.loc[ks.index.intersection(pairs)]['dS'])
+        if len(pairs) == 0:
+            logging.info("Multiplicon {} has 0 anchor pairs left after filtering duplicated anchor pairs".format(row['id']))
+            continue
+        # from anchor_ks file get all the associated Ks information per multiplicon
+        # The anchor pairs are filtered at the very begining that no duplicated pairs are allowed, thus there might be multiplicon with 0,1,2 anchor pairs with Ks data, since not all anchor pairs have Ks data
+        index_retained = ks.index.intersection(pairs)
+        if len(index_retained) == 0:
+            logging.info("The anchor pairs on multiplicon {} have no Ks estimation".format(row['id']))
+            continue
+        med_ks = np.median(ks.loc[index_retained]['dS']) # this step will counter RuntimeWarning: Mean of empty slice and RuntimeWarning: invalid value encountered in double_scalars
         ks_multiplicons[row['id']] = med_ks
         all_ks.append(med_ks)
 
@@ -1956,6 +2081,7 @@ def syntenic_dotplot_ks_colored(
     ax = fig.add_subplot(111)
 
     for key in sorted(genomic_elements_.keys()):
+        # find the longest multiplicon per scaffold, instead of the real length of that scaffold
         length = max(list(df[df['list_x'] == key]['end_x']) + list(
                 df[df['list_y'] == key]['end_y']))
         if length >= min_length:
@@ -1966,7 +2092,7 @@ def syntenic_dotplot_ks_colored(
     sorted_ge = sorted(genomic_elements_.items(), key=lambda x: x[1],
                        reverse=True)
     labels = [kv[0] for kv in sorted_ge if kv[1] >= min_length]
-
+    # accumulate the scaffold length, now = now + previous, to prepare the tick, starting from 0
     for kv in sorted_ge:
         genomic_elements[kv[0]] = previous
         previous += kv[1]
@@ -1974,20 +2100,21 @@ def syntenic_dotplot_ks_colored(
     # plot layout
     x = [genomic_elements[key] for key in sorted(genomic_elements.keys())] + \
         [previous]
-    x = sorted(list(set(x)))
+    x = sorted(list(set(x))) # starting from 0
     ax.vlines(ymin=0, ymax=previous, x=x, linestyles='dotted', alpha=0.2)
     ax.hlines(xmin=0, xmax=previous, y=x, linestyles='dotted', alpha=0.2)
-    ax.plot(x, x, color='k', alpha=0.2)
+    ax.plot(x, x, color='k', alpha=0.2) # diagonal line
     ax.set_xticks(x)
     ax.set_yticks(x)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_xlim(0, max(x))
     ax.set_ylim(0, max(x))
-    ax.set_xticks([(x[i] + x[i - 1]) / 2 for i in range(1, len(x))], minor=True)
+    ax.set_xticks([(x[i] + x[i - 1]) / 2 for i in range(1, len(x))], minor=True) # here there are two sets of ticks
     ax.set_xticklabels(labels, minor=True, rotation=45)
     ax.set_yticks([(x[i] + x[i - 1]) / 2 for i in range(1, len(x))], minor=True)
     ax.set_yticklabels(labels, minor=True, rotation=45)
+    # hide the tick shape and center the label
     for tick in ax.xaxis.get_minor_ticks():
         tick.tick1line.set_markersize(0)
         tick.tick2line.set_markersize(0)
@@ -2000,11 +2127,15 @@ def syntenic_dotplot_ks_colored(
     # the actual dots (or better, line segments)
     for i in range(len(df)):
         row = df.iloc[i]
+        if ks_multiplicons.get(row['id']) == None:
+            logging.info("Skipping multiplicon {} which has no Ks information of retained unique anchor pairs".format(row['id']))
+            continue
         list_x, list_y = row['list_x'], row['list_y']
         if type(list_x) != float:
+            # The first multiplicon of all children multiplicons has the list_x info astype str instead of float
             curr_list_x = list_x
         x = [genomic_elements[curr_list_x] + x for x in
-             [row['begin_x'], row['end_x']]]
+             [row['begin_x'], row['end_x']]] # return a list of two elements, for instance [607, 1720]
         y = [genomic_elements[list_y] + x for x in
              [row['begin_y'], row['end_y']]]
         med_ks = ks_multiplicons[row['id']]
@@ -2019,7 +2150,7 @@ def syntenic_dotplot_ks_colored(
 
     # colorbar
     cbar = plt.colorbar(tmp, fraction=0.02, pad=0.01)
-    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5, 11)])
+    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5.5, 11)])
 
     # saving
     if output_file:

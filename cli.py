@@ -583,6 +583,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
 @click.option('--minseglen', '-mg', default=100000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
+@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="min number of genes on segments to be considered")
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -590,13 +591,13 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun):
+        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
-    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi
-    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength
+    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit
+    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -606,6 +607,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     prefix = os.path.basename(families)
     fams = pd.read_csv(families, index_col=0, sep="\t")
     table = make_gene_table(gff_files, fams, feature, attribute)
+    table_orig = table.copy()
     if len(table.dropna().index) == 0:
         logging.error("No genes from families file `{}` found in the GFF file "
                 "for `feature={}` and `attribute={}`, please double check command " 
@@ -618,22 +620,26 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     # I-ADHoRe
     logging.info("Configuring I-ADHoRe co-linearity search")
     conf, out_path = configure_adhore(table, outdir, **iadhore_opts)
+    ordered_genes_perchrom_allsp, gene_orders = get_chrom_gene(table,outdir)
     table.to_csv(os.path.join(outdir, "gene-table.csv"))
     logging.info("Running I-ADHoRe")
     run_adhore(conf)
 
     # general post-processing
     logging.info("Processing I-ADHoRe output")
-    anchors = get_anchors(out_path)
+    anchors,orig_anchors = get_anchors(out_path)
     multi = get_multi(out_path)
     if anchors is None:
         logging.warning("No anchors found, terminating! Please inspect your input files "
                 "and the I-ADHoRe results in `{}`".format(out_path))
         exit(1)
-
     anchors.to_csv(os.path.join(outdir, "anchors.csv"))
+    #ap_order_permlt = getmltorder(orig_anchors,multi,gene_orders)
     segs = get_segments_profile(multi,keepredun,out_path)
-    segs,table,multi = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
+    #segmentpair_order = get_segmentpair_order(orig_anchors,segs,table,gene_orders)
+    segs,table,multi,removed_scfa = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
+    segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
+    dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,orig_anchors,table_orig)
     # dotplot
     #logging.info("Generating dot plots")
     figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
@@ -667,7 +673,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         syntenic_dotplot_ks_colored(
                 multi, anchors, anchor_ks, min_ks=ks_range[0],
                 max_ks=ks_range[1], output_file=dotplot_out,
-                min_length=minlen
+                min_length= 50
         )
         #figs2=Ks_dotplots(segs,multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen,outdir = outdir)
         #for k, v in figs2.items():

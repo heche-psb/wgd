@@ -2,6 +2,7 @@ import os
 import logging
 import tempfile
 import pandas as pd
+import numpy as np
 import subprocess as sp
 from collections import defaultdict
 from operator import itemgetter
@@ -177,14 +178,15 @@ def get_anchors(out_path,userdf=None):
     if userdf!=None: anchors = pd.read_csv(userdf, sep="\t", index_col=0)
     else: anchors = pd.read_csv(os.path.join(out_path, "anchorpoints.txt"), sep="\t", index_col=0)
     if len(anchors) == 0:
-        return None
+        return None, None
+    orig_anchors = anchors.copy()
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
     df = anchors[["pair", "multiplicon"]].drop_duplicates("pair").set_index("pair")
     #anchors["pair_reverse"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[1], x[0]])), axis=1)
     #df_reverse = anchors[["pair_reverse", "multiplicon"]].drop_duplicates("pair_reverse").set_index("pair_reverse")
     #df_reverse.index.set_names('pair',inplace=True)
     # there are duplicates, due to anchors being in multiple multiplicons
-    return df
+    return df, orig_anchors
 
 def get_multi(out_path,userdf2=None):
     if userdf2!=None: multi = pd.read_csv(userdf2, sep="\t", index_col=None,header = 0)
@@ -206,5 +208,119 @@ def get_segments_profile(multi,keepredun,out_path,userdf3=None):
     segs["segment"] = segs.index
     return segs
 
+def get_chrom_gene(table,outdir):
+    df = table.reset_index()
+    gdf = list(df.groupby("species"))
+    scafs_genes,ordered_dfs,gene_orders = {},{},{}
+    for sp, df in gdf:
+        scafs_genes[sp] = {}
+        for i in set(df['scaffold']): scafs_genes[sp][i] = []
+        tmp = list(df.groupby(['scaffold'])[['gene','start']])
+        for i in tmp:
+            df_tmp = i[1].sort_values(by=['start'])
+            for indice,j in enumerate(df_tmp['gene']):
+                scafs_genes[sp][i[0]].append(j)
+                if gene_orders.get(j) == None:
+                    gene_orders[j] = indice+1 # since we want the gene starting from 1 instead of 0
+        max_length = max(len(v) for v in scafs_genes[sp].values())
+        for key in scafs_genes[sp].keys():
+            if len(scafs_genes[sp][key]) < max_length:
+                scafs_genes[sp][key].extend([None] * (max_length - len(scafs_genes[sp][key])))
+        df_output = pd.DataFrame(scafs_genes[sp])
+        ordered_df = df_output[sorted(df_output.columns,key=lambda y: len(df_output[y].dropna()),reverse=True)]
+        fname = os.path.join(outdir, "{}_gene_order_perchrom.tsv".format(sp))
+        ordered_df.insert(0, "Coordinates", np.arange(1,max_length+1))
+        ordered_df.fillna('').to_csv(fname,header=True,index=False,sep='\t')
+        ordered_dfs[sp] = ordered_df
+    return ordered_dfs, gene_orders
 
+def transformunit(segs,ordered_genes_perchrom_allsp,outdir):
+    gene_order_dict_allsp = {}
+    seg = segs.copy()
+    splist = set(seg['genome'])
+    for sp in splist:
+        gene_order_dict_allsp[sp] = {}
+        ordered_genes_perchrom = ordered_genes_perchrom_allsp[sp]
+        ordered_genes_perchrom = ordered_genes_perchrom.set_index('Coordinates')
+        for i in ordered_genes_perchrom.index:
+            for scaf in ordered_genes_perchrom.columns:
+                genename = ordered_genes_perchrom.loc[i,scaf]
+                gene_order_dict_allsp[sp][genename] = i
+    first_coordinate,last_coordinate = [],[]
+    for i,j in zip(seg['genome'],seg['first']): first_coordinate.append(gene_order_dict_allsp[i][j])
+    for i,j in zip(seg['genome'],seg['last']): last_coordinate.append(gene_order_dict_allsp[i][j])
+    seg['first_coordinate'],seg['last_coordinate'] = first_coordinate,last_coordinate
+    fname = os.path.join(outdir, "segments_coordinates.tsv")
+    seg.to_csv(fname,header=True,index=True,sep='\t')
+    return seg, gene_order_dict_allsp
 
+def annotatelist(anchorpoints,table):
+    ap_with_list = anchorpoints.copy()
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    ap_with_list['list_x'] = ap_with_list['gene_x'].apply(lambda x:gene_list[x])
+    ap_with_list['list_y'] = ap_with_list['gene_y'].apply(lambda x:gene_list[x])
+    return ap_with_list
+
+def annotatesegy(ap_with_list,segs):
+    tmp = list(ap_with_list.groupby['multiplicon'])
+    unique_segid = []
+    for mlt, df in tmp:
+        df = df.sort_values(by=['coord_y'])
+        gl = list(df['list_y'])[0]
+        starty,endy = list(df['gene_y'])[0], list(df['gene_y'])[-1] # ap should be inside the segment for sure
+        seg_tmp = segs.loc[(segs['multiplicon']==mlt) & (segs['list']==gl),:]
+        if len(seg_tmp) == 1:
+            unique_segid.append(seg_tmp['segment'])
+            continue
+
+def getsegid(starty,endy,segs,gene_list,mlt,gene_orders):
+    gls,gle = gene_list[starty],gene_list[endy]
+    assert gls == gle
+    tmp = segs.loc[(segs['multiplicon']==mlt) & (segs['list']==gls),:]
+    if len(tmp) == 1:
+        return list(tmp['segment'])[0]
+    else:
+        for segid,first,last in zip(tmp['segment'],tmp['first'],tmp['last']):
+            f_coor,l_coor = gene_orders[first], gene_orders[last]
+            if gene_orders[starty] >= f_coor and gene_orders[endy] <= l_coor:
+                return segid
+
+def getsegidx(df,segs,gene_list,mlt,gene_orders):
+    df_tmp = df.copy()
+    df_tmp['list_x'] = df_tmp['gene_x'].apply(lambda x:gene_list[x])
+    df_tmp = df_tmp.sort_values(by=['list_x','coord_x'])
+
+def annotatelist_full(anchorpoints,table,segs,gene_orders):
+    ap_with_list = anchorpoints.copy()
+    list_x,list_y = [],[]
+    tmp = list(ap_with_list.groupby('multiplicon'))
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    for mlt,df in tmp:
+        df = df.sort_values(by=['coord_y'])
+        starty,endy = list(df['gene_y'])[0], list(df['gene_y'])[-1]
+        belonged_segidy = getsegid(starty,endy,segs,gene_list,mlt,gene_orders)
+        for i in range(df.shape[0]): list_y.append(belonged_segidy)
+        belonged_segidx = getsegidx(df,segs,gene_list,mlt,gene_orders)
+
+def get_segmentpair_order(anchorpoints,segs,table,gene_orders):
+    ap_with_list = annotatelist_full(anchorpoints,table,segs,gene_orders)
+    ap_with_list = annotatelist(anchorpoints,table)
+    ap_with_list_addsegy = annotatesegy(ap_with_list,segs)
+
+def getmltorder(anchorpoints,multi,gene_orders):
+    ap_order_permlt = {i:'' for i in set(anchorpoints['multiplicon'])}
+    tmp = list(anchorpoints.groupby('multiplicon'))
+    for mlt, df in tmp:
+        genexs,geneys = list(df['gene_x'])[:3],list(df['gene_y'])[:3]
+        genexs_coor, geneys_coor = [gene_orders[i] for i in genexs], [gene_orders[i] for i in geneys]
+        consistent_order = []
+        for i in range(2):
+            tmpx = genexs_coor[i+1]-genexs_coor[i]
+            tmpy = geneys_coor[i+1]-geneys_coor[i]
+            if tmpx > 0: pos_neg = "+"
+            else: pos_neg = "-"
+            consistent_order.append(tmpx*tmpy)
+        for i in consistent_order:
+            assert i > 0
+        ap_order_permlt[mlt] = pos_neg
+    return ap_order_permlt
