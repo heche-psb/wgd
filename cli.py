@@ -513,6 +513,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
+@click.option('--multipliconpairs', '-mp', default=None, show_default=True, help='multipliconpairs information')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--minseglen', '-mg', default=10000, show_default=True, help="minimum length (ratio if <=1) of segments to show in marco-synteny")
@@ -521,23 +522,37 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
 @click.option('--plotelmm', '-pem', is_flag=True, help='plot elmm mixture modeling')
 @click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
+@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="min number of genes on segments to be considered")
+@click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,multipliconpairs,mingenenum,plotsyn):
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene
     from wgd.core import _mkdir
-    from wgd.syn import get_anchors,get_multi,get_segments_profile
+    from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
+    from wgd.peak import formatv2
     if datafile!=None: prefix = os.path.basename(datafile)
     _mkdir(outdir)
-    if datafile ==None:
+    if plotsyn:
+        df = None
+        if datafile!=None:
+            ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
+            ksdb_df = formatv2(ksdb_df)
+            df = apply_filters(ksdb_df, [("dS", 0., 5.)])
         table = pd.read_csv(genetable,header=0,index_col=0,sep=',')
-        df_anchor,df_multi = get_anchors('',userdf=anchorpoints),get_multi('',userdf2=multiplicon)
+        table_orig = table.copy()
+        df_anchor,orig_anchors = get_anchors('',userdf=anchorpoints)
+        df_multi = get_multi('',userdf2=multiplicon)
+        ordered_genes_perchrom_allsp, gene_orders = get_chrom_gene(table,outdir)
+        ordered_mp = get_mp_geneorder(gene_orders,'',outdir,table,userdf4=multipliconpairs)
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
-        segs,table,df_multi = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
+        segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
+        segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
+        dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
@@ -596,8 +611,9 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     Co-linearity and anchor inference using I-ADHoRe.
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
-    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit
+    from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit, get_mp_geneorder
     from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene
+    from wgd.peak import formatv2
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -627,6 +643,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
     # general post-processing
     logging.info("Processing I-ADHoRe output")
+    ordered_mp = get_mp_geneorder(gene_orders,out_path,outdir,table)
     anchors,orig_anchors = get_anchors(out_path)
     multi = get_multi(out_path)
     if anchors is None:
@@ -639,7 +656,13 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     #segmentpair_order = get_segmentpair_order(orig_anchors,segs,table,gene_orders)
     segs,table,multi,removed_scfa = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
     segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
-    dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,orig_anchors,table_orig)
+    #if ks_distribution: segs_gene_unit_ks = getsegks(segs_gene_unit,ks_distribution,ordered_genes_perchrom_allsp)
+    df_ks = None
+    if ks_distribution!=None:
+        ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
+        ksdb_df = formatv2(ksdb_df)
+        df_ks = apply_filters(ksdb_df, [("dS", 0., 5.)])
+    dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df_ks)
     # dotplot
     #logging.info("Generating dot plots")
     figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 

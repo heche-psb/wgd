@@ -13,6 +13,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.path import Path
 import matplotlib.patches as patches
 from matplotlib.pyplot import cm
+from matplotlib.cm import ScalarMappable
 from scipy import stats,interpolate,signal
 from io import StringIO
 from Bio import Phylo
@@ -1594,7 +1595,147 @@ def plot_marco(sp1,sp2,sp1_scafflabel,sp1_scafflength,sp2_scafflabel,sp2_scaffle
     fig.savefig(fnames)
     plt.close()
 
-def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors):
+def judgeoverlap(startx,lastx,starty,lasty,start_lastxy):
+    Assumeoverlap = False
+    for i,j,k in start_lastxy:
+        if i[0] < startx and i[1] < lastx and j[0] < starty and j[1] < lasty:
+            Assumeoverlap = True
+            break
+    return Assumeoverlap
+
+def determineoverlap(plotted_xy,xy):
+    x,y = xy[0],xy[1]
+    overlap = False
+    for occuredx,occuredy in plotted_xy:
+        occuredsx,occuredlx,occuredsy,occuredly = occuredx[0],occuredx[1],occuredy[0],occuredy[1]
+        if occuredsx <= x[0] and x[1] <= occuredlx and occuredsy <= y[0] and y[1] <= occuredly:
+            overlap = True
+            logging.info("Skip fully overlapped segment pair ({0},{1}) ({2},{3})".format(x[0],y[0],x[1],y[1]))
+            break
+    return overlap
+
+def mergeoverlapped(plotted_xy,xy):
+    x,y = xy[0],xy[1]
+    for occuredx,occuredy in plotted_xy:
+        occuredsx,occuredlx,occuredsy,occuredly = occuredx[0],occuredx[1],occuredy[0],occuredy[1]
+        if x[0] > occuredlx or occuredsx > x[1]:
+            continue
+        if y[0] > occuredly or occuredsy > y[1]:
+            continue
+        x = [min([occuredsx,occuredlx,x[0],x[1]]),max([occuredsx,occuredlx,x[0],x[1]])]
+        y = [min([occuredsy,occuredly,y[0],y[1]]),max([occuredsy,occuredly,y[0],y[1]])]
+    return x,y
+
+def mergedxy(i_infox,i_infoy,i_orien,i_color,j_infox,j_infoy,j_orien,j_color):
+    if i_infox[0] > j_infox[1] or i_infox[1] < j_infox[0]:
+        return i_infox,i_infoy,i_orien,i_color,j_infox,j_infoy,j_orien,j_color
+    if i_infoy[0] > j_infoy[1] or i_infoy[1] < j_infoy[0]:
+        return i_infox,i_infoy,i_orien,i_color,j_infox,j_infoy,j_orien,j_color
+    sizei = (i_infox[1]-i_infox[0]) * (i_infoy[1]-i_infoy[0])
+    sizej = (j_infox[1]-j_infox[0]) * (j_infoy[1]-j_infoy[0])
+    infox = [min([i_infox[0],i_infox[1],j_infox[0],j_infox[1]]),max([i_infox[0],i_infox[1],j_infox[0],j_infox[1]])]
+    infoy = [min([i_infoy[0],i_infoy[1],j_infoy[0],j_infoy[1]]),max([i_infoy[0],i_infoy[1],j_infoy[0],j_infoy[1]])]
+    if sizei > sizej:
+        return infox,infoy,i_orien,i_color,None,None,None,None
+    else:
+        return infox,infoy,j_orien,j_color,None,None,None,None
+
+def loopmerge(working):
+    merged_startxy = []
+    for i in range(len(working)):
+        for j in range(i+1,len(working)):
+            i_infox,i_infoy,i_orien = working[i]
+            j_infox,j_infoy,j_orien = working[j]
+            result = mergedxy(i_infox,i_infoy,i_orien,j_infox,j_infoy,j_orien)
+            if result[3] == None:
+                merged_startxy.append((result[0],result[1],result[2]))
+            else:
+                if (result[0],result[1],result[2]) not in merged_startxy:
+                    merged_startxy.append((result[0],result[1],result[2]))
+                if (result[3],result[4],result[5]) not in merged_startxy:
+                    merged_startxy.append((result[3],result[4],result[5]))
+    if working == merged_startxy:
+        return merged_startxy
+    else:
+        return loopmerge(merged_startxy)
+
+def singlemerge(working):
+    merged_startxy = []
+    for i in range(len(working)):
+        for j in range(i+1,len(working)):
+            i_infox,i_infoy,i_orien,i_color = working[i]
+            j_infox,j_infoy,j_orien,j_color = working[j]
+            result = mergedxy(i_infox,i_infoy,i_orien,i_color,j_infox,j_infoy,j_orien,j_color)
+            if result[4] == None:
+                merged_startxy.append((result[0],result[1],result[2],result[3]))
+            else:
+                if (result[0],result[1],result[2],result[3]) not in merged_startxy:
+                    merged_startxy.append((result[0],result[1],result[2],result[3]))
+                if (result[4],result[5],result[6],result[7]) not in merged_startxy:
+                    merged_startxy.append((result[4],result[5],result[6],result[7]))
+    return merged_startxy
+
+def filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx_given,spy_given):
+    seg_pairs = {}
+    for mlt, df in list(segs_filter.groupby('multiplicon')):
+        for i,indicex in enumerate(df.index):
+            for indicey in df.index[i+1:]:
+                spx,spy = df.loc[indicex,'genome'],df.loc[indicey,'genome']
+                list_x,list_y = df.loc[indicex,'list'],df.loc[indicey,'list']
+                pair_id = "__".join(sorted([spx,spy])) + "__" + "__".join(sorted([list_x,list_y]))
+                if spx != spx_given and spx != spy_given:
+                    continue
+                if spy != spx_given and spy != spy_given:
+                    continue
+                if spx_given == spy_given:
+                    infox,infoy = [df.loc[indicex,'first_coordinate']+xtick_addable_dict[list_x],df.loc[indicex,'last_coordinate']+xtick_addable_dict[list_x]], [df.loc[indicey,'first_coordinate']+xtick_addable_dict[list_y],df.loc[indicey,'last_coordinate']+xtick_addable_dict[list_y]]
+                else:
+                    if spx==spx_given:
+                        if spy == spy_given:
+                            infox,infoy = [df.loc[indicex,'first_coordinate']+xtick_addable_dict["{}_".format(spx)+list_x],df.loc[indicex,'last_coordinate']+xtick_addable_dict["{}_".format(spx)+list_x]], [df.loc[indicey,'first_coordinate']+ytick_addable_dict["{}_".format(spy)+list_y],df.loc[indicey,'last_coordinate']+ytick_addable_dict["{}_".format(spy)+list_y]]
+                        else:
+                            infox,infoy = [df.loc[indicex,'first_coordinate']+xtick_addable_dict["{}_".format(spx)+list_x],df.loc[indicex,'last_coordinate']+xtick_addable_dict["{}_".format(spx)+list_x]], [df.loc[indicey,'first_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y],df.loc[indicey,'last_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y]]
+                    else:
+                        if spy == spy_given:
+                            infox,infoy = [df.loc[indicex,'first_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x],df.loc[indicex,'last_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x]], [df.loc[indicey,'first_coordinate']+ytick_addable_dict["{}_".format(spy)+list_y],df.loc[indicey,'last_coordinate']+ytick_addable_dict["{}_".format(spy)+list_y]]
+                        else:
+                            infox,infoy = [df.loc[indicex,'first_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x],df.loc[indicex,'last_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x]], [df.loc[indicey,'first_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y],df.loc[indicey,'last_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y]]
+                if seg_pairs.get(pair_id) == None:
+                    seg_pairs[pair_id] = [(infox,infoy,(indicex,indicey))]
+                else:
+                    seg_pairs[pair_id].append((infox,infoy,(indicex,indicey)))
+    indice_torm = []
+    for key,value in seg_pairs.items():
+        if len(value) == 1:
+            continue
+        for i in range(len(value)):
+            for j in range(i+1,len(value)):
+                i_info,j_info = value[i],value[j]
+                if i_info[0][1] >= j_info[0][1] and i_info[0][0] <= j_info[0][0] and i_info[1][1] >= j_info[1][1] and i_info[1][0] <= j_info[1][0]:
+                    indice_torm.append(j_info[2])
+                if j_info[0][1] >= i_info[0][1] and j_info[0][0] <= i_info[0][0] and j_info[1][1] >= i_info[1][1] and j_info[1][0] <= i_info[1][0]:
+                    indice_torm.append(i_info[2])
+    #Indice_torm = []
+    #for x,y in indice_torm:
+    #    Indice_torm.append(x)
+    #    Indice_torm.append(y)
+    #segs_filter = segs_filter.drop(Indice_torm)
+    return indice_torm
+
+def getksage(MP_unit,ksdf):
+    pairs = ["__".join(sorted([x,y])) for x,y in zip(MP_unit['gene_x'],MP_unit['gene_y'])]
+    ksdf = ksdf.dropna(subset=['dS'])
+    Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
+    Ks = []
+    for p in pairs:
+        if Ks_dict.get(p,False):
+            Ks.append(Ks_dict[p])
+    if len(Ks) == 0:
+        return None
+    else:
+        return np.median(Ks)
+
+def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=None):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
@@ -1605,8 +1746,12 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors):
     sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
     xtick,ytick = list(np.cumsum(sorted_leng_x)),list(np.cumsum(sorted_leng_y))
     xtick_addable, ytick_addable = [0]+xtick[:-1], [0]+ytick[:-1]
-    xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
-    ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    if spx == spy:
+        xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+        ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    else:
+        xtick_addable_dict = {"{}_".format(spx)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+        ytick_addable_dict = {"{}_".format(spy)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
     xlim,ylim = xtick[-1],ytick[-1]
     ax.set_xlim(0, xlim)
     ax.set_ylim(0, ylim)
@@ -1615,61 +1760,177 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors):
     for mlt,genome in zip(tmp.index,tmp):
         if spx in genome and spy in genome: good_mlt.append(mlt)
     segs_filter = segs[segs['multiplicon'].isin(good_mlt)]
-    Num_segments_plotted, uniq = 0, 0
-    for mlt, df_tmp  in list(segs_filter.groupby('multiplicon')):
-        orig_anchors_tmp = orig_anchors[orig_anchors['multiplicon']==mlt]
-        extreme_indices = [orig_anchors_tmp.index[0],orig_anchors_tmp.index[-1]]
-        dfx_start_last,dfy_start_last = [],[] # list of list
-        number,num = len(df_tmp),0
-        for sp,scfa,start,last,sg,lg,segid in zip(df_tmp['genome'],df_tmp['list'],df_tmp['first_coordinate'],df_tmp['last_coordinate'],df_tmp['first'],df_tmp['last'],df_tmp['segment']):
-            num,uniq = num + 1,uniq+1
-            if abs(last - start) + 1 < mingenenum:
+    segs_filter.loc[:,'length'] = [l-s for s,l in zip(segs_filter['first_coordinate'],segs_filter['last_coordinate'])]
+    indice_notplot = filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx,spy)
+    if spx != spy:
+        segs_filter.loc[:,'list'] = ["{}_{}".format(g,l) for g,l in zip(segs_filter['genome'],segs_filter.copy()['list'])]
+        MP['genome_x'],MP['genome_y'] = MP['gene_x'].apply(lambda x:gene_genome[x]),MP['gene_y'].apply(lambda x:gene_genome[x])
+        MP.loc[:,'scaffold_x'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_x'],MP.copy()['scaffold_x'])]
+        MP.loc[:,'scaffold_y'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_y'],MP.copy()['scaffold_y'])]
+    Num_segments_plotted = 0
+    start_lastxy = []
+    Ks_ages = []
+    for mlt, df_tmp in sorted(list(segs_filter.groupby('multiplicon')),key=lambda x:max(x[1]['length'])):
+        MP_tmp = MP[MP['multiplicon']==mlt]
+        df_tmp = df_tmp[[any([i,j]) for i,j in zip(df_tmp['genome']==spx,df_tmp['genome']==spy)]]
+        indice = 0
+        if spx != spy:
+            df_tmp.loc[:,'sp_order'] = [[spx,spy].index(g) for g in df_tmp['genome']]
+            df_tmp = df_tmp.sort_values(by=['sp_order'])
+        logging.debug("Checking multiplicon {}".format(mlt))
+        for i in df_tmp.index:
+            indice = indice + 1
+            if abs(df_tmp.loc[i,'last_coordinate'] - df_tmp.loc[i,'first_coordinate']) + 1 < mingenenum:
                 continue
-            sg_indice,lg_indice =[],[]
-            if num == number:
-                if sg in list(orig_anchors_tmp['gene_y']) and lg in list(orig_anchors_tmp['gene_y']):
-                    sg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_y'] == sg].index.tolist()
-                    lg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_y'] == lg].index.tolist()
-                    #sg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_y'] == sg]['coord_y'])
-                    #lg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_y'] == lg]['coord_y'])
-            else:
-                if sg in list(orig_anchors_tmp['gene_x']) and lg in list(orig_anchors_tmp['gene_x']):
-                    sg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_x'] == sg].index.tolist()
-                    lg_indice = orig_anchors_tmp[orig_anchors_tmp['gene_x'] == lg].index.tolist()
-                    #sg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_x'] == sg]['coord_x'])
-                    #lg_indice = list(orig_anchors_tmp[orig_anchors_tmp['gene_x'] == lg]['coord_x'])
-            if len(sg_indice) == 0 or len(lg_indice) ==0:
-                logging.info("The start and last gene of segment {} can't be found together in gene_x or _y column".format(segid))
-                continue
-            if len(sg_indice) > 1 or len(lg_indice) > 1:
-                logging.info("There are overlapping anchor pairs in multiplicon {}".format(mlt))
-            if sg_indice[0] < lg_indice[0]:
-                orientation = "+"
-                num_cover = sum([True for i in orig_anchors_tmp.index if sg_indice[0] <= i <= lg_indice[0]])
-            else:
-                orientation = "-"
-                num_cover = sum([True for i in orig_anchors_tmp.index if lg_indice[0] <= i <= sg_indice[0]])
-            if num_cover < len(orig_anchors_tmp)/2:
-                if sg_indice[0] == extreme_indices[0]:
-                    orientation == "+"
-                elif lg_indice[0] == extreme_indices[0]:
-                    orientation = "-"
-                else:
-                    orientation = "-" if orientation == "+" else "+"
-            if sp == spx:
-                startx,lastx = start + xtick_addable_dict[scfa],last + xtick_addable_dict[scfa]
-                dfx_start_last.append(([startx,lastx],orientation,uniq,segid,mlt,scfa))
-            if sp == spy:
-                starty,lasty = start + ytick_addable_dict[scfa],last + ytick_addable_dict[scfa]
-                dfy_start_last.append(([starty,lasty],orientation,uniq,segid,mlt,scfa))
-        #print((dfx_start_last,dfy_start_last))
-        for s1 in dfx_start_last:
-            for s2 in dfy_start_last:
-                if s1[2]==s2[2]: continue
-                Num_segments_plotted = Num_segments_plotted + 1
-                s1_,s2_ = s1[0],s2[0]
-                if s1[1] != s2[1]: s2_.reverse()
-                ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
+            for j in df_tmp.index[indice:]:
+                if abs(df_tmp.loc[j,'last_coordinate'] - df_tmp.loc[j,'first_coordinate']) + 1 < mingenenum:
+                    continue
+                if spx != spy and df_tmp.loc[i,'genome'] == df_tmp.loc[j,'genome']:
+                    continue
+                if (i,j) in indice_notplot:
+                    logging.debug("Skip due to overlap")
+                    continue
+                for unit,MP_unit in list(MP_tmp.groupby('unit')):
+                    scaf_xy = [list(MP_unit['scaffold_x'])[0],list(MP_unit['scaffold_y'])[0]]
+                    if df_tmp.loc[i,'list'] in scaf_xy and df_tmp.loc[j,'list'] in scaf_xy:
+                        if list(MP_unit['orientation'])[0] == "x":
+                            continue
+                        if df_tmp.loc[i,'list'] == list(MP_unit['scaffold_x'])[0]:
+                            minimum,maximum = df_tmp.loc[i,'first_coordinate'],df_tmp.loc[i,'last_coordinate']
+                            if sum([minimum<cx<maximum for cx in MP_unit['coordinate_x']]) >= 2:
+                                minimum,maximum = df_tmp.loc[j,'first_coordinate'],df_tmp.loc[j,'last_coordinate']
+                                if sum([minimum<cx<maximum for cx in MP_unit['coordinate_y']]) >= 2:
+                                    ksage = getksage(MP_unit,ksdf) if type(ksdf) == pd.core.frame.DataFrame else None
+                                    color = ksage if ksage != None else None
+                                    if ksage != None: Ks_ages.append(ksage)
+                                    startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
+                                    starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
+                                    #if judgeoverlap(startx,lastx,starty,lasty,start_lastxy):
+                                    #    continue
+                                    start_lastxy.append(([startx,lastx],[starty,lasty],list(MP_unit['orientation'])[0],color))
+                                    lengx = abs(df_tmp.loc[i,'last_coordinate'] - df_tmp.loc[i,'first_coordinate']) + 1
+                                    lengy = abs(df_tmp.loc[j,'last_coordinate'] - df_tmp.loc[j,'first_coordinate']) + 1
+                                    logging.debug("Add coor ({0},{1}) ({2},{3}) {4} of scaffold ({5},{6}) segment ({7},{8}) length ({9},{10})".format(startx,starty,lastx,lasty,list(MP_unit['orientation'])[0],df_tmp.loc[i,'list'],df_tmp.loc[j,'list'],df_tmp.loc[i,'segment'],df_tmp.loc[j,'segment'],lengx,lengy))
+                        else:
+                            minimum,maximum = df_tmp.loc[i,'first_coordinate'],df_tmp.loc[i,'last_coordinate']
+                            if sum([minimum<cx<maximum for cx in MP_unit['coordinate_y']]) >= 2:
+                                minimum,maximum = df_tmp.loc[j,'first_coordinate'],df_tmp.loc[j,'last_coordinate']
+                                if sum([minimum<cx<maximum for cx in MP_unit['coordinate_x']]) >= 2:
+                                    if spx == spy:
+                                        startx,lastx = df_tmp.loc[j,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[j,'list']]
+                                        starty,lasty = df_tmp.loc[i,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[i,'list']]
+                                    else:
+                                        startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
+                                        starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
+                                    #if judgeoverlap(startx,lastx,starty,lasty,start_lastxy):
+                                    #    continue
+                                    ksage = getksage(MP_unit,ksdf) if type(ksdf) == pd.core.frame.DataFrame else None
+                                    color=ksage if ksage != None else None
+                                    if ksage != None: Ks_ages.append(ksage)
+                                    start_lastxy.append(([startx,lastx],[starty,lasty],list(MP_unit['orientation'])[0],color))
+                                    lengx = abs(df_tmp.loc[j,'last_coordinate'] - df_tmp.loc[j,'first_coordinate']) + 1
+                                    lengy = abs(df_tmp.loc[i,'last_coordinate'] - df_tmp.loc[i,'first_coordinate']) + 1
+                                    logging.debug("Add coor ({0},{1}) ({2},{3}) {4} of scaffold ({5},{6}) segment ({7},{8}) length ({9},{10})".format(startx,starty,lastx,lasty,list(MP_unit['orientation'])[0],df_tmp.loc[j,'list'],df_tmp.loc[i,'list'],df_tmp.loc[j,'segment'],df_tmp.loc[i,'segment'],lengx,lengy))
+    plotted_xy = []
+    #working = sorted(start_lastxy,key=lambda x:max([abs(x[0][0]-x[0][1]),abs(x[1][0]-x[1][1])]),reverse=True)
+    #working_nooverlapped = []
+    #for infox,infoy,orien,color in working:
+    #    if determineoverlap(plotted_xy,(infox,infoy)):
+    #        continue
+    #    plotted_xy.append((infox,infoy))
+    #    working_nooverlapped.append((infox,infoy,orien,color))
+    #for i in range(10):
+    #    working_nooverlapped = singlemerge(working_nooverlapped)
+    #plotted_xy = []
+    #final_merged = loopmerge(working)
+    #for infox,infoy,orien in sorted(final_merged,key=lambda x:max([abs(x[0][0]-x[0][1]),abs(x[1][0]-x[1][1])]),reverse=True):
+    #sm = ScalarMappable(cmap='seismic', norm=plt.Normalize(vmin=min(Ks_ages), vmax=max(Ks_ages)))
+    if type(ksdf) == pd.core.frame.DataFrame:
+        norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
+        c_m = matplotlib.cm.rainbow
+        s_m = ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+    #for infox,infoy,orien,color in working_nooverlapped:
+    start_xy_sorted = sorted(start_lastxy,key=lambda x:max([abs(x[0][0]-x[0][1]),abs(x[1][0]-x[1][1])]),reverse=False)
+    for i in range(len(start_xy_sorted)):
+        line1_x, line1_y, line1_orien, line1_color = start_xy_sorted[i]
+        if line1_color == None and type(ksdf) == pd.core.frame.DataFrame:
+            continue
+        remove_line = False
+        for j in range(len(start_xy_sorted)):
+            if j != i:
+                line2_x, line2_y, line2_orien, line2_color = start_xy_sorted[j]
+                if line2_color == None and type(ksdf) == pd.core.frame.DataFrame:
+                    continue
+                if max(line2_x) >= max(line1_x) and min(line1_x) >= min(line2_x) and max(line2_y) >= max(line1_y) and min(line1_y) >= min(line2_y):
+                    remove_line = True
+                    break
+                if max(line2_y) >= max(line1_x) and min(line1_x) >= min(line2_y) and max(line2_x) >= max(line1_y) and min(line1_y) >= min(line2_x) and spx == spy:
+                    remove_line = True
+                    break
+        if not remove_line:
+            Num_segments_plotted = Num_segments_plotted + 1
+            if line1_orien == '-': line1_y.reverse()
+            if type(ksdf) != pd.core.frame.DataFrame: c = 'b'
+            else: c = c_m(norm(line1_color))
+            ax.plot(line1_x, line1_y, alpha=1, linewidth=0.8, color = c)
+            logging.debug("plot segment pair ({0},{1}) ({2},{3})".format(line1_x[0],line1_x[1],line1_y[0],line1_y[1]))
+            if spx == spy: ax.plot(line1_y, line1_x, alpha=1, linewidth=0.8, color = c)
+            logging.debug("plot segment pair ({0},{1}) ({2},{3})".format(line1_y[0],line1_y[1],line1_x[0],line1_x[1]))
+    #for infox,infoy,orien,color in sorted(start_lastxy,key=lambda x:max([abs(x[0][0]-x[0][1]),abs(x[1][0]-x[1][1])]),reverse=True):
+    #    if color == None:
+    #        logging.info("Skip segment pair ({0},{1}) ({2},{3}) {4} due to no Ks data".format(infox[0],infoy[0],infox[1],infoy[1],orien))
+    #        continue
+    #    if determineoverlap(plotted_xy,(infox,infoy)):
+    #        continue
+    #    Num_segments_plotted = Num_segments_plotted + 1
+    #    if orien == '-': infoy.reverse()
+    #    plotted_xy.append((infox,infoy))
+    #    ax.plot(infox, infoy, alpha=0.9, linewidth=0.8,color = c_m(norm(color)))
+    #    if spx == spy: ax.plot(infoy, infox, alpha=0.9, linewidth=0.8,color = c_m(norm(color)))
+    if type(ksdf) == pd.core.frame.DataFrame: plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.03)
+    #cbar = plt.colorbar(sm,ax=ax)
+    #cbar.set_label('Ks values')
+    #ax.legend()
+    #scalarmappable = plt.cm.ScalarMappable(cmap)
+    #scalarmappable.set_array(np.linspace(0, 1, 100))
+    #cbar = plt.colorbar(scalarmappable)
+        #for s1 in dfx_start_last:
+        #    for s2 in dfy_start_last:
+        #        if s1[1]==s2[1]: continue
+        #        Num_segments_plotted = Num_segments_plotted + 1
+        #        s1_,s2_ = s1[0],s2[0]
+                #if s1[1] != s2[1]: s2_.reverse()
+                #if (s1_[1]-s1_[0]) < 300:
+                #    if [dfx_start_last,dfy_start_last] not in toprint:
+                #        toprint.append([dfx_start_last,dfy_start_last])
+        #        ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
+        #orig_anchors_tmp = orig_anchors[orig_anchors['multiplicon']==mlt]
+        #extreme_indices = [orig_anchors_tmp.index[0],orig_anchors_tmp.index[-1]]
+        #dfx_start_last,dfy_start_last = [],[] # list of list
+        #number,num = len(df_tmp),0
+        #for sp,scfa,start,last,sg,lg,segid in zip(df_tmp['genome'],df_tmp['list'],df_tmp['first_coordinate'],df_tmp['last_coordinate'],df_tmp['first'],df_tmp['last'],df_tmp['segment']):
+        #    num,uniq = num + 1,uniq+1
+        #    if abs(last - start) + 1 < mingenenum:
+        #        continue
+        #    if sp == spx:
+        #        startx,lastx = start + xtick_addable_dict[scfa],last + xtick_addable_dict[scfa]
+        #        dfx_start_last.append(([startx,lastx],uniq,segid,mlt,scfa))
+        #    if sp == spy:
+        #        starty,lasty = start + ytick_addable_dict[scfa],last + ytick_addable_dict[scfa]
+        #        dfy_start_last.append(([starty,lasty],uniq,segid,mlt,scfa))
+        #toprint = []
+        #for s1 in dfx_start_last:
+        #    for s2 in dfy_start_last:
+        #        if s1[1]==s2[1]: continue
+        #        Num_segments_plotted = Num_segments_plotted + 1
+        #        s1_,s2_ = s1[0],s2[0]
+                #if s1[1] != s2[1]: s2_.reverse()
+                #if (s1_[1]-s1_[0]) < 300:
+                #    if [dfx_start_last,dfy_start_last] not in toprint:
+                #        toprint.append([dfx_start_last,dfy_start_last])
+        #        ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
+        #for i in toprint: print(i)
     logging.info("In total {} segment pairs were plotted".format(Num_segments_plotted))
     ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
     ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
@@ -1681,24 +1942,25 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors):
     ax.set_yticklabels(sorted_labels_y,rotation=45)
     return ax
 
-def plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,orig_anchors):
+def plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=None):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,orig_anchors)
+    ax = plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=ksdf)
     fig.tight_layout()
     return fig, ax
 
-def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingenenum,orig_anchors,table):
+def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingenenum,table,MP,ksdf=None):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
-    orig_anchors['list_y'] = orig_anchors['gene_y'].apply(lambda x:gene_list[x])
-    orig_anchors['list_x'] = orig_anchors['gene_x'].apply(lambda x:gene_list[x])
+    #orig_anchors['list_y'] = orig_anchors['gene_y'].apply(lambda x:gene_list[x])
+    #orig_anchors['list_x'] = orig_anchors['gene_x'].apply(lambda x:gene_list[x])
     for i in range(len(sp_list)):
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
-            fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,orig_anchors)
+            fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=ksdf)
             figs[spx + "-vs-" + spy] = fig
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
@@ -2150,7 +2412,7 @@ def syntenic_dotplot_ks_colored(
 
     # colorbar
     cbar = plt.colorbar(tmp, fraction=0.02, pad=0.01)
-    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5.5, 11)])
+    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5, 11)])
 
     # saving
     if output_file:

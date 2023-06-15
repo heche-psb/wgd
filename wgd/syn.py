@@ -6,6 +6,8 @@ import numpy as np
 import subprocess as sp
 from collections import defaultdict
 from operator import itemgetter
+from wgd.peak import formatv2
+from wgd.viz import apply_filters
 
 gff_header = ["gene", "scaffold", "start", "orientation"] 
 
@@ -234,6 +236,70 @@ def get_chrom_gene(table,outdir):
         ordered_dfs[sp] = ordered_df
     return ordered_dfs, gene_orders
 
+def getunitMP(MP,gene_scaf):
+    MP['scaffold_x'] = MP['gene_x'].apply(lambda x:gene_scaf[x])
+    MP['scaffold_y'] = MP['gene_y'].apply(lambda x:gene_scaf[x])
+    units = []
+    for indice, sx, sy in zip(range(len(MP)),MP['scaffold_x'],MP['scaffold_y']):
+        if indice == 0:
+            unit = 0
+            units.append(unit)
+            sxy = (sx,sy)
+            continue
+        if (sx,sy) == sxy:
+            units.append(unit)
+            continue
+        unit = unit + 1
+        sxy = (sx,sy)
+        units.append(unit)
+    MP['unit'] = units
+    return MP
+
+def getorien(MP):
+    orien = []
+    for unit, df in list(MP.groupby('unit')):
+        if len(df) == 1:
+            orien.append("x")
+            continue
+        posix,negax,posiy,negay = 0,0,0,0
+        for indice, corx, cory in zip(range(len(df)),df['coordinate_x'],df['coordinate_y']):
+            if indice == 0:
+                cx,cy = corx,cory
+                continue
+            if corx - cx > 0:
+                posix = posix + 1
+            if corx - cx < 0:
+                negax = negax + 1
+            if cory - cy > 0:
+                posiy = posiy + 1
+            if cory - cy < 0:
+                negay = negay + 1
+            cx,cy = corx,cory
+        Judge = (posix - negax) * (posiy - negay)
+        for i in range(len(df)):
+            if Judge > 0:
+                orien.append("+")
+            if Judge < 0:
+                orien.append("-")
+            if Judge == 0:
+                orien.append("x")
+    MP['orientation'] = orien
+    return MP
+
+def get_mp_geneorder(gene_orders,out_path,outdir,table,userdf4=None):
+    gene_scaf = {g:s for g,s in zip(table.index,table['scaffold'])}
+    if userdf4 != None: MP = pd.read_csv(userdf4, sep="\t", index_col=0)
+    else: MP = pd.read_csv(os.path.join(out_path, "multiplicon_pairs.txt"), sep="\t", index_col=0)
+    MP = MP.rename(columns={"gene_y": "code"})
+    MP = MP.rename(columns={"Unnamed: 2": "gene_x", "gene_x": "gene_y"})
+    MP['coordinate_x'] = MP['gene_x'].apply(lambda x:gene_orders[x])
+    MP['coordinate_y'] = MP['gene_y'].apply(lambda x:gene_orders[x])
+    MP = getunitMP(MP,gene_scaf)
+    MP = getorien(MP)
+    fname = os.path.join(outdir, "multiplicon_pairs_coordinates_unit_orien.tsv")
+    MP.to_csv(fname,header=True,index=True,sep='\t')
+    return MP
+
 def transformunit(segs,ordered_genes_perchrom_allsp,outdir):
     gene_order_dict_allsp = {}
     seg = segs.copy()
@@ -253,6 +319,16 @@ def transformunit(segs,ordered_genes_perchrom_allsp,outdir):
     fname = os.path.join(outdir, "segments_coordinates.tsv")
     seg.to_csv(fname,header=True,index=True,sep='\t')
     return seg, gene_order_dict_allsp
+
+def getsegks(segs_gene_unit,ks_distribution,ordered_genes_perchrom_allsp):
+    ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
+    ksdb_df = formatv2(ksdb_df)
+    df = apply_filters(ksdb_df, [("dS", 0., 5.)])
+    for indice in segs_gene_unit.index:
+        sp,gl = segs_gene_unit[indice,'genome'],segs_gene_unit[indice,'list']
+        coor_s, coor_l = segs_gene_unit[indice,'first_coordinate'],segs_gene_unit[indice,'last_coordinate']
+        df_sp = ordered_genes_perchrom_allsp[sp]
+
 
 def annotatelist(anchorpoints,table):
     ap_with_list = anchorpoints.copy()
