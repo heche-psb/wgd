@@ -1646,7 +1646,22 @@ def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign):
     c_f = reference_hmmscan(df,s,hmmf,outdir,eval)
     outs = hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=True)
     df = modifydf(df,outs,outdir,fam2assign,use_cf=c_f)
+    fromgene2count(df,outdir,fam2assign)
     getassignfasta(df,s,querys,outdir)
+
+def fromgene2count(df,outdir,fam2assign):
+    fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.genecount')
+    Index = df.index
+    columns = {c:[] for c in df.columns}
+    for indice in df.index:
+        for c in df.columns:
+            if type(df.loc[indice,c]) != str:
+                columns[c].append(0)
+            else:
+                columns[c].append(len(df.loc[indice,c].split(", ")))
+    df_out = pd.DataFrame.from_dict(columns)
+    df_out.index = Index
+    df_out.to_csv(fname,header=True,index=True,sep='\t')
 
 def rmtmp(tmpdir,outdir,querys):
     if tmpdir == None:
