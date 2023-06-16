@@ -1735,7 +1735,7 @@ def getksage(MP_unit,ksdf):
     else:
         return np.median(Ks)
 
-def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=None):
+def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
@@ -1759,14 +1759,15 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=None):
     good_mlt = []
     for mlt,genome in zip(tmp.index,tmp):
         if spx in genome and spy in genome: good_mlt.append(mlt)
-    segs_filter = segs[segs['multiplicon'].isin(good_mlt)]
+    segs_filter = segs[segs['multiplicon'].isin(good_mlt)].copy()
     segs_filter.loc[:,'length'] = [l-s for s,l in zip(segs_filter['first_coordinate'],segs_filter['last_coordinate'])]
     indice_notplot = filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx,spy)
+    MP = mp.copy()
     if spx != spy:
-        segs_filter.loc[:,'list'] = ["{}_{}".format(g,l) for g,l in zip(segs_filter['genome'],segs_filter.copy()['list'])]
+        segs_filter.loc[:,'list'] = ["{}_{}".format(g,l) for g,l in zip(segs_filter['genome'],segs_filter['list'])]
         MP['genome_x'],MP['genome_y'] = MP['gene_x'].apply(lambda x:gene_genome[x]),MP['gene_y'].apply(lambda x:gene_genome[x])
-        MP.loc[:,'scaffold_x'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_x'],MP.copy()['scaffold_x'])]
-        MP.loc[:,'scaffold_y'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_y'],MP.copy()['scaffold_y'])]
+        MP.loc[:,'scaffold_x'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_x'],MP['scaffold_x'])]
+        MP.loc[:,'scaffold_y'] = ["{}_{}".format(g,l) for g,l in zip(MP['genome_y'],MP['scaffold_y'])]
     Num_segments_plotted = 0
     start_lastxy = []
     Ks_ages = []
@@ -1816,17 +1817,11 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=None):
                             if sum([minimum<cx<maximum for cx in MP_unit['coordinate_y']]) >= 2:
                                 minimum,maximum = df_tmp.loc[j,'first_coordinate'],df_tmp.loc[j,'last_coordinate']
                                 if sum([minimum<cx<maximum for cx in MP_unit['coordinate_x']]) >= 2:
-                                    if spx == spy:
-                                        startx,lastx = df_tmp.loc[j,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[j,'list']]
-                                        starty,lasty = df_tmp.loc[i,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[i,'list']]
-                                    else:
-                                        startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
-                                        starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
-                                    #if judgeoverlap(startx,lastx,starty,lasty,start_lastxy):
-                                    #    continue
                                     ksage = getksage(MP_unit,ksdf) if type(ksdf) == pd.core.frame.DataFrame else None
                                     color=ksage if ksage != None else None
                                     if ksage != None: Ks_ages.append(ksage)
+                                    startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
+                                    starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
                                     start_lastxy.append(([startx,lastx],[starty,lasty],list(MP_unit['orientation'])[0],color))
                                     lengx = abs(df_tmp.loc[j,'last_coordinate'] - df_tmp.loc[j,'first_coordinate']) + 1
                                     lengy = abs(df_tmp.loc[i,'last_coordinate'] - df_tmp.loc[i,'first_coordinate']) + 1
