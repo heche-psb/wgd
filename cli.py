@@ -513,7 +513,6 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
-@click.option('--multipliconpairs', '-mp', default=None, show_default=True, help='multipliconpairs information')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--minseglen', '-mg', default=10000, show_default=True, help="minimum length (ratio if <=1) of segments to show in marco-synteny")
@@ -530,7 +529,7 @@ def viz(**kwargs):
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,multipliconpairs,mingenenum,plotsyn):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -548,7 +547,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         df_anchor,orig_anchors = get_anchors('',userdf=anchorpoints)
         df_multi = get_multi('',userdf2=multiplicon)
         ordered_genes_perchrom_allsp, gene_orders = get_chrom_gene(table,outdir)
-        ordered_mp = get_mp_geneorder(gene_orders,'',outdir,table,userdf4=multipliconpairs)
+        #ordered_mp = get_mp_geneorder(gene_orders,'',outdir,table,userdf4=multipliconpairs)
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
@@ -645,7 +644,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
     # general post-processing
     logging.info("Processing I-ADHoRe output")
-    ordered_mp = get_mp_geneorder(gene_orders,out_path,outdir,table)
+    #ordered_mp = get_mp_geneorder(gene_orders,out_path,outdir,table)
     anchors,orig_anchors = get_anchors(out_path)
     multi = get_multi(out_path)
     if anchors is None:
