@@ -1702,25 +1702,70 @@ def filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx_given
                             infox,infoy = [df.loc[indicex,'first_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x],df.loc[indicex,'last_coordinate']+ytick_addable_dict["{}_".format(spx)+list_x]], [df.loc[indicey,'first_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y],df.loc[indicey,'last_coordinate']+xtick_addable_dict["{}_".format(spy)+list_y]]
                 if seg_pairs.get(pair_id) == None:
                     seg_pairs[pair_id] = [(infox,infoy,(indicex,indicey))]
+                    #if spx_given == spy_given:
+                    #    seg_pairs[pair_id] = [(infoy,infox,(indicex,indicey))]
                 else:
                     seg_pairs[pair_id].append((infox,infoy,(indicex,indicey)))
+                    #if spx_given == spy_given:
+                    #    seg_pairs[pair_id].append((infoy,infox,(indicex,indicey)))
     indice_torm = []
+    indice_tomerge = {}
     for key,value in seg_pairs.items():
         if len(value) == 1:
             continue
         for i in range(len(value)):
-            for j in range(i+1,len(value)):
+            for j in range(len(value)):
+                if i == j:
+                    continue
                 i_info,j_info = value[i],value[j]
                 if i_info[0][1] >= j_info[0][1] and i_info[0][0] <= j_info[0][0] and i_info[1][1] >= j_info[1][1] and i_info[1][0] <= j_info[1][0]:
                     indice_torm.append(j_info[2])
                 if j_info[0][1] >= i_info[0][1] and j_info[0][0] <= i_info[0][0] and j_info[1][1] >= i_info[1][1] and j_info[1][0] <= i_info[1][0]:
                     indice_torm.append(i_info[2])
-    #Indice_torm = []
-    #for x,y in indice_torm:
-    #    Indice_torm.append(x)
-    #    Indice_torm.append(y)
-    #segs_filter = segs_filter.drop(Indice_torm)
-    return indice_torm
+                #if i_info[0][1] >= j_info[0][0] and i_info[0][0] <= j_info[0][1]:
+                    # x label overlap
+                #    if i_info[1][1] >= j_info[1][0] and i_info[1][0] <= j_info[1][1]:
+                        # y label overlap
+                #        if i_info[0][1] >= j_info[0][1]:
+                            # only consider the overlap ratio of x
+                #            overlap_ratio_i = (j_info[0][1]-i_info[0][0])/(i_info[0][1]-i_info[0][0])
+                #            overlap_ratio_j = (j_info[0][1]-i_info[0][0])/(j_info[0][1]-j_info[0][0])
+                #        else:
+                #            overlap_ratio_i = (i_info[0][1]-j_info[0][0])/(i_info[0][1]-i_info[0][0])
+                #            overlap_ratio_j = (i_info[0][1]-j_info[0][0])/(j_info[0][1]-j_info[0][0])
+                #        if overlap_ratio_i <= 0.3 and overlap_ratio_j <= 0.3:
+                #            continue
+                #        newx = [min([i_info[0][1],j_info[0][0],i_info[0][0],j_info[0][1]]),max([i_info[0][1],j_info[0][0],i_info[0][0],j_info[0][1]])]
+                #        newy = [min([i_info[1][1],j_info[1][0],i_info[1][0],j_info[1][1]]),max([i_info[1][1],j_info[1][0],i_info[1][0],j_info[1][1]])]
+                #        if overlap_ratio_i > overlap_ratio_j:
+                #            indice_torm.append(i_info[2])
+                #            indice_tomerge[j_info[2]] = (newx,newy)
+                #        else:
+                #            indice_torm.append(j_info[2])
+                #            indice_tomerge[i_info[2]] = (newx,newy)
+                #if spx_given == spy_given:
+                #    if i_info[0][1] >= j_info[1][0] and i_info[0][0] <= j_info[1][1]:
+                        # x label overlap
+                #        if i_info[1][1] >= j_info[0][0] and i_info[1][0] <= j_info[0][1]:
+                            # y label overlap
+                #            if i_info[0][1] >= j_info[1][1]:
+                                # only consider the overlap ratio of x
+                #                overlap_ratio_i = (j_info[1][1]-i_info[0][0])/(i_info[0][1]-i_info[0][0])
+                #                overlap_ratio_j = (j_info[1][1]-i_info[0][0])/(j_info[1][1]-j_info[1][0])
+                #            else:
+                #                overlap_ratio_i = (i_info[0][1]-j_info[1][0])/(i_info[0][1]-i_info[0][0])
+                #                overlap_ratio_j = (i_info[0][1]-j_info[1][0])/(j_info[1][1]-j_info[1][0])
+                #            if overlap_ratio_i <= 0.01 and overlap_ratio_j <= 0.01:
+                #                continue
+                #            newx = [min([i_info[0][1],j_info[1][0],i_info[0][0],j_info[1][1]]),max([i_info[0][1],j_info[1][0],i_info[0][0],j_info[1][1]])]
+                #            newy = [min([i_info[1][1],j_info[0][0],i_info[1][0],j_info[0][1]]),max([i_info[1][1],j_info[0][0],i_info[1][0],j_info[0][1]])]
+                #            if overlap_ratio_i > overlap_ratio_j:
+                #                indice_torm.append(i_info[2])
+                #                indice_tomerge[j_info[2]] = (newx,newy)
+                #            else:
+                #                indice_torm.append(j_info[2])
+                #                indice_tomerge[i_info[2]] = (newx,newy)
+    return indice_torm, indice_tomerge
 
 def getksage(MP_unit,ksdf):
     pairs = ["__".join(sorted([x,y])) for x,y in zip(MP_unit['gene_x'],MP_unit['gene_y'])]
@@ -1734,6 +1779,92 @@ def getksage(MP_unit,ksdf):
         return None
     else:
         return np.median(Ks)
+
+def getpairks(pair,ksdf):
+    Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
+    return Ks_dict.get(pair,None)
+
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False):
+    dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
+    leng_info_x,leng_info_y = {},{}
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
+    for scfa in dfy.columns: leng_info_y[scfa] = len(dfy[scfa].dropna())
+    sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+    sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+    sorted_labels_y = [i[0] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+    sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+    xtick,ytick = list(np.cumsum(sorted_leng_x)),list(np.cumsum(sorted_leng_y))
+    xtick_addable, ytick_addable = [0]+xtick[:-1], [0]+ytick[:-1]
+    if spx == spy:
+        xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+        ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    else:
+        xtick_addable_dict = {"{}_".format(spx)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+        ytick_addable_dict = {"{}_".format(spy)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    xs,ys,co,xs_ap,ys_ap,co_ap,Ks_ages = [],[],[],[],[],[],[]
+    if showks: Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
+    for fam, df_tmp in list(table.groupby('family')):
+        if len(df_tmp[df_tmp['species']==spx]) >= maxsize or len(df_tmp[df_tmp['species']==spy]) >= maxsize:
+            continue
+        if len(df_tmp[df_tmp['species']==spx]) == 0 or len(df_tmp[df_tmp['species']==spy]) == 0:
+            continue
+        gx,gy = list(df_tmp[df_tmp['species']==spx].index),list(df_tmp[df_tmp['species']==spy].index)
+        gx_coori = [gene_orders[g] + xtick_addable_dict[gene_list[g]] for g in gx]
+        gy_coori = [gene_orders[g] + ytick_addable_dict[gene_list[g]] for g in gy]
+        for (ggx,ggy), (x, y) in zip(itertools.product(gx,gy),itertools.product(gx_coori,gy_coori)):
+            if x == y:
+                continue
+            if showks:
+                if not (ksdf is None):
+                    ks = Ks_dict.get("__".join(sorted([ggx,ggy])),None)
+                    if ks is None:
+                        continue
+                    Ks_ages.append(ks)
+            if not (anchor is None):
+                if "__".join(sorted([ggx,ggy])) in anchor.index:
+                    xs_ap.append(x)
+                    ys_ap.append(y)
+                    if showks: co_ap.append(ks)
+            else:
+                xs.append(x)
+                ys.append(x)
+                if showks: co.append(ks)
+    if showks:
+        if not (ksdf is None):
+            norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
+            c_m = matplotlib.cm.rainbow
+            s_m = ScalarMappable(cmap=c_m, norm=norm)
+            s_m.set_array([])
+    if not showks:
+        ax.scatter(xs, ys, s=0.4, color = 'k', alpha=0.01)
+        ax.scatter(xs_ap, ys_ap, s=0.4, color = 'r', alpha=0.5)
+    else:
+        ax.scatter(xs, ys, s=0.4, color=[c_m(norm(c)) for c in co], alpha=0.1)
+        ax.scatter(xs_ap, ys_ap, s=0.4, color=[c_m(norm(c)) for c in co_ap], alpha=0.5)
+    #ax.scatter(xs_ap, ys_ap, s=0.4, alpha=0.5)
+    xlim,ylim = xtick[-1],ytick[-1]
+    ax.set_xlim(0, xlim)
+    ax.set_ylim(0, ylim)
+    ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
+    ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
+    ax.set_xlabel("{}".format(spx))
+    ax.set_ylabel("{}".format(spy))
+    ax.set_xticks(xtick)
+    ax.set_xticklabels(sorted_labels_x,rotation=45)
+    ax.set_yticks(ytick)
+    ax.set_yticklabels(sorted_labels_y,rotation=45)
+    ax2 = ax.twinx()
+    ax3 = ax.twiny()
+    ax2.set_yticks(ytick)
+    ax2.set_ylabel("{} (genes)".format(spy))
+    ax2.tick_params(axis='y', labelrotation=45)
+    ax3.set_xticks(xtick)
+    ax3.set_xlabel("{} (genes)".format(spx))
+    ax3.tick_params(axis='x', labelrotation=45)
+    if showks:
+        if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+    return ax
 
 def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
@@ -1761,7 +1892,7 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
         if spx in genome and spy in genome: good_mlt.append(mlt)
     segs_filter = segs[segs['multiplicon'].isin(good_mlt)].copy()
     segs_filter.loc[:,'length'] = [l-s for s,l in zip(segs_filter['first_coordinate'],segs_filter['last_coordinate'])]
-    indice_notplot = filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx,spy)
+    indice_notplot,indice_tomerge = filteroverlapped(segs_filter,xtick_addable_dict,ytick_addable_dict,spx,spy)
     MP = mp.copy()
     if spx != spy:
         segs_filter.loc[:,'list'] = ["{}_{}".format(g,l) for g,l in zip(segs_filter['genome'],segs_filter['list'])]
@@ -1804,8 +1935,14 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
                                     ksage = getksage(MP_unit,ksdf) if type(ksdf) == pd.core.frame.DataFrame else None
                                     color = ksage if ksage != None else None
                                     if ksage != None: Ks_ages.append(ksage)
-                                    startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
-                                    starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
+                                    if (i,j) in indice_tomerge:
+                                        logging.debug("plot merged segment pair")
+                                        newx,newy = indice_tomerge[(i,j)]
+                                        startx,lastx = newx[0], newx[1]
+                                        starty,lasty = newy[0], newy[1]
+                                    else:
+                                        startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
+                                        starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
                                     #if judgeoverlap(startx,lastx,starty,lasty,start_lastxy):
                                     #    continue
                                     start_lastxy.append(([startx,lastx],[starty,lasty],list(MP_unit['orientation'])[0],color))
@@ -1820,8 +1957,14 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
                                     ksage = getksage(MP_unit,ksdf) if type(ksdf) == pd.core.frame.DataFrame else None
                                     color=ksage if ksage != None else None
                                     if ksage != None: Ks_ages.append(ksage)
-                                    startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
-                                    starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
+                                    if (i,j) in indice_tomerge:
+                                        logging.debug("plot merged segment pair")
+                                        newx,newy = indice_tomerge[(i,j)]
+                                        startx,lastx = newx[0], newx[1]
+                                        starty,lasty = newy[0], newy[1]
+                                    else:
+                                        startx,lastx = df_tmp.loc[i,'first_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']],df_tmp.loc[i,'last_coordinate'] + xtick_addable_dict[df_tmp.loc[i,'list']]
+                                        starty,lasty = df_tmp.loc[j,'first_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']],df_tmp.loc[j,'last_coordinate'] + ytick_addable_dict[df_tmp.loc[j,'list']]
                                     start_lastxy.append(([startx,lastx],[starty,lasty],list(MP_unit['orientation'])[0],color))
                                     lengx = abs(df_tmp.loc[j,'last_coordinate'] - df_tmp.loc[j,'first_coordinate']) + 1
                                     lengy = abs(df_tmp.loc[i,'last_coordinate'] - df_tmp.loc[i,'first_coordinate']) + 1
@@ -1884,48 +2027,6 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
     #    ax.plot(infox, infoy, alpha=0.9, linewidth=0.8,color = c_m(norm(color)))
     #    if spx == spy: ax.plot(infoy, infox, alpha=0.9, linewidth=0.8,color = c_m(norm(color)))
     if type(ksdf) == pd.core.frame.DataFrame: plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.03)
-    #cbar = plt.colorbar(sm,ax=ax)
-    #cbar.set_label('Ks values')
-    #ax.legend()
-    #scalarmappable = plt.cm.ScalarMappable(cmap)
-    #scalarmappable.set_array(np.linspace(0, 1, 100))
-    #cbar = plt.colorbar(scalarmappable)
-        #for s1 in dfx_start_last:
-        #    for s2 in dfy_start_last:
-        #        if s1[1]==s2[1]: continue
-        #        Num_segments_plotted = Num_segments_plotted + 1
-        #        s1_,s2_ = s1[0],s2[0]
-                #if s1[1] != s2[1]: s2_.reverse()
-                #if (s1_[1]-s1_[0]) < 300:
-                #    if [dfx_start_last,dfy_start_last] not in toprint:
-                #        toprint.append([dfx_start_last,dfy_start_last])
-        #        ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
-        #orig_anchors_tmp = orig_anchors[orig_anchors['multiplicon']==mlt]
-        #extreme_indices = [orig_anchors_tmp.index[0],orig_anchors_tmp.index[-1]]
-        #dfx_start_last,dfy_start_last = [],[] # list of list
-        #number,num = len(df_tmp),0
-        #for sp,scfa,start,last,sg,lg,segid in zip(df_tmp['genome'],df_tmp['list'],df_tmp['first_coordinate'],df_tmp['last_coordinate'],df_tmp['first'],df_tmp['last'],df_tmp['segment']):
-        #    num,uniq = num + 1,uniq+1
-        #    if abs(last - start) + 1 < mingenenum:
-        #        continue
-        #    if sp == spx:
-        #        startx,lastx = start + xtick_addable_dict[scfa],last + xtick_addable_dict[scfa]
-        #        dfx_start_last.append(([startx,lastx],uniq,segid,mlt,scfa))
-        #    if sp == spy:
-        #        starty,lasty = start + ytick_addable_dict[scfa],last + ytick_addable_dict[scfa]
-        #        dfy_start_last.append(([starty,lasty],uniq,segid,mlt,scfa))
-        #toprint = []
-        #for s1 in dfx_start_last:
-        #    for s2 in dfy_start_last:
-        #        if s1[1]==s2[1]: continue
-        #        Num_segments_plotted = Num_segments_plotted + 1
-        #        s1_,s2_ = s1[0],s2[0]
-                #if s1[1] != s2[1]: s2_.reverse()
-                #if (s1_[1]-s1_[0]) < 300:
-                #    if [dfx_start_last,dfy_start_last] not in toprint:
-                #        toprint.append([dfx_start_last,dfy_start_last])
-        #        ax.plot(s1_, s2_, alpha=0.9, linewidth=0.8,color = 'b')
-        #for i in toprint: print(i)
     logging.info("In total {} segment pairs were plotted".format(Num_segments_plotted))
     ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
     ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
@@ -1958,15 +2059,49 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
             fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=ksdf)
             figs[spx + "-vs-" + spy] = fig
     for prefix, fig in figs.items():
-        fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
+        fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False):
+    fig, ax = plt.subplots(1, 1, figsize=(10,10))
+    dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
+    dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks)
+    fig.tight_layout()
+    return fig, ax
+
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200):
+    sp_list = list(ordered_genes_perchrom_allsp.keys())
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
+    figs = {}
+    logging.info("Making dotplot (in unit of genes)")
+    for i in range(len(sp_list)):
+        for j in range(i,len(sp_list)):
+            spx,spy = sp_list[i],sp_list[j]
+            logging.info("{0} vs. {1}".format(spx,spy))
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf)
+            figs[spx + "-vs-" + spy] = fig
+            if not (ksdf is None):
+                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True)
+                figs[spx + "-vs-" + spy + "_Ks"] = figks
+    for prefix, fig in figs.items():
+        fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
+        fig.savefig(fname)
+        fname = os.path.join(outdir, "{}.dot_unit_gene.png".format(prefix))
+        fig.savefig(fname)
+        fname = os.path.join(outdir, "{}.dot_unit_gene.pdf".format(prefix))
+        fig.savefig(fname)
+    plt.close()
+
 # dot plot stuff
-def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwargs):
+def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
     # Note that the Chr ID in gff3 file should not be alleen int or float
+    if not (Ks is None):
+        ks_dict = {pair:ks for pair,ks in zip(Ks.index,Ks['dS'])}
     gdf = list(df.groupby("species"))
     n = len(gdf)
     figs = {}
@@ -1984,11 +2119,12 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
             get_dots(dfx, dfy, segs, multi, minseglen, dupStack = True, **kwargs)
-    logging.info("Making dotplots and marco-synteny plots")
+    logging.info("Making dotplots (in unit of bases) and marco-synteny plots")
     getscafflength(n,gdf,**kwargs)
     if n > 1: get_marco_whole(list(map(lambda x:x[1],gdf)),segs, multi, minseglen,**kwargs)
     for i in range(n):
         for j in range(i, n):
+            xxs,yys,ksages,xxs_ap,yys_ap,ksages_ap,Ksages = [],[],[],[],[],[],[]
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
             ax2 = ax.twinx()
             ax3 = ax.twiny()
@@ -2004,56 +2140,78 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, **kwar
                 continue
             #for x,y in zip(df.x,df.y): ax.scatter(x, y, s=1, color="k", alpha=0.1)
             #print((len(list(itertools.chain(df.x))),len(list(itertools.chain(df.y)))))
-            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=1, color="k", alpha=0.01)
+            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=0.4, color="k", alpha=0.01)
+            if not (Ks is None):
+                for i,x,y in zip(df.index,df['x'],df['y']):
+                    ksage = ks_dict.get(i,None)
+                    if ksage == None:
+                        continue
+                    ksages.append(ksage)
+                    Ksages.append(ksage)
+                    xxs.append(x)
+                    yys.append(y)
             #ax.scatter(np.array(df.x,dtype=float), np.array(df.y,dtype=float), s=1, color="k", alpha=0.1)
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
                 #for x,y in zip(andf.x,andf.y): ax.scatter(x, y, s=1, color="r", alpha=0.9)
-                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=1, color="r", alpha=0.9)
-                #ax.scatter(np.array(andf.x,dtype=float), np.array(andf.y,dtype=float), s=1, color="red", alpha=0.9)
+                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=0.4, color="r", alpha=0.5)
+                if not (Ks is None):
+                    for i,x,y in zip(andf.index,andf['x'],andf['y']):
+                        ksage = ks_dict.get(i,None)
+                        if ksage == None:
+                            continue
+                        ksages_ap.append(ksage)
+                        xxs_ap.append(x)
+                        yys_ap.append(y)
             xlim = max(scaffxtick)
             ylim = max(scaffytick)
             ax.set_xlim(0, xlim)
             ax.set_ylim(0, ylim)
             ymin, ymax = ax.get_ylim()
             xmin, xmax = ax.get_xlim()
-            #ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.8, color="k")
-            #ax.vlines(xs, ymin=0, ymax=ylim, alpha=0.8, color="k")
             ax.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
-            #ax.vlines(scaffxtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
-            #ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.8, color="k")
-            #ax.hlines(ys, xmin=0, xmax=xlim, alpha=0.8, color="k")
             ax.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
-            #ax.hlines(scaffytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
-            #xlim = max(scaffxtick)
-            #ax.set_xlim(0, xs[-1])
-            #ax.set_xlim(0, xlim)
-            #ylim = max(scaffytick)
-            #ax.set_ylim(0, ys[-1])
-            #ax.set_ylim(0, ylim)
-            #ax.set_xlabel("${}$ (Mb)".format(spx))
-            #ax.set_ylabel("${}$ (Mb)".format(spy))
             ax.set_xlabel("{}".format(spx))
             ax.set_ylabel("{}".format(spy))
-            ax2.set_ylabel("{} (Mb)".format(spy))
-            ax2.yaxis.label.set_fontsize(18)
             ax2.set_yticklabels(ax.get_yticks() / 1e6)
-            ax2.tick_params(axis='both', which='major', labelsize=16)
-            ax3.set_xlabel("{} (Mb)".format(spx))
-            ax3.xaxis.label.set_fontsize(18)
             ax3.set_xticklabels(ax.get_xticks() / 1e6)
-            ax3.tick_params(axis='both', which='major', labelsize=16)
-            ax.xaxis.label.set_fontsize(18)
-            ax.yaxis.label.set_fontsize(18)
-            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.tick_params(axis='both', which='major')
             ax.set_xticks(scaffxtick)
             ax.set_xticklabels(scaffxlabels,rotation=45)
-            #ax.set_xticklabels(ax.get_xticks() / 1e6)  # in Mb
-            #ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
             ax.set_yticks(scaffytick)
             ax.set_yticklabels(scaffylabels,rotation=45)
+            ax2.set_ylabel("{} (Mb)".format(spy))
+            ax3.set_xlabel("{} (Mb)".format(spx))
             fig.tight_layout()
             figs[spx + "-vs-" + spy] = fig
+            if not (Ks is None):
+                figks, axks = plt.subplots(1, 1, figsize=(10,10))
+                axks2 = axks.twinx()
+                axks3 = axks.twiny()
+                norm = matplotlib.colors.Normalize(vmin=np.min(Ksages), vmax=np.max(Ksages))
+                c_m = matplotlib.cm.rainbow
+                s_m = ScalarMappable(cmap=c_m, norm=norm)
+                s_m.set_array([])
+                axks.scatter(xxs, yys, s=0.4, color=[c_m(norm(c)) for c in ksages], alpha=0.1)
+                axks.scatter(xxs_ap, yys_ap, s=0.4, color=[c_m(norm(c)) for c in ksages_ap], alpha=0.5)
+                axks.set_xlim(0, xlim)
+                axks.set_ylim(0, ylim)
+                axks.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
+                axks.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+                axks.set_xlabel("{}".format(spx))
+                axks.set_ylabel("{}".format(spy))
+                axks2.set_yticklabels(axks.get_yticks() / 1e6)
+                axks3.set_xticklabels(axks.get_xticks() / 1e6)
+                axks.tick_params(axis='both', which='major')
+                axks.set_xticks(scaffxtick)
+                axks.set_xticklabels(scaffxlabels,rotation=45)
+                axks.set_yticks(scaffytick)
+                axks.set_yticklabels(scaffylabels,rotation=45)
+                axks2.set_ylabel("{} (Mb)".format(spy))
+                axks3.set_xlabel("{} (Mb)".format(spx))
+                plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+                figks.tight_layout()
+                figs[spx + "-vs-" + spy + "_Ks"] = figks
     return figs
 
 def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
@@ -2119,95 +2277,6 @@ def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
             if seg_len < minseglen: rm_indice.append(indice)
     segs = segs.drop(rm_indice)
     return segs
-
-def Ks_dotplots(segs,dff, df, ks, an, minseglen, anchors=None, color_map='Spectral',min_ks=0.05, max_ks=5, minlen=250, maxsize=25, outdir='', **kwargs):
-    """
-    Generate Ks colored dot plots for all pairs of species in `df`.
-    """
-    cmap = plt.get_cmap(color_map)
-    if len(an["gene_x"]) == 0:
-        logging.warning("No multiplicons found!")
-        return
-    an["pair"] = an.apply(lambda x: '__'.join(
-            sorted([x["gene_x"], x["gene_y"]])), axis=1)
-    genomic_elements_ = {
-        x: 0 for x in list(set(dff['list_x']) | set(dff['list_y']))
-        if type(x) == str
-    }
-
-    ks_multiplicons = {}
-    all_ks = []
-    for i in range(len(dff)):
-        row = dff.iloc[i]
-        pairs = an[an['multiplicon'] == row['id']]['pair']
-        med_ks = np.median(ks.loc[ks.index.intersection(pairs)]['dS'])
-        ks_multiplicons[row['id']] = med_ks
-        all_ks.append(med_ks)
-
-    z = [[0, 0], [0, 0]]
-    levels = range(0, 101, 1)
-    tmp = plt.contourf(z, levels, cmap=cmap)
-    plt.clf()
-    
-    for key in sorted(genomic_elements_.keys()):
-        length = max(list(dff[dff['list_x'] == key]['end_x']) + list(
-                dff[dff['list_y'] == key]['end_y']))
-        if length >= minlen:
-            genomic_elements_[key] = length
-
-    previous = 0
-    genomic_elements = {}
-    sorted_ge = sorted(genomic_elements_.items(), key=lambda x: x[1],
-                       reverse=True)
-    labels = [kv[0] for kv in sorted_ge if kv[1] >= minlen]
-
-    for kv in sorted_ge:
-        genomic_elements[kv[0]] = previous
-        previous += kv[1]
-
-    gdf = list(df.groupby("species"))
-    n = len(gdf)
-    figs = {}
-    for i in range(n):
-        for j in range(i, n):
-            fig, ax = plt.subplots(1, 1, figsize=(10,10))
-            spx, dfx = gdf[i]
-            spy, dfy = gdf[j]
-            logging.info("{} vs. {}".format(spx, spy))
-            df, xs, ys, scafflabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, dff, minseglen, minlen=minlen, maxsize=maxsize, outdir = outdir)
-            if df is None:  # HACK, in case we're dealing with RBH orthologs...
-                continue
-            ax.scatter(df.x, df.y, s=0.1, color="k", alpha=0.5)
-            if not (anchors is None):
-                andf = df.join(anchors, how="inner")
-                for k in range(len(dff)):
-                    row = dff.iloc[k]
-                    list_x, list_y = row['list_x'], row['list_y']
-                    if type(list_x) != float:
-                        curr_list_x = list_x
-                    x = [genomic_elements[curr_list_x] + x for x in [row['begin_x'], row['end_x']]]
-                    y = [genomic_elements[list_y] + x for x in [row['begin_y'], row['end_y']]]                     
-                    med_ks = ks_multiplicons[row['id']]
-                    if min_ks < med_ks <= max_ks:
-                        ax.scatter(andf.x, andf.y, s=0.2, color=cmap(ks_multiplicons[row['id']] / 5), alpha=0.9)
-            ax.vlines(xs, ymin=0, ymax=ys[-1], alpha=0.1, color="k")
-            ax.hlines(ys, xmin=0, xmax=xs[-1], alpha=0.1, color="k")
-            ax.set_xlim(0, xs[-1])
-            ax.set_ylim(0, ys[-1])
-            ax.set_xlabel("${}$ (Mb)".format(spx))
-            ax.set_ylabel("${}$ (Mb)".format(spy))
-            ax.xaxis.label.set_fontsize(18)
-            ax.yaxis.label.set_fontsize(18)
-            ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.set_xticklabels(ax.get_xticks() / 1e6)  # in Mb
-            ax.set_yticklabels(ax.get_yticks() / 1e6)  # in Mb
-            figs[spx + "-vs-" + spy] = fig
-
-    # colorbar
-    cbar = plt.colorbar(tmp, fraction=0.02, pad=0.01)
-    cbar.ax.set_yticklabels(['{:.2f}'.format(x) for x in np.linspace(0, 5, 11)])
-
-    return figs
 
 def get_dots(dfx, dfy, seg, multi, minseglen, minlen=-1, maxsize=200, outdir = '', dupStack = False):
     spx=dfx.loc[:,'species'][0]

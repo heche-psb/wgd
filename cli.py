@@ -531,7 +531,7 @@ def viz(**kwargs):
     _viz(**kwargs)
 
 def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,multipliconpairs,mingenenum,plotsyn):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
     from wgd.peak import formatv2
@@ -552,8 +552,9 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
-        dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
-        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir)
+        dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize)
+        #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
+        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
@@ -612,7 +613,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit, get_mp_geneorder
-    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene
+    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene,dotplotingene
     from wgd.peak import formatv2
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
@@ -662,14 +663,16 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
         ksdb_df = formatv2(ksdb_df)
         df_ks = apply_filters(ksdb_df, [("dS", 0., 5.)])
-    dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df_ks)
+    dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize)
+    #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df_ks)
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor) 
+    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor, Ks = df_ks) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.png".format(k)))
+    plt.close()
 
     # anchor Ks distributions
     if ks_distribution:
@@ -685,24 +688,6 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         fig = default_plot(a, b, title=prefix, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
-        # Ks colored dotplot
-        logging.info("Generating Ks colored (median Ks) dotplot")
-        #multiplicons = pd.read_csv(os.path.join(
-        #    outdir, 'iadhore-out', 'multiplicons.txt'), sep='\t')
-        #anchor_points = pd.read_csv(os.path.join(
-        #    outdir, 'iadhore-out', 'anchorpoints.txt'), sep='\t')
-        dotplot_out = os.path.join(outdir, '{}.dotplot.ks.svg'.format(
-                os.path.basename(families)))
-        syntenic_dotplot_ks_colored(
-                multi, anchors, anchor_ks, min_ks=ks_range[0],
-                max_ks=ks_range[1], output_file=dotplot_out,
-                min_length= 50
-        )
-        #figs2=Ks_dotplots(segs,multiplicons, table, anchor_ks, anchor_points, anchors,min_ks=ks_range[0],max_ks=ks_range[1], maxsize=maxsize, minlen=minlen,outdir = outdir)
-        #for k, v in figs2.items():
-        #    v.savefig(os.path.join(outdir, "{}.ks.dot.svg".format(k)))
-        #    v.savefig(os.path.join(outdir, "{}.ks.dot.pdf".format(k)))
-        #    v.savefig(os.path.join(outdir, "{}.ks.dot.png".format(k)))
     logging.info("Done")    
 
 # MIXTURE MODELING
