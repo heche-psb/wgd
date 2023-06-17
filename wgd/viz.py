@@ -1788,6 +1788,12 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    if spx != spy:
+        gene_list = {spx:{},spy:{}}
+        for gene,sp,li in zip(table.index,table['species'],table['scaffold']):
+            if sp != spx and sp != spy:
+                continue
+            gene_list[sp][gene] = li
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
     for scfa in dfy.columns: leng_info_y[scfa] = len(dfy[scfa].dropna())
     sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
@@ -1796,12 +1802,8 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
     xtick,ytick = list(np.cumsum(sorted_leng_x)),list(np.cumsum(sorted_leng_y))
     xtick_addable, ytick_addable = [0]+xtick[:-1], [0]+ytick[:-1]
-    if spx == spy:
-        xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
-        ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
-    else:
-        xtick_addable_dict = {"{}_".format(spx)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
-        ytick_addable_dict = {"{}_".format(spy)+scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
+    xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
+    ytick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_y,ytick_addable)}
     xs,ys,co,xs_ap,ys_ap,co_ap,Ks_ages = [],[],[],[],[],[],[]
     if showks: Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     for fam, df_tmp in list(table.groupby('family')):
@@ -1810,8 +1812,12 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
         if len(df_tmp[df_tmp['species']==spx]) == 0 or len(df_tmp[df_tmp['species']==spy]) == 0:
             continue
         gx,gy = list(df_tmp[df_tmp['species']==spx].index),list(df_tmp[df_tmp['species']==spy].index)
-        gx_coori = [gene_orders[g] + xtick_addable_dict[gene_list[g]] for g in gx]
-        gy_coori = [gene_orders[g] + ytick_addable_dict[gene_list[g]] for g in gy]
+        if spx != spy:
+            gx_coori = [gene_orders[g] + xtick_addable_dict[gene_list[spx][g]] for g in gx]
+            gy_coori = [gene_orders[g] + ytick_addable_dict[gene_list[spy][g]] for g in gy]
+        else:
+            gx_coori = [gene_orders[g] + xtick_addable_dict[gene_list[g]] for g in gx]
+            gy_coori = [gene_orders[g] + ytick_addable_dict[gene_list[g]] for g in gy]
         for (ggx,ggy), (x, y) in zip(itertools.product(gx,gy),itertools.product(gx_coori,gy_coori)):
             if x == y:
                 continue
