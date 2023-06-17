@@ -559,7 +559,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
-            v.savefig(os.path.join(outdir, "{}.dot.png".format(k)))
+            v.savefig(os.path.join(outdir, "{}.dot.png".format(k)),dpi=1200)
         logging.info('Done')
         exit()
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')

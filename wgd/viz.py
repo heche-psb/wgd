@@ -1843,10 +1843,10 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
             s_m.set_array([])
     if not showks:
         ax.scatter(xs, ys, s=0.4, color = 'k', alpha=0.01)
-        ax.scatter(xs_ap, ys_ap, s=0.4, color = 'r', alpha=0.5)
+        ax.scatter(xs_ap, ys_ap, s=0.4, color = 'r', alpha=1)
     else:
-        ax.scatter(xs, ys, s=0.4, color=[c_m(norm(c)) for c in co], alpha=0.1)
-        ax.scatter(xs_ap, ys_ap, s=0.4, color=[c_m(norm(c)) for c in co_ap], alpha=0.5)
+        ax.scatter(xs, ys, s=0.4, color=[c_m(norm(c)) for c in co], alpha=0.01)
+        ax.scatter(xs_ap, ys_ap, s=0.4, color=[c_m(norm(c)) for c in co_ap], alpha=1)
     #ax.scatter(xs_ap, ys_ap, s=0.4, alpha=0.5)
     xlim,ylim = xtick[-1],ytick[-1]
     ax.set_xlim(0, xlim)
@@ -2094,7 +2094,7 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
         fig.savefig(fname)
         fname = os.path.join(outdir, "{}.dot_unit_gene.png".format(prefix))
-        fig.savefig(fname)
+        fig.savefig(fname,dpi=1200)
         fname = os.path.join(outdir, "{}.dot_unit_gene.pdf".format(prefix))
         fig.savefig(fname)
     plt.close()
@@ -2159,7 +2159,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
                 #for x,y in zip(andf.x,andf.y): ax.scatter(x, y, s=1, color="r", alpha=0.9)
-                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=0.4, color="r", alpha=0.5)
+                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=0.4, color="r", alpha=1)
                 if not (Ks is None):
                     for i,x,y in zip(andf.index,andf['x'],andf['y']):
                         ksage = ks_dict.get(i,None)
@@ -2197,8 +2197,8 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 c_m = matplotlib.cm.rainbow
                 s_m = ScalarMappable(cmap=c_m, norm=norm)
                 s_m.set_array([])
-                axks.scatter(xxs, yys, s=0.4, color=[c_m(norm(c)) for c in ksages], alpha=0.1)
-                axks.scatter(xxs_ap, yys_ap, s=0.4, color=[c_m(norm(c)) for c in ksages_ap], alpha=0.5)
+                axks.scatter(xxs, yys, s=0.4, color=[c_m(norm(c)) for c in ksages], alpha=0.01)
+                axks.scatter(xxs_ap, yys_ap, s=0.4, color=[c_m(norm(c)) for c in ksages_ap], alpha=1)
                 axks.set_xlim(0, xlim)
                 axks.set_ylim(0, ylim)
                 axks.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
@@ -2266,6 +2266,14 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
     fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs,genetable,multi,removed_scfa
+
+def filter_mingenumber(segs,mingenenum):
+    rm_indice = []
+    for indice, f, l in zip(segs.index,segs['first_coordinate'],segs['last_coordinate']):
+        if (l-f+1) < mingenenum:
+            rm_indice.append(indice)
+    segs = segs.drop(rm_indice)
+    return segs
 
 def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     rm_indice = []

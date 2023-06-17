@@ -426,11 +426,15 @@ We implemented two types of dot plots in oxford grid: one in the unit of bases a
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot_unit_gene.png)
 
-As shown above, the dot plot in the unit of genes presents numerous densely aggregated (line-like) anchor points at most of the chromosomes with consistent *K*<sub>S</sub> age between 1 and 2.
-
-The dot plot in the unit of bases shows the same pattern, as manifested below.
+As shown above, the dot plot in the unit of genes presents numerous densely aggregated (line-like) anchor points at most of the chromosomes with consistent *K*<sub>S</sub> age between 1 and 2. The dot plot in the unit of bases shows the same pattern, as manifested below.
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot.png)
+
+The dot plots without *K*<sub>S</sub> annotation will also be automately produced, as shown below.
+
+![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.png)
+
+![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
 
 A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
 
