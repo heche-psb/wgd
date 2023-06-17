@@ -1821,15 +1821,14 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
                     if ks is None:
                         continue
                     Ks_ages.append(ks)
+            xs.append(x)
+            ys.append(y)
+            if showks: co.append(ks)
             if not (anchor is None):
                 if "__".join(sorted([ggx,ggy])) in anchor.index:
                     xs_ap.append(x)
                     ys_ap.append(y)
                     if showks: co_ap.append(ks)
-            else:
-                xs.append(x)
-                ys.append(x)
-                if showks: co.append(ks)
     if showks:
         if not (ksdf is None):
             norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
