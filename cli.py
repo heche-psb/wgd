@@ -531,7 +531,7 @@ def viz(**kwargs):
     _viz(**kwargs)
 
 def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,multipliconpairs,mingenenum,plotsyn):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
     from wgd.peak import formatv2
@@ -552,6 +552,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
+        segs = filter_mingenumber(segs_gene_unit,mingenenum)
         dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize)
         #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df)
@@ -597,7 +598,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
-@click.option('--minseglen', '-mg', default=100000, show_default=True, help="min length of segments in ratio if <= 1")
+@click.option('--minseglen', '-mg', default=10000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="min number of genes on segments to be considered")
 def syn(**kwargs):
@@ -613,7 +614,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     """
     from wgd.syn import make_gene_table, configure_adhore, run_adhore
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit, get_mp_geneorder
-    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene,dotplotingene
+    from wgd.viz import default_plot, apply_filters, all_dotplots, syntenic_dotplot_ks_colored,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber
     from wgd.peak import formatv2
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
@@ -657,6 +658,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     #segmentpair_order = get_segmentpair_order(orig_anchors,segs,table,gene_orders)
     segs,table,multi,removed_scfa = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
     segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
+    segs = filter_mingenumber(segs_gene_unit,mingenenum)
     #if ks_distribution: segs_gene_unit_ks = getsegks(segs_gene_unit,ks_distribution,ordered_genes_perchrom_allsp)
     df_ks = None
     if ks_distribution!=None:
