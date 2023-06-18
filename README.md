@@ -242,6 +242,10 @@ wgd syn families gffs (option)
 -ac, --ancestor, the assumed ancestor species, default None, a option that is still in development
 -mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 100000
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons will be kept
+-mgn, --mingenenum, the minimum number of genes for a segment to be considered, default 30
+-ds, --dotsize, the dot size in dot plot, default 1
+-aa, --apalpha, the opacity of anchor dots, default 1
+-ha, --hoalpha, the opacity of homolog dots, default 0.1
 ```
 
 The program `wgd viz` can realize the visualization of *K*<sub>S</sub> age distribution and synteny.
@@ -272,6 +276,11 @@ wgd viz (option)
 -pag, --plotapgmm, flag option, whether to plot mixture modeling of anchor Ks in the mixed Ks distribution, if the flag was set, the mixture modeling of anchor Ks will be plotted
 -pem, --plotelmm, flag option, whether to plot elmm mixture modeling of paranome Ks in the mixed Ks distribution, if the flag was set, the elmm mixture modeling of paranome Ks will be plotted
 -c, --components, the range of the number of components to fit in anchor Ks mixture modeling, default (1,4)
+-mgn, --mingenenum, the minimum number of genes for a segment to be considered, default 30
+-psy, --plotsyn, flag option, whether to initiate the synteny plot, if the flag was set, the synteny plot will be produced
+-ds, --dotsize, the dot size in dot plot, default 1
+-aa, --apalpha, the opacity of anchor dots, default 1
+-ha, --hoalpha, the opacity of homolog dots, default 0.1
 ```
 
 ## Usage
@@ -435,6 +444,8 @@ The dot plots without *K*<sub>S</sub> annotation will also be automately produce
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.png)
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
+
+Note that the opacity of anchor dots and all homolog dots can be set by the option `apalpha` and `hoalpha` separately. If one just wants to see the anchor dots, setting the `hoalpha` as 0 (or other minuscule values) will do. If one wants to see the distribution of whole dots better, setting the `hoalpha` higher (and `apalpha` lower) will do. The `dotsize` option can be called to adjust the size of dots.
 
 A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
 

@@ -1784,7 +1784,7 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
-def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False):
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -1842,11 +1842,11 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
             s_m = ScalarMappable(cmap=c_m, norm=norm)
             s_m.set_array([])
     if not showks:
-        ax.scatter(xs, ys, s=0.4, color = 'k', alpha=0.01)
-        ax.scatter(xs_ap, ys_ap, s=0.4, color = 'r', alpha=1)
+        ax.scatter(xs, ys, s=dotsize, color = 'k', alpha=hoalpha)
+        ax.scatter(xs_ap, ys_ap, s=dotsize, color = 'r', alpha=apalpha)
     else:
-        ax.scatter(xs, ys, s=0.4, color=[c_m(norm(c)) for c in co], alpha=0.01)
-        ax.scatter(xs_ap, ys_ap, s=0.4, color=[c_m(norm(c)) for c in co_ap], alpha=1)
+        ax.scatter(xs, ys, s=dotsize, color=[c_m(norm(c)) for c in co], alpha=hoalpha)
+        ax.scatter(xs_ap, ys_ap, s=dotsize, color=[c_m(norm(c)) for c in co_ap], alpha=apalpha)
     #ax.scatter(xs_ap, ys_ap, s=0.4, alpha=0.5)
     xlim,ylim = xtick[-1],ytick[-1]
     ax.set_xlim(0, xlim)
@@ -2067,15 +2067,15 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
         fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
-def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False):
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
     fig.tight_layout()
     return fig, ax
 
-def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200):
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
@@ -2085,22 +2085,22 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
             logging.info("{0} vs. {1}".format(spx,spy))
-            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf)
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
             figs[spx + "-vs-" + spy] = fig
             if not (ksdf is None):
-                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True)
+                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
         fig.savefig(fname)
         fname = os.path.join(outdir, "{}.dot_unit_gene.png".format(prefix))
-        fig.savefig(fname,dpi=1200)
+        fig.savefig(fname,dpi=500)
         fname = os.path.join(outdir, "{}.dot_unit_gene.pdf".format(prefix))
         fig.savefig(fname)
     plt.close()
 
 # dot plot stuff
-def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, **kwargs):
+def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
@@ -2145,7 +2145,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 continue
             #for x,y in zip(df.x,df.y): ax.scatter(x, y, s=1, color="k", alpha=0.1)
             #print((len(list(itertools.chain(df.x))),len(list(itertools.chain(df.y)))))
-            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=0.4, color="k", alpha=0.01)
+            ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=dotsize, color="k", alpha=hoalpha)
             if not (Ks is None):
                 for i,x,y in zip(df.index,df['x'],df['y']):
                     ksage = ks_dict.get(i,None)
@@ -2159,7 +2159,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             if not (anchors is None):
                 andf = df.join(anchors, how="inner")
                 #for x,y in zip(andf.x,andf.y): ax.scatter(x, y, s=1, color="r", alpha=0.9)
-                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=0.4, color="r", alpha=1)
+                ax.scatter(list(itertools.chain(andf.x)), list(itertools.chain(andf.y)), s=dotsize, color="r", alpha=apalpha)
                 if not (Ks is None):
                     for i,x,y in zip(andf.index,andf['x'],andf['y']):
                         ksage = ks_dict.get(i,None)
@@ -2197,8 +2197,8 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 c_m = matplotlib.cm.rainbow
                 s_m = ScalarMappable(cmap=c_m, norm=norm)
                 s_m.set_array([])
-                axks.scatter(xxs, yys, s=0.4, color=[c_m(norm(c)) for c in ksages], alpha=0.01)
-                axks.scatter(xxs_ap, yys_ap, s=0.4, color=[c_m(norm(c)) for c in ksages_ap], alpha=1)
+                axks.scatter(xxs, yys, s=dotsize, color=[c_m(norm(c)) for c in ksages], alpha=hoalpha)
+                axks.scatter(xxs_ap, yys_ap, s=dotsize, color=[c_m(norm(c)) for c in ksages_ap], alpha=apalpha)
                 axks.set_xlim(0, xlim)
                 axks.set_ylim(0, ylim)
                 axks.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")

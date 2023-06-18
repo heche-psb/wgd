@@ -521,15 +521,18 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
 @click.option('--plotelmm', '-pem', is_flag=True, help='plot elmm mixture modeling')
 @click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
-@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="min number of genes on segments to be considered")
+@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
+@click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
+@click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
+@click.option('--hoalpha', '-ha', type=float, default=0.1, show_default=True, help='opacity of homolog dots')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -552,13 +555,13 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
         segs = filter_mingenumber(segs_gene_unit,mingenenum)
-        dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize)
+        dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
         #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
-        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df)
+        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
-            v.savefig(os.path.join(outdir, "{}.dot.png".format(k)),dpi=1200)
+            v.savefig(os.path.join(outdir, "{}.dot.png".format(k)),dpi=500)
         logging.info('Done')
         exit()
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
@@ -599,7 +602,10 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
 @click.option('--minseglen', '-mg', default=10000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
-@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="min number of genes on segments to be considered")
+@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
+@click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
+@click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
+@click.option('--hoalpha', '-ha', type=float, default=0.1, show_default=True, help='opacity of homolog dots')
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -607,7 +613,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum):
+        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -664,15 +670,15 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
         ksdb_df = formatv2(ksdb_df)
         df_ks = apply_filters(ksdb_df, [("dS", 0., 5.)])
-    dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize)
+    dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
     #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df_ks)
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor, Ks = df_ks) 
+    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor, Ks = df_ks, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
-        v.savefig(os.path.join(outdir, "{}.dot.png".format(k)))
+        v.savefig(os.path.join(outdir, "{}.dot.png".format(k)),dpi=500)
     plt.close()
 
     # anchor Ks distributions
