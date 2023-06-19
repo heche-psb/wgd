@@ -1542,7 +1542,8 @@ def hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=False):
         sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     cmds = []
     outs = []
-    yprefix = lambda i: os.path.join(outdir,os.path.basename(i).strip('.pep'))
+    #yprefix = lambda i: os.path.join(outdir,os.path.basename(i).strip('.pep'))
+    yprefix = lambda i: os.path.join(outdir,os.path.basename(i)[:-4])
     for s in querys:
         s.orig_profasta()
         pf = yprefix(s.orig_pro_fasta)
