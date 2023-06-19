@@ -474,6 +474,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     return ax
 
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
+    df_para = None
     if extraparanomeks != None:
         df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
         df_para = apply_filters(df_para, [("dS", 0., 5.)])
@@ -485,9 +486,12 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else: spgenemap = gsmap
     if not viz: writespgenemap(spgenemap,outdir)
     df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=sptree)
-    if len(paralog_pair) != 0:
+    if len(paralog_pair) == 1:
         fnames = os.path.join(outdir,'{}_Corrected.ksd.svg'.format(paralog_pair[0].split('__')[0]))
         fnamep = os.path.join(outdir,'{}_Corrected.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
+    elif len(paralog_pair) > 1:
+        fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.svg')
+        fnamep = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.pdf')
     else:
         fnames = os.path.join(outdir,'Raw_Orthologues.ksd.svg')
         fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.pdf')
@@ -505,7 +509,12 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else: logging.info('De-redundancy via the weights from overall species')
     if plotkde: logging.info('Plotting kde curve over histogram')
     else: logging.info('Plotting histogram without kde curve')
-    #np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
+    drawtime = 0
+    if plotelmm:
+        if df_para != None:
+            logging.info("ELMM analysis on extra paralogous Ks")
+            ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+            drawtime = drawtime + 1
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
         #for ax, k, f in zip(axs.flatten(), keys, funs):
@@ -515,7 +524,20 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         w = w[np.isfinite(x)]
         if pair in paralog_pair:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
-            if plotelmm: ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+            if df_para != None:
+                continue
+            if plotelmm and drawtime < 1:
+                drawtime = drawtime + 1
+                logging.info("ELMM analysis on extra paralogous Ks of {}".format(pair.split("__")[0]))
+                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+            if plotelmm and drawtime == 1:
+                if not plotkde:
+                    continue
+                kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                kde_y = kde(kde_x)
+                CHF = get_totalH(Hs)
+                scaling = CHF*0.1
+                ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-.', label = "{}".format(pair))
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
         if corrected_ks_spair != None:
@@ -534,7 +556,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
             if corrected_ks_spair != None:
                 if pair in corrected_ks_spair.keys():
-                    ax.quiver(mode,maxim*scale, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                    ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
     if ap != None:
         df_ap = pd.read_csv(ap,header=0,index_col=0,sep='\t')
         df_ap.loc[:,"pair"] = df_ap[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
