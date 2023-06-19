@@ -34,7 +34,7 @@ The *K*<sub>S</sub> method is established on a model of gene family evolution th
 
 ## Installation
 
-The easiest way to install `wgd v2` is using PYPI
+The easiest way to install `wgd v2` is using PYPI. Note that if you want to get the latest update, we suggest installing from the source, since the update on PYPI will be delayed compared to here in the source.
 
 ```
 pip install wgd

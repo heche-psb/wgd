@@ -565,6 +565,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         logging.info('Done')
         exit()
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
+    ksdb_df = formatv2(ksdb_df)
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
     ylabel = "Duplications" if spair == () else "Homologous pairs"
     if len(spair)!= 0: multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height)
@@ -687,6 +688,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         if len(gff_files) == 2:
             ylabel = "RBH orthologs"
         ksd = pd.read_csv(ks_distribution, sep="\t", index_col=0)
+        ksd = formatv2(ksd)
         anchor_ks = get_anchor_ksd(ksd, anchors)
         anchor_ks.to_csv(os.path.join(outdir, "{}.anchors.ks.tsv".format(prefix)),sep='\t')
         a = apply_filters(ksd,       [("dS", 0, 5.)])
