@@ -1514,8 +1514,16 @@ def reference_hmmscan(df,s,hmmf,outdir,eval):
     for fid in df.index:
         genes_genes = df.loc[[fid],:].dropna(axis=1).loc[fid,:]
         for genes in genes_genes:
-            for gene in genes.split(', '): score_per_f[fid].append(f_g_score[fid][gene])
-    for fid,vs in score_per_f.items(): cutoff_per_f[fid] = min(vs)*0.9
+            for gene in genes.split(', '):
+                if f_g_score[fid].get(gene) == None:
+                    logging.info("{0} in {1} has no hits, please double check this perhaps misassigned gene".format(gene,fid))
+                    continue
+                score_per_f[fid].append(f_g_score[fid][gene])
+    for fid,vs in score_per_f.items():
+        if len(vs) == 0:
+            logging.info("Genes in {} all have no hits, please double check the authenticity of this family".format(fid))
+            cutoff_per_f[fid] = 0
+        else: cutoff_per_f[fid] = min(vs)*0.9
     for fid,cutoff in cutoff_per_f.items(): logging.info('The cutoff score for family {} is {:.2f}'.format(fid,cutoff))
     return cutoff_per_f
 
