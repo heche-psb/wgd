@@ -1530,7 +1530,8 @@ def reference_hmmscan(df,s,hmmf,outdir,eval):
 def scanrefer(refer_fp,hmmf,outdir,eval):
     cmd = ['hmmpress'] + [hmmf]
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-    pf = os.path.join(outdir,os.path.basename(refer_fp).strip('.pep'))
+    #pf = os.path.join(outdir,os.path.basename(refer_fp).strip('.pep'))
+    pf = os.path.join(outdir,os.path.basename(refer_fp)[:-4])
     cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, refer_fp]
     sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     out = '{}.tbl'.format(pf)
