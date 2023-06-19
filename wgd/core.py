@@ -1572,8 +1572,10 @@ def buildbfam(fname,outdict):
 def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = None, use_cf = None):
     if cutoff != None: ctf = pd.read_csv(cutoff, header = None,index_col = 0,sep='\t')
     if not bhmm: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
-    yb = lambda i:os.path.basename(i).strip('.tbl')
-    if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
+    #yb = lambda i:os.path.basename(i).strip('.tbl')
+    yb = lambda i:os.path.basename(i)[:-4]
+    #if sogtest: yb = lambda i:os.path.basename(i).strip('.tbl') + '_assigned'
+    if sogtest: yb = lambda i:os.path.basename(i)[:-4] + '_assigned'
     outdict = {yb(i):{} for i in outs}
     if not bhmm: f_g_score = {fid:{} for fid in df.index}
     for out in outs:

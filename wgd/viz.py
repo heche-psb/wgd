@@ -526,18 +526,24 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
             if df_para != None:
                 continue
+            if not plotelmm:
+                if plotkde:
+                    kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                    kde_y = kde(kde_x)
+                    CHF = get_totalH(Hs)
+                    scaling = CHF*0.1
+                    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
                 logging.info("ELMM analysis on extra paralogous Ks of {}".format(pair.split("__")[0]))
                 ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
-            if plotelmm and drawtime == 1:
-                if not plotkde:
-                    continue
+                continue
+            if plotkde:
                 kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
                 kde_y = kde(kde_x)
                 CHF = get_totalH(Hs)
                 scaling = CHF*0.1
-                ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-.', label = "{}".format(pair))
+                ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
         if corrected_ks_spair != None:
