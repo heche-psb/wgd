@@ -13,7 +13,7 @@ gff_header = ["gene", "scaffold", "start", "orientation"]
 
 # we construct first a table with each row a gene containing it's family,
 # scaffold, location and orientation
-def make_gene_table(gffs, families, feature, attribute):
+def make_gene_table(gffs, families, feature, attribute, additionalgffinfo):
     """
     Construct a table from a bunch of gff files and gene families such that all
     information for synteny and co-linearity related analyses is in one place.
@@ -28,7 +28,18 @@ def make_gene_table(gffs, families, feature, attribute):
     may wish, for flexibility, to allow a list of feature/attribute arguments
     in the future, one for each GFF file.
     """
-    gfftables = [gff2table(gff, feature, attribute) for gff in gffs]
+    if not (additionalgffinfo is None):
+        # ignore the info in the original feature and attribute
+        features, attributes = [i.split(";")[0].strip() for i in additionalgffinfo], [i.split(";")[1].strip() for i in additionalgffinfo]
+        if len(features) != len(attributes):
+            logging.error("Please give the additional feature and attribute info of gff in the format of (feature;attribute)")
+            exit(1)
+        if len(features) != len(gffs):
+            logging.error("Please give the same number and order of gff files and its associated additional feature and attribute info")
+            exit(1)
+        gfftables = [gff2table(gff, f, a) for gff,f,a in zip(gffs,features,attributes)]
+    else:
+        gfftables = [gff2table(gff, feature, attribute) for gff in gffs]
     familytable = gene2family(families)
     df = pd.concat(gfftables)
     df = familytable.join(df)

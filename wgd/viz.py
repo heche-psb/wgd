@@ -511,7 +511,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else: logging.info('Plotting histogram without kde curve')
     drawtime = 0
     if plotelmm:
-        if df_para != None:
+        if not (df_para is None):
             logging.info("ELMM analysis on extra paralogous Ks")
             ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
             drawtime = drawtime + 1
@@ -529,7 +529,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         w = w[np.isfinite(x)]
         if pair in paralog_pair:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
-            if df_para != None:
+            if not (df_para is None):
                 continue
             if not plotelmm:
                 if plotkde:
@@ -1817,6 +1817,88 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
+def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1):
+    dfs = {sp:ordered_genes_perchrom_allsp[sp].copy().drop(removed_scfa[sp],axis=1).set_index('Coordinates') for sp in sp_list}
+    leng_info = {sp:{} for sp in sp_list}
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    for sp in sp_list:
+        for scfa in dfs[sp].columns:
+            leng_info[sp][scfa] = len(dfs[sp][scfa].dropna())
+    sorted_labels, sorted_lengs = [],[]
+    tick_strip = []
+    for sp in sp_list:
+        sorted_leng = [i[1] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
+        tick_strip.append(sum(sorted_leng))
+        sorted_lengs = sorted_lengs + sorted_leng
+        sorted_label = [sp[:3]+'_'+i[0] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
+        sorted_labels = sorted_labels + sorted_label
+    tick = list(np.cumsum(sorted_lengs))
+    tick_strip = list(np.cumsum(tick_strip))
+    tick_addable = [0] + tick[:-1]
+    tick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels,tick_addable)}
+    xs,ys,co,xs_ap,ys_ap,co_ap,Ks_ages = [],[],[],[],[],[],[]
+    if showks: Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
+    for fam, df_tmp in list(table.groupby('family')):
+        all_cooris,allgenes = [],[]
+        for sp in set(df_tmp['species']):
+            if len(df_tmp[df_tmp['species']==sp]) >= maxsize or len(df_tmp[df_tmp['species']==sp]) == 0:
+                continue
+            df_tmp_sp = df_tmp[df_tmp['species']==sp]
+            for g in df_tmp_sp.index:
+                allgenes.append(g)
+                g_coori = gene_orders[g] + tick_addable_dict[sp[:3]+"_"+gene_list[g]]
+                all_cooris.append(g_coori)
+        for (gx,gy), (x,y) in zip(itertools.product(allgenes,allgenes),itertools.product(all_cooris,all_cooris)):
+            if gx == gy:
+                continue
+            if showks:
+                if not (ksdf is None):
+                    ks = Ks_dict.get("__".join(sorted([gx,gy])),None)
+                    if ks is None:
+                        continue
+                    Ks_ages.append(ks)
+            xs.append(x)
+            ys.append(y)
+            if showks: co.append(ks)
+            if not (anchor is None):
+                if "__".join(sorted([gx,gy])) in anchor.index:
+                    xs_ap.append(x)
+                    ys_ap.append(y)
+                    if showks: co_ap.append(ks)
+    if showks:
+        if not (ksdf is None):
+            norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
+            c_m = matplotlib.cm.rainbow
+            s_m = ScalarMappable(cmap=c_m, norm=norm)
+            s_m.set_array([])
+    if not showks:
+        ax.scatter(xs, ys, s=dotsize, color = 'k', alpha=hoalpha)
+        ax.scatter(xs_ap, ys_ap, s=dotsize, color = 'r', alpha=apalpha)
+    else:
+        ax.scatter(xs, ys, s=dotsize, color=[c_m(norm(c)) for c in co], alpha=hoalpha)
+        ax.scatter(xs_ap, ys_ap, s=dotsize, color=[c_m(norm(c)) for c in co_ap], alpha=apalpha)
+    xlim = ylim = tick[-1]
+    ax.set_xlim(-400, xlim)
+    ax.set_ylim(-400, ylim)
+    ax.vlines(tick, ymin=0, ymax=ylim, alpha=0.8, color="k", linewidths=0.5)
+    ax.hlines(tick, xmin=0, xmax=xlim, alpha=0.8, color="k", linewidths=0.5)
+    ax.set_xticks(tick)
+    ax.set_xticklabels(sorted_labels,rotation=45)
+    ax.set_yticks(tick)
+    ax.set_yticklabels(sorted_labels,rotation=45)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    cs = cm.viridis(np.linspace(0, 1, len(tick_strip)))
+    s_add = 0
+    for s,c in zip(tick_strip,cs):
+        ax.add_patch(Rectangle((-400, 0+s_add), 400, s, color=c, alpha=1,linewidth=0,zorder = 0))
+        ax.add_patch(Rectangle((0+s_add, -400), s, 400, color=c, alpha=1,linewidth=0,zorder = 0))
+        s_add = s_add + s
+    #ax.spines['left'].set_visible(False)
+    if showks:
+        if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+    return ax
+
 def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
@@ -1869,7 +1951,7 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
                     ys_ap.append(y)
                     if showks: co_ap.append(ks)
     if showks:
-        if not (ksdf is None):
+        if len(Ks_ages) !=0 and not (ksdf is None):
             norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
             c_m = matplotlib.cm.rainbow
             s_m = ScalarMappable(cmap=c_m, norm=norm)
@@ -1877,7 +1959,7 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     if not showks:
         ax.scatter(xs, ys, s=dotsize, color = 'k', alpha=hoalpha)
         ax.scatter(xs_ap, ys_ap, s=dotsize, color = 'r', alpha=apalpha)
-    else:
+    elif len(Ks_ages) !=0:
         ax.scatter(xs, ys, s=dotsize, color=[c_m(norm(c)) for c in co], alpha=hoalpha)
         ax.scatter(xs_ap, ys_ap, s=dotsize, color=[c_m(norm(c)) for c in co_ap], alpha=apalpha)
     #ax.scatter(xs_ap, ys_ap, s=0.4, alpha=0.5)
@@ -1901,7 +1983,7 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     ax3.set_xlabel("{} (genes)".format(spx))
     ax3.tick_params(axis='x', labelrotation=45)
     if showks:
-        if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+        if len(Ks_ages)!=0 and not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
     return ax
 
 def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
@@ -2108,6 +2190,12 @@ def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,ge
     fig.tight_layout()
     return fig, ax
 
+def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1):
+    fig, ax = plt.subplots(1, 1, figsize=(10,10))
+    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
+    fig.tight_layout()
+    return fig, ax
+
 def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2123,6 +2211,26 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
             if not (ksdf is None):
                 figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
+    for prefix, fig in figs.items():
+        fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
+        fig.savefig(fname)
+        fname = os.path.join(outdir, "{}.dot_unit_gene.png".format(prefix))
+        fig.savefig(fname,dpi=500)
+        fname = os.path.join(outdir, "{}.dot_unit_gene.pdf".format(prefix))
+        fig.savefig(fname)
+    plt.close()
+
+def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1):
+    sp_list = list(ordered_genes_perchrom_allsp.keys())
+    gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
+    gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
+    figs = {}
+    logging.info("Making overall dotplot (in unit of genes)")
+    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
+    figs["Overallspecies"] = fig
+    if not (ksdf is None):
+        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
+        figs["Overallspecies_Ks"] = figks
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
         fig.savefig(fname)
@@ -2157,19 +2265,19 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             spy, dfy = gdf[j]
             logging.info("{} vs. {}".format(spx, spy))
             get_dots(dfx, dfy, segs, multi, minseglen, dupStack = True, **kwargs)
-    logging.info("Making dotplots (in unit of bases) and marco-synteny plots")
+    logging.info("Making dotplots (in unit of bases)")
     getscafflength(n,gdf,**kwargs)
-    if n > 1: get_marco_whole(list(map(lambda x:x[1],gdf)),segs, multi, minseglen,**kwargs)
-    for i in range(n):
-        for j in range(i, n):
-            xxs,yys,ksages,xxs_ap,yys_ap,ksages_ap,Ksages = [],[],[],[],[],[],[]
+    #if n > 1: get_marco_whole(list(map(lambda x:x[1],gdf)),segs, multi, minseglen,**kwargs)
+    for ii in range(n):
+        for jj in range(ii, n):
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
+            xxs,yys,ksages,xxs_ap,yys_ap,ksages_ap,Ksages = [],[],[],[],[],[],[]
             ax2 = ax.twinx()
             ax3 = ax.twiny()
-            spx, dfx = gdf[i]
-            spy, dfy = gdf[j]
+            spx, dfx = gdf[ii]
+            spy, dfy = gdf[jj]
             logging.info("{} vs. {}".format(spx, spy))
-            get_marco(dfx, dfy, segs, multi, minseglen, **kwargs)
+            #get_marco(dfx, dfy, segs, multi, minseglen, **kwargs)
             df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, minseglen, dupStack = False, **kwargs)
             #print(xs)
             #print(ys)
@@ -2222,7 +2330,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             ax3.set_xlabel("{} (Mb)".format(spx))
             fig.tight_layout()
             figs[spx + "-vs-" + spy] = fig
-            if not (Ks is None):
+            if len(Ksages) != 0 and not (Ks is None):
                 figks, axks = plt.subplots(1, 1, figsize=(10,10))
                 axks2 = axks.twinx()
                 axks3 = axks.twiny()
