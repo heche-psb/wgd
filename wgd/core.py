@@ -1639,11 +1639,13 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = N
         else: df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
-def getassignfasta(df,s,querys,outdir,second=False):
+def getassignfasta(df,s,querys,outdir,second=False,third=False):
     yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
     for i in querys: s.merge_seq(i)
     if second:
         p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered'))
+    elif third:
+        p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered_Tree-based'))
     else:
         p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned'))
     pc = _mkdir(os.path.join(p,'cds'))
@@ -1682,6 +1684,42 @@ def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tm
     logging.info("Inferring gene trees using {}".format(tree_method))
     treepaths = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(finalinfertree)(fp,tree_method,treeset) for fp in pps)
     logging.info("The path of tree files is at {}".format(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered','pep')))
+    logging.info("Pruning the tree")
+    df = filtersp(treepaths,gsmap,Noldsp,Nnewsp,df)
+    fname = os.path.join(outdir,os.path.basename(fam2assign)+".assigned.furtherscorefiltered.tree-based")
+    df.to_csv(fname,header=True,index=True,sep='\t')
+    fromgene2count(df,outdir,fam2assign,third=True)
+    getassignfasta(df,s,querys,outdir,third=True)
+
+def prunebranch(allchildren,newsps,df,gsmaps,fam):
+    for sp in newsps: df.loc[fam,sp] = ''
+    for gene in allchildren:
+        if gsmaps[gene] not in newsps:
+            continue
+        df.loc[fam,gsmaps[gene]] = gene if df.loc[fam,gsmaps[gene]] == '' else ", ".join([df.loc[fam,gsmaps[gene]],gene])
+    return df
+
+def findsubfamily(tree,oldsps,newsps,df,fam,gsmaps):
+    tree.root_at_midpoint()
+    oldseqs = []
+    for sp in df.columns:
+        if sp in oldsps:
+            content = df.loc[fam,sp]
+            if type(content) == float or type(content) == np.float64 or content == '':
+                continue
+            oldseqs = oldseqs + content.split(", ")
+    mrca = tree.common_ancestor(*oldseqs)
+    tips = mrca.get_terminals()
+    allchildren = [tip.name for tip in tips]
+    df = prunebranch(allchildren,newsps,df,gsmaps,fam)
+    return df
+
+def filtersp(treepaths,gsmap,Noldsp,Nnewsp,df):
+    treepaths = {fam:tp for tp,fam in zip(treepaths,df.index)}
+    for fam,tp in treepaths.items():
+        tree = Phylo.read(tp,'newick')
+        df = findsubfamily(tree,Noldsp,Nnewsp,df,fam,gsmap)
+    return df
 
 def waln(fpep,faln):
     cmd = ["mafft"] + ["--amino", fpep]
@@ -1827,9 +1865,10 @@ def runselfdiamond(fnamep,eval,nthreads,fam):
     return outfile
 
 
-def fromgene2count(df,outdir,fam2assign,second = False):
+def fromgene2count(df,outdir,fam2assign,second = False,third=False):
     fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.genecount')
     if second: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.furtherscorefiltered.genecount')
+    if third: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.furtherscorefiltered.tree-based.genecount')
     Index = df.index
     columns = {c:[] for c in df.columns}
     for indice in df.index:
