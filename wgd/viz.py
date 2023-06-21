@@ -319,7 +319,7 @@ def addapgmm(ax,X,W,components,outdir,Hs):
     cs = cm.tab20b(np.linspace(0, 1, len(weights)))
     for num in range(len(weights)):
         mean,std,weight = means[num][0],np.sqrt(covariances[num][0][0]),weights[num]
-        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='-', lw=1, alpha=0.8, label='Anchor Ks component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor Ks component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
     return ax
 
 def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
@@ -518,7 +518,12 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
         #for ax, k, f in zip(axs.flatten(), keys, funs):
-        w = reweighted(df_per) if reweight else df_per['weightoutlierexcluded']
+        if reweight:
+            w = reweighted(df_per)
+            df_per_copy = df_per.copy()
+            df_per_copy['weightoutlierexcluded'] = w
+        else:
+            w = df_per['weightoutlierexcluded']
         x = df_per['dS']
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
@@ -535,8 +540,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                     ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
-                logging.info("ELMM analysis on extra paralogous Ks of {}".format(pair.split("__")[0]))
-                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+                logging.info("ELMM analysis on paralogous Ks of {}".format(pair.split("__")[0]))
+                ax = addelmm(ax,df_per_copy,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
                 continue
             if plotkde:
                 kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)

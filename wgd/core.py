@@ -1639,30 +1639,151 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = N
         else: df.to_csv(fname,header = True, index = True,sep = '\t')
     return df
 
-def getassignfasta(df,s,querys,outdir):
+def getassignfasta(df,s,querys,outdir,second=False):
     yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
     for i in querys: s.merge_seq(i)
-    p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned'))
+    if second:
+        p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered'))
+    else:
+        p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned'))
     pc = _mkdir(os.path.join(p,'cds'))
     pp = _mkdir(os.path.join(p,'pep'))
+    pps,glength = [],{}
     for i in df.index:
         fc = os.path.join(pc,i+'.cds')
         fp = os.path.join(pp,i+'.pep')
-        for gi in yids(i):
-            with open(fc,'a') as f: f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
-            with open(fp,'a') as f: f.write('>{}\n{}\n'.format(gi,s.pro_sequence[s.idmap[gi]]))
+        pps.append(fp)
+        with open(fc,'w') as f:
+            for gi in yids(i):
+                if gi == '':
+                    continue
+                f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
+        with open(fp,'w') as f:
+            for gi in yids(i):
+                if gi == '':
+                    continue
+                f.write('>{}\n{}\n'.format(gi,s.pro_sequence[s.idmap[gi]]))
+                glength[gi] = len(s.pro_sequence[s.idmap[gi]])
+        #for gi in yids(i):
+        #    with open(fc,'a') as f: f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
+        #    with open(fp,'a') as f: f.write('>{}\n{}\n'.format(gi,s.pro_sequence[s.idmap[gi]]))
+    return pps,glength
 
-def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign):
+def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir):
     hmmerbuild(df,s,outdir,nthreads)
     hmmf = concathmm(outdir,df)
     c_f = reference_hmmscan(df,s,hmmf,outdir,eval)
     outs = hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=True)
     df = modifydf(df,outs,outdir,fam2assign,use_cf=c_f)
     fromgene2count(df,outdir,fam2assign)
-    getassignfasta(df,s,querys,outdir)
+    pps,glength = getassignfasta(df,s,querys,outdir)
+    df = postrbhcutoff(df,nthreads,eval,outdir,pps,glength,Noldsp,Nnewsp,gsmap,fam2assign,tmpdir)
+    getassignfasta(df,s,querys,outdir,second=True)
 
-def fromgene2count(df,outdir,fam2assign):
+def postrbhcutoff(df,nthreads,eval,outdir,pps,glength,Noldsp,Nnewsp,gsmap,fam2assign,tmpdir):
+    outfiles = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(runselfdiamond)(fnamep,eval,nthreads,fam) for fam,fnamep in zip(df.index,pps))
+    dfs = normalizedout(outfiles,glength,gsmap)
+    df = filterbymin(dfs,df,Noldsp,Nnewsp)
+    fname = os.path.join(outdir,os.path.basename(fam2assign)+".assigned.furtherscorefiltered")
+    df.to_csv(fname,header=True,index=True,sep='\t')
+    fromgene2count(df,outdir,fam2assign,second=True)
+    if tmpdir ==None: rmtmpp(outdir)
+    return df
+
+def rmtmpp(outdir):
+    parent = os.getcwd()
+    target = os.path.join(outdir,'Orthologues_Sequence_Assigned','pep')
+    os.chdir(target)
+    with open('rm.sh','w') as f: f.write('rm *.dmnd *.tsv *.tsv_normalized')
+    sp.run(['sh','rm.sh'],stdout=sp.PIPE,stderr=sp.PIPE)
+    sp.run(['rm','rm.sh'],stdout=sp.PIPE,stderr=sp.PIPE)
+    os.chdir(parent)
+
+def filterbymin(dfs,df,Noldsp,Nnewsp):
+    fams = list(df.index)
+    for d,fam in zip(dfs,fams):
+        cutoff = getreferencecutoff(d,Noldsp)
+        logging.info("The normalized bit-score cutoff of {0} is {1:.2f}".format(fam,cutoff))
+        retainednewseqs = realfilter(d,cutoff,Noldsp,Nnewsp)
+        df = filterdf(df,retainednewseqs,fam,Nnewsp)
+    return df
+
+def filterdf(df,retainednewseqs,fam,Nnewsp):
+    for sp in Nnewsp: df.loc[fam,sp] = ''
+    for gene, sp in retainednewseqs:
+        if df.loc[fam,sp] == '':
+            df.loc[fam,sp] = gene
+        else:
+            df.loc[fam,sp] = ", ".join([df.loc[fam,sp],gene])
+    return df
+
+def realfilter(d,cutoff,Noldsp,Nnewsp):
+    retainednewseqs = []
+    for i in d.index:
+        sp1,sp2 = d.loc[i,14],d.loc[i,15]
+        if sp1 in Noldsp and sp2 in Nnewsp:
+            if d.loc[i,13] >= cutoff:
+                retainednewseqs.append((d.loc[i,1],sp2))
+        if sp1 in Nnewsp and sp2 in Noldsp:
+            if d.loc[i,13] >= cutoff:
+                retainednewseqs.append((d.loc[i,0],sp1))
+    retainednewseqs = [i for i in set(retainednewseqs)]
+    return retainednewseqs
+
+def getreferencecutoff(d,Noldsp):
+    scores_olds = []
+    for i in d.index:
+        sp1,sp2 = d.loc[i,14],d.loc[i,15]
+        if sp1 in Noldsp and sp2 in Noldsp:
+            scores_olds.append(d.loc[i,13])
+    cutoff = min(scores_olds)
+    return cutoff
+
+def normalizedout(outfiles,glength,gsmap):
+    dfs = []
+    for out in outfiles:
+        df = pd.read_csv(out,header=None,index_col=None,sep='\t',usecols=[0,1,11])
+        df = addgleng(df,glength)
+        df = fitall_linear(df)
+        df = addspn(df,gsmap)
+        fname = out + "_normalized"
+        df.to_csv(fname,header=False,index=False,sep='\t')
+        dfs.append(df)
+    return dfs
+
+def addspn(df,gsmap):
+    df[14] = df[0].apply(lambda x:gsmap[x])
+    df[15] = df[1].apply(lambda x:gsmap[x])
+    return df
+
+def fitall_linear(df):
+    slope, intercept, r, p, se = stats.linregress(np.log10(df[12]), np.log10(df[11]))
+    df[13] = [j/(pow(10, intercept)*(l**slope)) for j,l in zip(df[11],df[12])]
+    return df
+
+def addgleng(df,glength):
+    df[12] = df[0].apply(lambda x:glength[x])
+    df[13] = df[1].apply(lambda x:glength[x])
+    df[14] = [g1*g2 for g1,g2 in zip(df[12],df[13])]
+    df = df.drop(columns=[12, 13]).rename(columns={14: 12})
+    return df
+
+def runselfdiamond(fnamep,eval,nthreads,fam):
+    if not os.path.isfile(fnamep[:-4] + '.dmnd'):
+        cmd = ["diamond", "makedb", "--in", fnamep, "-d", fnamep[:-4], "-p", str(nthreads)]
+        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        logging.debug(out.stderr.decode())
+        if out.returncode == 1: logging.error(out.stderr.decode())
+    outfile = "_".join([fnamep[:-4],fam+".tsv"])
+    cmd = ["diamond", "blastp", "-d", fnamep[:-4] + '.dmnd', "-q", fnamep, "-e", str(eval), "-o", outfile, "-p", str(nthreads)]
+    out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    logging.debug(out.stderr.decode())
+    return outfile
+
+
+def fromgene2count(df,outdir,fam2assign,second = False):
     fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.genecount')
+    if second: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned.furtherscorefiltered.genecount')
     Index = df.index
     columns = {c:[] for c in df.columns}
     for indice in df.index:
@@ -1690,11 +1811,16 @@ def dmd4g2f(outdir,s,nthreads,querys,df):
     return None
 
 def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent):
+    Noldsp = [i.prefix for i in s]
+    gsmap = {}
+    for seq in s: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})
     logging.info("Assigning sequences into given gene families")
     seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, normalizedpercent=normalizedpercent) for s in seq2assign]
+    for seq in seqs_query: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})
+    Nnewsp = [i.prefix for i in seqs_query]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
-    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign)
+    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir)
     else: dmd4g2f(outdir,s[0],nthreads,seqs_query,df)
     rmtmp(tmpdir,outdir,seqs_query)
     endt(tmpdir,start,s)

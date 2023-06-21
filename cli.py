@@ -533,7 +533,7 @@ def viz(**kwargs):
     _viz(**kwargs)
 
 def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha):
-    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber
+    from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
     from wgd.peak import formatv2
@@ -556,6 +556,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
         segs = filter_mingenumber(segs_gene_unit,mingenenum)
         dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
+        dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
         #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
         figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
         for k, v in figs.items():
@@ -591,6 +592,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="keyword for parsing the genes from the GFF file (column 3)")
 @click.option('--attribute', '-a', default='ID', show_default=True,
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
+@click.option('--additionalgffinfo', '-atg', default='mRNA;ID',multiple=True, show_default=True, help='the feature and attribute info of additional gff3 if different')
 @click.option('--minlen', '-ml', default=-1, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
 @click.option('--maxsize', '-ms', default=200, show_default=True,
@@ -614,7 +616,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha):
+        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -630,7 +632,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     # read families and make table
     prefix = os.path.basename(families)
     fams = pd.read_csv(families, index_col=0, sep="\t")
-    table = make_gene_table(gff_files, fams, feature, attribute)
+    table = make_gene_table(gff_files, fams, feature, attribute, additionalgffinfo)
     table_orig = table.copy()
     if len(table.dropna().index) == 0:
         logging.error("No genes from families file `{}` found in the GFF file "
