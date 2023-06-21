@@ -1669,7 +1669,7 @@ def getassignfasta(df,s,querys,outdir,second=False):
         #    with open(fp,'a') as f: f.write('>{}\n{}\n'.format(gi,s.pro_sequence[s.idmap[gi]]))
     return pps,glength
 
-def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir):
+def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir,tree_method,treeset):
     hmmerbuild(df,s,outdir,nthreads)
     hmmf = concathmm(outdir,df)
     c_f = reference_hmmscan(df,s,hmmf,outdir,eval)
@@ -1678,7 +1678,53 @@ def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tm
     fromgene2count(df,outdir,fam2assign)
     pps,glength = getassignfasta(df,s,querys,outdir)
     df = postrbhcutoff(df,nthreads,eval,outdir,pps,glength,Noldsp,Nnewsp,gsmap,fam2assign,tmpdir)
-    getassignfasta(df,s,querys,outdir,second=True)
+    pps,glength = getassignfasta(df,s,querys,outdir,second=True)
+    logging.info("Inferring gene trees using {}".format(tree_method))
+    treepaths = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(finalinfertree)(fp,tree_method,treeset) for fp in pps)
+    logging.info("The path of tree files is at {}".format(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered','pep')))
+
+def waln(fpep,faln):
+    cmd = ["mafft"] + ["--amino", fpep]
+    out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+    with open(faln, 'w') as f: f.write(out.stdout.decode('utf-8'))
+
+def runiqree(faln,treeset):
+    if not treeset is None:
+        treesetfull = []
+        cmd = ["iqtree", "-s", faln]
+        for i in treeset:
+            i = i.strip(" ").split(" ")
+            treesetfull = treesetfull + i
+        cmd = cmd + treesetfull
+    else:
+        cmd = ["iqtree", "-s", faln]
+    sp.run(cmd, stdout=sp.PIPE)
+
+def runfastree(faln,treeset):
+    if not treeset is None:
+        treesetfull = []
+        cmd = ["FastTree", "-out", faln+".fasttree", faln]
+        for i in treeset:
+            i = i.strip(" ").split(" ")
+            treesetfull = treesetfull + i
+        cmd = cmd[:1] + treesetfull + cmd[1:]
+    else:
+        cmd = ["FastTree", "-out", faln+".fasttree", faln]
+    sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+
+def wgenetree(faln,tree_method,treeset):
+    if tree_method == 'iqtree':
+        runiqree(faln,treeset)
+        return faln+".treefile"
+    if tree_method == 'fasttree':
+        runfastree(faln,treeset)
+        return faln+".fasttree"
+
+def finalinfertree(fp,tree_method,treeset):
+    waln(fp,fp+".aln")
+    treepath = wgenetree(fp+".aln",tree_method,treeset)
+    return treepath
+
 
 def postrbhcutoff(df,nthreads,eval,outdir,pps,glength,Noldsp,Nnewsp,gsmap,fam2assign,tmpdir):
     outfiles = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(runselfdiamond)(fnamep,eval,nthreads,fam) for fam,fnamep in zip(df.index,pps))
@@ -1703,7 +1749,7 @@ def filterbymin(dfs,df,Noldsp,Nnewsp):
     fams = list(df.index)
     for d,fam in zip(dfs,fams):
         cutoff = getreferencecutoff(d,Noldsp)
-        logging.info("The normalized bit-score cutoff of {0} is {1:.2f}".format(fam,cutoff))
+        logging.info("The normalized bit-score cutoff for {0} is {1:.2f}".format(fam,cutoff))
         retainednewseqs = realfilter(d,cutoff,Noldsp,Nnewsp)
         df = filterdf(df,retainednewseqs,fam,Nnewsp)
     return df
@@ -1812,7 +1858,7 @@ def rmtmp(tmpdir,outdir,querys):
 def dmd4g2f(outdir,s,nthreads,querys,df):
     return None
 
-def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent):
+def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset):
     Noldsp = [i.prefix for i in s]
     gsmap = {}
     for seq in s: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})
@@ -1822,7 +1868,7 @@ def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_s
     Nnewsp = [i.prefix for i in seqs_query]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
     for i in range(1, len(s)): s[0].merge_seq(s[i])
-    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir)
+    if assign_method == 'hmmer': hmmer4g2f(outdir,s[0],nthreads,seqs_query,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tmpdir,tree_method,treeset)
     else: dmd4g2f(outdir,s[0],nthreads,seqs_query,df)
     rmtmp(tmpdir,outdir,seqs_query)
     endt(tmpdir,start,s)
