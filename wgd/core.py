@@ -1790,6 +1790,8 @@ def fromgene2count(df,outdir,fam2assign,second = False):
         for c in df.columns:
             if type(df.loc[indice,c]) != str:
                 columns[c].append(0)
+            elif df.loc[indice,c] == '':
+                columns[c].append(0)
             else:
                 columns[c].append(len(df.loc[indice,c].split(", ")))
     df_out = pd.DataFrame.from_dict(columns)
