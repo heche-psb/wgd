@@ -319,7 +319,7 @@ def addapgmm(ax,X,W,components,outdir,Hs):
     cs = cm.tab20b(np.linspace(0, 1, len(weights)))
     for num in range(len(weights)):
         mean,std,weight = means[num][0],np.sqrt(covariances[num][0][0]),weights[num]
-        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
     return ax
 
 def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):

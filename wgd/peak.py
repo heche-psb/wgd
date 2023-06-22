@@ -64,7 +64,7 @@ def info_components(m,i,info_table):
         stds.append(std)
         weights.append(weight)
         precisions.append(precision)
-        logging.info("Component {0} has mean {1:.3f} ,std {2:.3f} ,weight {3:.3f}, precision {4:.3f}".format(j+1,mean,std,weight,precision))
+        logging.info("Component {0} has mean {1:.3f}, std {2:.3f}, weight {3:.3f}, precision {4:.3f}".format(j+1,mean,std,weight,precision))
     info_table['{}component'.format(i)] = {'mean':means,'covariance':covariances,'weight':weights,'precision':precisions,'stds':stds}
 
 def aic_info(aic,n1):
@@ -276,11 +276,12 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     fig.tight_layout()
     return fig
 
-def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
+def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',showCI=False):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
+    CI_dict = {}
     if weighted:
         for num,color in zip(range(nums),colors):
             # here I recover the std by sqrt
@@ -297,7 +298,13 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
-            ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            if showCI:
+                #CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
+                CI_95 = stats.lognorm(std,loc=0,scale=np.exp(mean)).interval(0.95)
+                CI_dict[num]=CI_95
+                plt.axvline(x = CI_95[0], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.axvline(x = CI_95[1], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     else:
         for num,color in zip(range(nums),colors):
             mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
@@ -311,7 +318,12 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
-            ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            if showCI:
+                CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
+                CI_dict[num]=CI_95
+                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     #ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
@@ -323,7 +335,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
-    return fig
+    return fig, CI_dict
 
 def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
     colors = cm.viridis(np.linspace(0, 1, nums))
@@ -1601,6 +1613,7 @@ def calculateHPD(train_in,per):
     return sorted_in[upper],sorted_in[lower]
 
 def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
+    logging.info("GMM modeling on Log-scale segment Ks data")
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1617,10 +1630,10 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,guide+'_Ks','GMM')
-        significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
     else:
         plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,guide+'_Ks','GMM')
-        significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
     Losses = []
     for n, m in zip(N,models):
         labels = m.predict(X_log)
@@ -1659,7 +1672,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
-def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot):
+def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,showCI=False,cutoff = 3):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1673,10 +1686,10 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,'Original_AnchorKs','GMM')
-        significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
     else:
         plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,'Original_AnchorKs','GMM')
-        significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
     Losses = []
     for n, m in zip(N,models):
         labels = m.predict(X_log)
@@ -1693,13 +1706,24 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
         #else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
         #fig.savefig(fname)
         #plt.close()
-        fig = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original')
+        fig, CI = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI)
+        if showCI: df_c_CI = add_apCI(df_c,outdir,CI,n,cutoff)
         if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
         fig.savefig(fname)
         plt.close()
     plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime='original')
     return df
+
+def add_apCI(df,outdir,CI,n,cutoff):
+    for comp, ci in CI.items():
+        df_tmp = df[df['AnchorKs_GMM_Component']==comp]
+        maxi = min([ci[1],cutoff])
+        df_tmp = df_tmp[ci[0]<=df_tmp['dS']]
+        df_tmp = df_tmp[df_tmp['dS']<=maxi].loc[:,['dS']].copy()
+        df_tmp['gene_x'], df_tmp['gene_y'] = [pair.split("__")[0] for pair in df_tmp.index], [pair.split("__")[1] for pair in df_tmp.index]
+        fname = os.path.join(outdir,'Original_AnchorKs_GMM_{0}components_C{1}_95%CI.tsv'.format(n,comp))
+        df_tmp.to_csv(fname,header=True,index=True,sep='\t')
 
 def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
     """
