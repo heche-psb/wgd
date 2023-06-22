@@ -517,11 +517,11 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             drawtime = drawtime + 1
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
+        df_per = df_per.copy()
         #for ax, k, f in zip(axs.flatten(), keys, funs):
         if reweight:
             w = reweighted(df_per)
-            df_per_copy = df_per.copy()
-            df_per_copy['weightoutlierexcluded'] = w
+            df_per['weightoutlierexcluded'] = w
         else:
             w = df_per['weightoutlierexcluded']
         x = df_per['dS']
@@ -541,7 +541,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
                 logging.info("ELMM analysis on paralogous Ks of {}".format(pair.split("__")[0]))
-                ax = addelmm(ax,df_per_copy,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
                 continue
             if plotkde:
                 kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
