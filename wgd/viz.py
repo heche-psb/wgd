@@ -1074,6 +1074,7 @@ def syntenic_depth_plot(segprofile):
     cols = segprofile.columns
     n = len(cols)
     fig, axs = plt.subplots(1, int(n + n*(n-1)/2))
+    fig.set_size_inches(5*int(n + n*(n-1)/2), 10)
     if n == 1:
         axs = [axs]  # HACK
     k = 0
@@ -1830,7 +1831,7 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
         sorted_leng = [i[1] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
         tick_strip.append(sum(sorted_leng))
         sorted_lengs = sorted_lengs + sorted_leng
-        sorted_label = [sp[:3]+'_'+i[0] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
+        sorted_label = [sp[:3]+'_'+str(i[0]) for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
         sorted_labels = sorted_labels + sorted_label
     tick = list(np.cumsum(sorted_lengs))
     tick_strip = list(np.cumsum(tick_strip))
@@ -1880,20 +1881,24 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
     xlim = ylim = tick[-1]
     ax.set_xlim(-400, xlim)
     ax.set_ylim(-400, ylim)
-    ax.vlines(tick, ymin=0, ymax=ylim, alpha=0.8, color="k", linewidths=0.5)
-    ax.hlines(tick, xmin=0, xmax=xlim, alpha=0.8, color="k", linewidths=0.5)
+    #ax.vlines(tick, ymin=0, ymax=ylim, alpha=0.8, color="k", linewidths=0.5)
+    #ax.hlines(tick, xmin=0, xmax=xlim, alpha=0.8, color="k", linewidths=0.5)
     ax.set_xticks(tick)
     ax.set_xticklabels(sorted_labels,rotation=45)
     ax.set_yticks(tick)
     ax.set_yticklabels(sorted_labels,rotation=45)
     ax.spines['bottom'].set_visible(False)
     ax.spines['left'].set_visible(False)
+    ax.grid(True, linestyle='-', linewidth=0.5, color='gray')
+    ax.plot([0,xlim], [0,ylim], color='k', alpha=0.8,linewidth=0.5)
     cs = cm.viridis(np.linspace(0, 1, len(tick_strip)))
-    s_add = 0
-    for s,c in zip(tick_strip,cs):
-        ax.add_patch(Rectangle((-400, 0+s_add), 400, s, color=c, alpha=1,linewidth=0,zorder = 0))
-        ax.add_patch(Rectangle((0+s_add, -400), s, 400, color=c, alpha=1,linewidth=0,zorder = 0))
-        s_add = s_add + s
+    for indice,s,c in zip(range(len(tick_strip)),tick_strip,cs):
+        if indice == 0: s_add = 0
+        else: s_add = tick_strip[indice-1]
+        ax.axhline(y=s, color='k', linestyle='-',linewidth=1)
+        ax.axvline(x=s, color='k', linestyle='-',linewidth=1)
+        ax.add_patch(Rectangle((-400, 0+s_add), 400, s-s_add, color=c, alpha=1,linewidth=0,zorder = 0))
+        ax.add_patch(Rectangle((0+s_add, -400), s-s_add, 400, color=c, alpha=1,linewidth=0,zorder = 0))
     #ax.spines['left'].set_visible(False)
     if showks:
         if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
@@ -1966,8 +1971,10 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     xlim,ylim = xtick[-1],ytick[-1]
     ax.set_xlim(0, xlim)
     ax.set_ylim(0, ylim)
-    ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
-    ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
+    if spx == spy: ax.plot([0,xlim], [0,ylim], color='k', alpha=0.8,linewidth=0.5)
+    #ax.vlines(xtick, ymin=0, ymax=ylim, alpha=0.8, color="k")
+    #ax.hlines(ytick, xmin=0, xmax=xlim, alpha=0.8, color="k")
+    ax.grid(True, linestyle='-', linewidth=0.5, color='gray')
     ax.set_xlabel("{}".format(spx))
     ax.set_ylabel("{}".format(spy))
     ax.set_xticks(xtick)
@@ -2208,9 +2215,11 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
             logging.info("{0} vs. {1}".format(spx,spy))
             fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
             figs[spx + "-vs-" + spy] = fig
+            plt.close()
             if not (ksdf is None):
                 figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
+                plt.close()
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
         fig.savefig(fname)
@@ -2228,9 +2237,11 @@ def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,
     logging.info("Making overall dotplot (in unit of genes)")
     fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
     figs["Overallspecies"] = fig
+    plt.close()
     if not (ksdf is None):
         figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
         figs["Overallspecies_Ks"] = figks
+        plt.close()
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.dot_unit_gene.svg".format(prefix))
         fig.savefig(fname)
@@ -2315,8 +2326,10 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             ax.set_ylim(0, ylim)
             ymin, ymax = ax.get_ylim()
             xmin, xmax = ax.get_xlim()
-            ax.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
-            ax.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+            #ax.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
+            #ax.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+            if spx == spy: ax.plot([0,xlim], [0,ylim], color='k', alpha=0.8,linewidth=0.5)
+            ax.grid(True, linestyle='-', linewidth=0.5, color='gray')
             ax.set_xlabel("{}".format(spx))
             ax.set_ylabel("{}".format(spy))
             ax2.set_yticklabels(ax.get_yticks() / 1e6)
@@ -2330,6 +2343,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             ax3.set_xlabel("{} (Mb)".format(spx))
             fig.tight_layout()
             figs[spx + "-vs-" + spy] = fig
+            plt.close()
             if len(Ksages) != 0 and not (Ks is None):
                 figks, axks = plt.subplots(1, 1, figsize=(10,10))
                 axks2 = axks.twinx()
@@ -2342,8 +2356,9 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 axks.scatter(xxs_ap, yys_ap, s=dotsize, color=[c_m(norm(c)) for c in ksages_ap], alpha=apalpha)
                 axks.set_xlim(0, xlim)
                 axks.set_ylim(0, ylim)
-                axks.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
-                axks.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+                #axks.vlines(xs+[xmax], ymin=0, ymax=ylim, alpha=0.8, color="k")
+                #axks.hlines(ys+[ymax], xmin=0, xmax=xlim, alpha=0.8, color="k")
+                axks.grid(True, linestyle='-', linewidth=0.5, color='gray')
                 axks.set_xlabel("{}".format(spx))
                 axks.set_ylabel("{}".format(spy))
                 axks2.set_yticklabels(axks.get_yticks() / 1e6)
@@ -2355,9 +2370,11 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 axks.set_yticklabels(scaffylabels,rotation=45)
                 axks2.set_ylabel("{} (Mb)".format(spy))
                 axks3.set_xlabel("{} (Mb)".format(spx))
+                if spx == spy: axks.plot([0,xlim], [0,ylim], color='k', alpha=0.8,linewidth=0.5)
                 plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
                 figks.tight_layout()
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
+                plt.close()
     return figs
 
 def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
