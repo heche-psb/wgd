@@ -28,7 +28,7 @@ def make_gene_table(gffs, families, feature, attribute, additionalgffinfo):
     may wish, for flexibility, to allow a list of feature/attribute arguments
     in the future, one for each GFF file.
     """
-    if not (additionalgffinfo is None):
+    if not (additionalgffinfo is None) and len(additionalgffinfo) > 0:
         # ignore the info in the original feature and attribute
         features, attributes = [i.split(";")[0].strip() for i in additionalgffinfo], [i.split(";")[1].strip() for i in additionalgffinfo]
         if len(features) != len(attributes):

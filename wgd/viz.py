@@ -1818,7 +1818,7 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
-def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1):
+def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False):
     dfs = {sp:ordered_genes_perchrom_allsp[sp].copy().drop(removed_scfa[sp],axis=1).set_index('Coordinates') for sp in sp_list}
     leng_info = {sp:{} for sp in sp_list}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -1900,11 +1900,20 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
         ax.add_patch(Rectangle((-400, 0+s_add), 400, s-s_add, color=c, alpha=1,linewidth=0,zorder = 0))
         ax.add_patch(Rectangle((0+s_add, -400), s-s_add, 400, color=c, alpha=1,linewidth=0,zorder = 0))
     #ax.spines['left'].set_visible(False)
+    if showrealtick:
+        ax2 = ax.twinx()
+        ax3 = ax.twiny()
+        ax2.set_yticks(tick)
+        ax2.set_ylabel("{} (genes)".format(spy))
+        ax2.tick_params(axis='y', labelrotation=45)
+        ax3.set_xticks(tick)
+        ax3.set_xlabel("{} (genes)".format(spx))
+        ax3.tick_params(axis='x', labelrotation=45)
     if showks:
         if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
     return ax
 
-def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1):
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -1981,14 +1990,15 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     ax.set_xticklabels(sorted_labels_x,rotation=45)
     ax.set_yticks(ytick)
     ax.set_yticklabels(sorted_labels_y,rotation=45)
-    ax2 = ax.twinx()
-    ax3 = ax.twiny()
-    ax2.set_yticks(ytick)
-    ax2.set_ylabel("{} (genes)".format(spy))
-    ax2.tick_params(axis='y', labelrotation=45)
-    ax3.set_xticks(xtick)
-    ax3.set_xlabel("{} (genes)".format(spx))
-    ax3.tick_params(axis='x', labelrotation=45)
+    if showrealtick:
+        ax2 = ax.twinx()
+        ax3 = ax.twiny()
+        ax2.set_yticks(ytick)
+        ax2.set_ylabel("{} (genes)".format(spy))
+        ax2.tick_params(axis='y', labelrotation=45)
+        ax3.set_xticks(xtick)
+        ax3.set_xlabel("{} (genes)".format(spx))
+        ax3.tick_params(axis='x', labelrotation=45)
     if showks:
         if len(Ks_ages)!=0 and not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
     return ax
@@ -2189,21 +2199,21 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
         fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
-def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1):
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
     fig.tight_layout()
     return fig, ax
 
-def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1):
+def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
-    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
+    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
     fig.tight_layout()
     return fig, ax
 
-def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1):
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
@@ -2213,11 +2223,11 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
             logging.info("{0} vs. {1}".format(spx,spy))
-            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
             figs[spx + "-vs-" + spy] = fig
             plt.close()
             if not (ksdf is None):
-                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha)
+                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
                 plt.close()
     for prefix, fig in figs.items():
@@ -2229,17 +2239,17 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         fig.savefig(fname)
     plt.close()
 
-def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1):
+def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
     logging.info("Making overall dotplot (in unit of genes)")
-    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
+    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
     figs["Overallspecies"] = fig
     plt.close()
     if not (ksdf is None):
-        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha)
+        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
         figs["Overallspecies_Ks"] = figks
         plt.close()
     for prefix, fig in figs.items():
@@ -2252,7 +2262,7 @@ def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,
     plt.close()
 
 # dot plot stuff
-def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, **kwargs):
+def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, showrealtick=False, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
@@ -2283,8 +2293,9 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
         for jj in range(ii, n):
             fig, ax = plt.subplots(1, 1, figsize=(10,10))
             xxs,yys,ksages,xxs_ap,yys_ap,ksages_ap,Ksages = [],[],[],[],[],[],[]
-            ax2 = ax.twinx()
-            ax3 = ax.twiny()
+            if showrealtick:
+                ax2 = ax.twinx()
+                ax3 = ax.twiny()
             spx, dfx = gdf[ii]
             spy, dfy = gdf[jj]
             logging.info("{} vs. {}".format(spx, spy))
@@ -2332,22 +2343,25 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             ax.grid(True, linestyle='-', linewidth=0.5, color='gray')
             ax.set_xlabel("{}".format(spx))
             ax.set_ylabel("{}".format(spy))
-            ax2.set_yticklabels(ax.get_yticks() / 1e6)
-            ax3.set_xticklabels(ax.get_xticks() / 1e6)
+            if showrealtick:
+                ax2.set_yticklabels(ax.get_yticks() / 1e6)
+                ax3.set_xticklabels(ax.get_xticks() / 1e6)
             ax.tick_params(axis='both', which='major')
             ax.set_xticks(scaffxtick)
             ax.set_xticklabels(scaffxlabels,rotation=45)
             ax.set_yticks(scaffytick)
             ax.set_yticklabels(scaffylabels,rotation=45)
-            ax2.set_ylabel("{} (Mb)".format(spy))
-            ax3.set_xlabel("{} (Mb)".format(spx))
+            if showrealtick:
+                ax2.set_ylabel("{} (Mb)".format(spy))
+                ax3.set_xlabel("{} (Mb)".format(spx))
             fig.tight_layout()
             figs[spx + "-vs-" + spy] = fig
             plt.close()
             if len(Ksages) != 0 and not (Ks is None):
                 figks, axks = plt.subplots(1, 1, figsize=(10,10))
-                axks2 = axks.twinx()
-                axks3 = axks.twiny()
+                if showrealtick:
+                    axks2 = axks.twinx()
+                    axks3 = axks.twiny()
                 norm = matplotlib.colors.Normalize(vmin=np.min(Ksages), vmax=np.max(Ksages))
                 c_m = matplotlib.cm.rainbow
                 s_m = ScalarMappable(cmap=c_m, norm=norm)
@@ -2361,15 +2375,17 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 axks.grid(True, linestyle='-', linewidth=0.5, color='gray')
                 axks.set_xlabel("{}".format(spx))
                 axks.set_ylabel("{}".format(spy))
-                axks2.set_yticklabels(axks.get_yticks() / 1e6)
-                axks3.set_xticklabels(axks.get_xticks() / 1e6)
+                if showrealtick:
+                    axks2.set_yticklabels(axks.get_yticks() / 1e6)
+                    axks3.set_xticklabels(axks.get_xticks() / 1e6)
                 axks.tick_params(axis='both', which='major')
                 axks.set_xticks(scaffxtick)
                 axks.set_xticklabels(scaffxlabels,rotation=45)
                 axks.set_yticks(scaffytick)
                 axks.set_yticklabels(scaffylabels,rotation=45)
-                axks2.set_ylabel("{} (Mb)".format(spy))
-                axks3.set_xlabel("{} (Mb)".format(spx))
+                if showrealtick:
+                    axks2.set_ylabel("{} (Mb)".format(spy))
+                    axks3.set_xlabel("{} (Mb)".format(spx))
                 if spx == spy: axks.plot([0,xlim], [0,ylim], color='k', alpha=0.8,linewidth=0.5)
                 plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
                 figks.tight_layout()
