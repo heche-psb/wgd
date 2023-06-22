@@ -2419,9 +2419,10 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
     segs = Filter_miniseglen(segs,Sf_len_lab_persp,minseglen,genetable)
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
-    fig = syntenic_depth_plot(profile)
-    fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
-    fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
+    if len(gdf) <=5 :
+        fig = syntenic_depth_plot(profile)
+        fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
+        fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs,genetable,multi,removed_scfa
 
