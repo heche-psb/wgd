@@ -525,7 +525,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
 @click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
-@click.option('--hoalpha', '-ha', type=float, default=0.1, show_default=True, help='opacity of homolog dots')
+@click.option('--hoalpha', '-ha', type=float, default=0, show_default=True, help='opacity of homolog dots')
 @click.option('--showrealtick', '-srt', is_flag=True, help='show the real tick in genes or bases')
 def viz(**kwargs):
     """
@@ -609,7 +609,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
-@click.option('--hoalpha', '-ha', type=float, default=0.1, show_default=True, help='opacity of homolog dots')
+@click.option('--hoalpha', '-ha', type=float, default=0, show_default=True, help='opacity of homolog dots')
 @click.option('--showrealtick', '-srt', is_flag=True, help='show the real tick in genes or bases')
 def syn(**kwargs):
     """
