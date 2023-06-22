@@ -319,7 +319,7 @@ def addapgmm(ax,X,W,components,outdir,Hs):
     cs = cm.tab20b(np.linspace(0, 1, len(weights)))
     for num in range(len(weights)):
         mean,std,weight = means[num][0],np.sqrt(covariances[num][0][0]),weights[num]
-        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor Ks component {} mode {:.2f}'.format(num+1,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
     return ax
 
 def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
@@ -487,8 +487,12 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     if not viz: writespgenemap(spgenemap,outdir)
     df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=sptree)
     if len(paralog_pair) == 1:
-        fnames = os.path.join(outdir,'{}_Corrected.ksd.svg'.format(paralog_pair[0].split('__')[0]))
-        fnamep = os.path.join(outdir,'{}_Corrected.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
+        if len(df_perspair) == 1:
+            fnames = os.path.join(outdir,'{}.ksd.svg'.format(paralog_pair[0].split('__')[0]))
+            fnamep = os.path.join(outdir,'{}.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
+        else:
+            fnames = os.path.join(outdir,'{}_Corrected.ksd.svg'.format(paralog_pair[0].split('__')[0]))
+            fnamep = os.path.join(outdir,'{}_Corrected.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
     elif len(paralog_pair) > 1:
         fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.svg')
         fnamep = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.pdf')
@@ -528,7 +532,10 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
         if pair in paralog_pair:
-            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
+            if len(df_perspair) == 1:
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray', alpha=1, rwidth=0.8,label='Whole paranome')
+            else:
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
             if not (df_para is None):
                 continue
             if not plotelmm:
@@ -576,15 +583,26 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         x = df_working['dS']
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
-        Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
+        if len(df_perspair) == 1:
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='g', rwidth=0.8,label='Anchor pairs')
+        else:
+            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
         if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs)
     ax.set_xlabel(_labels["dS"])
     #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
-    ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
-    ax.set_ylabel(ylabel)
+    if len(df_perspair) == 1 and len(paralog_pair) == 1:
+        ax.legend(loc=1,fontsize=7,frameon=False)
+    else:
+        ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
+    if len(df_perspair) == 1 and len(paralog_pair) == 1:
+        ax.set_ylabel('Number of retained duplicates')
+    else:
+        ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
     sns.despine(offset=1)
-    if len(paralog_pair) !=0: title = 'Corrected $K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
+    if len(df_perspair) == 1:
+        title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
+    elif len(paralog_pair) !=0: title = 'Corrected $K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
     else: title = 'Orthologous $K_\mathrm{S}$ distribution'
     ax.set_title(title)
     #fig.tight_layout()
@@ -1818,7 +1836,7 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
-def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False):
+def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
     dfs = {sp:ordered_genes_perchrom_allsp[sp].copy().drop(removed_scfa[sp],axis=1).set_index('Coordinates') for sp in sp_list}
     leng_info = {sp:{} for sp in sp_list}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -1911,9 +1929,10 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
         ax3.tick_params(axis='x', labelrotation=45)
     if showks:
         if not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+    ax.tick_params(axis='both', which='major', labelsize=las)
     return ax
 
-def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False):
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2001,6 +2020,7 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
         ax3.tick_params(axis='x', labelrotation=45)
     if showks:
         if len(Ks_ages)!=0 and not (ksdf is None): plt.colorbar(s_m, label="$K_\mathrm{S}$", orientation="vertical",fraction=0.03,pad=0.1)
+    ax.tick_params(axis='both', which='major', labelsize=las)
     return ax
 
 def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
@@ -2199,21 +2219,21 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
         fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
-def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False):
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False, las=5):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las)
     fig.tight_layout()
     return fig, ax
 
-def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False):
+def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
-    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
     fig.tight_layout()
     return fig, ax
 
-def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False):
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
@@ -2223,11 +2243,11 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
             logging.info("{0} vs. {1}".format(spx,spy))
-            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
             figs[spx + "-vs-" + spy] = fig
             plt.close()
             if not (ksdf is None):
-                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
                 plt.close()
     for prefix, fig in figs.items():
@@ -2239,17 +2259,17 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         fig.savefig(fname)
     plt.close()
 
-def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False):
+def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False, las = 5):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
     logging.info("Making overall dotplot (in unit of genes)")
-    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
     figs["Overallspecies"] = fig
     plt.close()
     if not (ksdf is None):
-        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick)
+        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
         figs["Overallspecies_Ks"] = figks
         plt.close()
     for prefix, fig in figs.items():
@@ -2262,7 +2282,7 @@ def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,
     plt.close()
 
 # dot plot stuff
-def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, showrealtick=False, **kwargs):
+def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
@@ -2346,7 +2366,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             if showrealtick:
                 ax2.set_yticklabels(ax.get_yticks() / 1e6)
                 ax3.set_xticklabels(ax.get_xticks() / 1e6)
-            ax.tick_params(axis='both', which='major')
+            ax.tick_params(axis='both', which='major', labelsize=las)
             ax.set_xticks(scaffxtick)
             ax.set_xticklabels(scaffxlabels,rotation=45)
             ax.set_yticks(scaffytick)
@@ -2378,7 +2398,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                 if showrealtick:
                     axks2.set_yticklabels(axks.get_yticks() / 1e6)
                     axks3.set_xticklabels(axks.get_xticks() / 1e6)
-                axks.tick_params(axis='both', which='major')
+                axks.tick_params(axis='both', which='major', labelsize=las)
                 axks.set_xticks(scaffxtick)
                 axks.set_xticklabels(scaffxlabels,rotation=45)
                 axks.set_yticks(scaffytick)
@@ -2433,21 +2453,28 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
         segs = segs.drop(I3)
         multi = multi[multi['is_redundant']==0]
     segs = Filter_miniseglen(segs,Sf_len_lab_persp,minseglen,genetable)
-    counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
-    profile = counted.unstack(level=-1).fillna(0)
-    if len(gdf) <=5 :
-        fig = syntenic_depth_plot(profile)
-        fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
-        fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
-    profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
+    #counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    #profile = counted.unstack(level=-1).fillna(0)
+    #if len(gdf) <=5 :
+    #    fig = syntenic_depth_plot(profile)
+    #    fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
+    #    fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
+    #profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs,genetable,multi,removed_scfa
 
-def filter_mingenumber(segs,mingenenum):
+def filter_mingenumber(segs,mingenenum,outdir,N):
     rm_indice = []
     for indice, f, l in zip(segs.index,segs['first_coordinate'],segs['last_coordinate']):
         if (l-f+1) < mingenenum:
             rm_indice.append(indice)
     segs = segs.drop(rm_indice)
+    counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
+    profile = counted.unstack(level=-1).fillna(0)
+    if N <=5 :
+        fig = syntenic_depth_plot(profile)
+        fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
+        fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
+    profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs
 
 def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
