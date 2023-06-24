@@ -323,12 +323,13 @@ def addapgmm(ax,X,W,components,outdir,Hs):
         ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
     return ax
 
-def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
+def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
     df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     ks_or = np.array(df['dS'])
     w = np.array(df['weightoutlierexcluded'])
-    deconvoluted_data = get_deconvoluted_data(ks_or,w)
+    if na: deconvoluted_data = ks_or.copy()
+    else: deconvoluted_data = get_deconvoluted_data(ks_or,w)
     hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
     init_lambd = hist_property[0][0]
     ks = np.log(ks_or)
@@ -474,7 +475,15 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
     return ax
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
+    if na:
+        df = df.drop_duplicates(subset=['family','node'])
+        df = df.loc[:,['node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df['weightoutlierexcluded'] = 1
+        logging.info("Implementing node-averaged Ks analysis")
+    else: logging.info("Implementing node-weighted Ks analysis")
+    df = df.dropna(subset=['dS','weightoutlierexcluded'])
+    df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     df_para = None
     if extraparanomeks != None:
         df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
@@ -490,17 +499,33 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=sptree)
     if len(paralog_pair) == 1:
         if len(df_perspair) == 1:
-            fnames = os.path.join(outdir,'{}.ksd.svg'.format(paralog_pair[0].split('__')[0]))
-            fnamep = os.path.join(outdir,'{}.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
+            if na:
+                fnames = os.path.join(outdir,'{}.ksd.averaged.svg'.format(paralog_pair[0].split('__')[0]))
+                fnamep = os.path.join(outdir,'{}.ksd.averaged.pdf'.format(paralog_pair[0].split('__')[0]))
+            else:
+                fnames = os.path.join(outdir,'{}.ksd.weighted.svg'.format(paralog_pair[0].split('__')[0]))
+                fnamep = os.path.join(outdir,'{}.ksd.weighted.pdf'.format(paralog_pair[0].split('__')[0]))
         else:
-            fnames = os.path.join(outdir,'{}_Corrected.ksd.svg'.format(paralog_pair[0].split('__')[0]))
-            fnamep = os.path.join(outdir,'{}_Corrected.ksd.pdf'.format(paralog_pair[0].split('__')[0]))
+            if na:
+                fnames = os.path.join(outdir,'{}_Corrected.ksd.averaged.svg'.format(paralog_pair[0].split('__')[0]))
+                fnamep = os.path.join(outdir,'{}_Corrected.ksd.averaged.pdf'.format(paralog_pair[0].split('__')[0]))
+            else:
+                fnames = os.path.join(outdir,'{}_Corrected.ksd.weighted.svg'.format(paralog_pair[0].split('__')[0]))
+                fnamep = os.path.join(outdir,'{}_Corrected.ksd.weighted.pdf'.format(paralog_pair[0].split('__')[0]))
     elif len(paralog_pair) > 1:
-        fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.svg')
-        fnamep = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.pdf')
+        if na:
+            fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.averaged.svg')
+            fnamep = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.averaged.pdf')
+        else:
+            fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.weighted.svg')
+            fnamep = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.weighted.pdf')
     else:
-        fnames = os.path.join(outdir,'Raw_Orthologues.ksd.svg')
-        fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.pdf')
+        if na:
+            fnames = os.path.join(outdir,'Raw_Orthologues.ksd.averaged.svg')
+            fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.averaged.pdf')
+        else:
+            fnames = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.svg')
+            fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.pdf')
     cs = cm.viridis(np.linspace(0, 1, len(allspair)))
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
@@ -512,14 +537,14 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     if reweight: logging.info('Recalculating the weights per species pair')
-    else: logging.info('De-redundancy via the weights from overall species')
+    elif not na: logging.info('De-redundancy via the weights from overall species')
     if plotkde: logging.info('Plotting kde curve over histogram')
     else: logging.info('Plotting histogram without kde curve')
     drawtime = 0
     if plotelmm:
         if not (df_para is None):
             logging.info("ELMM analysis on extra paralogous Ks")
-            ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+            ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
             drawtime = drawtime + 1
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
@@ -550,7 +575,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
                 logging.info("ELMM analysis on paralogous Ks of {}".format(pair.split("__")[0]))
-                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height)
+                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
                 continue
             if plotkde:
                 kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
