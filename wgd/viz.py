@@ -18,6 +18,7 @@ from scipy import stats,interpolate,signal
 from io import StringIO
 from Bio import Phylo
 from sklearn import mixture
+from wgd.utils import formatv2
 
 def node_averages(df):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -319,7 +320,7 @@ def addapgmm(ax,X,W,components,outdir,Hs):
     cs = cm.tab20b(np.linspace(0, 1, len(weights)))
     for num in range(len(weights)):
         mean,std,weight = means[num][0],np.sqrt(covariances[num][0][0]),weights[num]
-        ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
     return ax
 
 def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4):
@@ -477,6 +478,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     df_para = None
     if extraparanomeks != None:
         df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
+        df_para = formatv2(df_para)
         df_para = apply_filters(df_para, [("dS", 0., 5.)])
         df_para["family"] = df_para["family"].apply(lambda x:"ExtraParalog_"+x)
         df = pd.concat([df,df_para])

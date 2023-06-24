@@ -21,6 +21,7 @@ from sklearn_extra.cluster import KMedoids
 from wgd.viz import reflect_logks,find_peak_init_parameters
 from io import StringIO
 from sklearn import metrics
+from wgd.utils import formatv2
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 
 def alnfilter(df,weights_outliers_included, identity, aln_len, coverage, min_ks, max_ks):
@@ -186,7 +187,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
         #upper_HPD,lower_HPD = calculateHPD(y,hdr)
         #plt.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Upper {:.2f}".format(hdr,upper_HPD))
         #plt.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Lower {:.2f}".format(hdr,lower_HPD))
-        ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
     ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
@@ -276,12 +277,81 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     fig.tight_layout()
     return fig
 
-def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',showCI=False):
+def getcompheuri(df,peak_threshold,rel_height,na=False,ci=95):
+    gs_ks = df.loc[:,['gene1','gene2','dS']]
+    if na:
+        df = df.drop_duplicates(subset=['family','node'])
+        df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df['weightoutlierexcluded'] = 1
+    df = df.dropna(subset=['dS','weightoutlierexcluded'])
+    df = df.loc[(df['dS']>0) & (df['dS']<5),:]
+    ks_or = np.array(df['dS'])
+    w = np.array(df['weightoutlierexcluded'])
+    ks = np.log(ks_or)
+    max_ks,min_ks = ks.max(),ks.min()
+    ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    kde_x = np.linspace(min_ks-cutoff, max_ks+cutoff,num=500)
+    kde = stats.gaussian_kde(ks_refed,weights=w_refed,bw_method="scott")
+    kde_y = kde(kde_x)
+    spl = interpolate.UnivariateSpline(kde_x, kde_y)
+    spl.set_smoothing_factor(0.01)
+    spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
+    spl_y = spl(spl_x)
+    if na: logging.info('Detecting likely peaks from node-averaged data')
+    else: logging.info('Detecting likely peaks from node-weighted data')
+    init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=peak_threshold,rel_height=rel_height)
+    x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
+    if len(init_means) == 0:
+        return None
+    else:
+        mean,std = init_means[0],init_stdevs[0]
+        lowc, upperc = (1-ci/100)/2, 1-(1-ci/100)/2
+        CI_95 = stats.lognorm.ppf([lowc, upperc], scale=np.exp(mean), s=std)
+        return CI_95
+
+def onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=0.1,rel_height=0.4):
+    peaks, properties = signal.find_peaks(spl_y)
+    prominences = signal.peak_prominences(spl_y, peaks)[0]
+    prominences_refed_R1,width_refed_R1,prominences_refed_L1,width_refed_L1 = [],[],[],[]
+    for i in range(len(peaks)):
+        peak_index = peaks[i]
+        spl_peak_refl_y = np.concatenate((np.flip(spl_y[peak_index+1:]), spl_y[peak_index:]))
+        spl_peak_refl_x = np.concatenate((np.flip(spl_x[peak_index+1:] * -1 + 2 * spl_x[peak_index]), spl_x[peak_index:]))
+        current_peak_index = int((len(spl_peak_refl_x)-1)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y, [current_peak_index], rel_height=rel_height)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_R1.append(new_prominences)
+        width_refed_R1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        w = new_width[0]/2/100
+        spl_peak_refl_y_L = np.concatenate((spl_y[:peak_index+1], np.flip(spl_y[:peak_index])))
+        spl_peak_refl_x_L = np.concatenate((spl_x[:peak_index+1], np.flip(spl_x[:peak_index]) * -1 + 2*spl_x[peak_index]))
+        current_peak_index = int((len(spl_peak_refl_x_L)-1)/2)
+        new_prominences = signal.peak_prominences(spl_peak_refl_y_L,[current_peak_index])[0][0]
+        new_width,new_height,left_ips,right_ips = signal.peak_widths(spl_peak_refl_y_L, [current_peak_index], rel_height=rel_height)
+        if new_width[0] > 150: new_width[0] = 150
+        prominences_refed_L1.append(new_prominences)
+        width_refed_L1.append(new_width[0])
+        c = "r" if new_prominences >= peak_threshold else 'gray'
+        w = new_width[0]/2/100
+    good_peaks_R1,good_peaks_L1 = [i>=peak_threshold for i in prominences_refed_R1],[i>=peak_threshold for i in prominences_refed_L1]
+    good_prominences,init_means,init_stdevs = [],[],[]
+    for i in range(len(peaks)):
+        if good_peaks_R1[i] or good_peaks_L1[i]:
+            init_means.append(spl_x[peaks[i]])
+            best = np.argmax((prominences_refed_R1[i], prominences_refed_L1[i]))
+            good_prominences.append(max([prominences_refed_R1[i], prominences_refed_L1[i]]))
+            width = [width_refed_R1[i], width_refed_L1[i]][best]
+            init_stdevs.append(width/2/100)
+    return init_means, init_stdevs,good_prominences
+
+def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',showCI=False,heuristic=False, peak_threshold=0.1, rel_height=0.4):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
-    CI_dict = {}
+    CI_dict, CI_dict_heri = {},{}
     if weighted:
         for num,color in zip(range(nums),colors):
             # here I recover the std by sqrt
@@ -299,12 +369,18 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            if heuristic:
+                CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=False,ci=95)
+                CI_dict_heri[num]=CI_95
+                if not (CI_95 is None):
+                    plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                    plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
-                #CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
-                CI_95 = stats.lognorm(std,loc=0,scale=np.exp(mean)).interval(0.95)
+                CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
+                #CI_95 = stats.lognorm(std,loc=0,scale=np.exp(mean)).interval(0.95)
                 CI_dict[num]=CI_95
-                plt.axvline(x = CI_95[0], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.axvline(x = CI_95[1], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     else:
         for num,color in zip(range(nums),colors):
             mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
@@ -319,11 +395,17 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            if heuristic:
+                CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=True,ci=95)
+                CI_dict_heri[num]=CI_95
+                if not (CI_95 is None):
+                    plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                    plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
                 CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
                 CI_dict[num]=CI_95
-                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     #ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
@@ -335,7 +417,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
-    return fig, CI_dict
+    return fig, {'showci':CI_dict,'heuristic':CI_dict_heri}
 
 def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
     colors = cm.viridis(np.linspace(0, 1, nums))
@@ -1110,7 +1192,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     Loss = sum(D)
     return Loss
 
-def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
+def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5):
     gs_ks = df.loc[:,['gene1','gene2',guide,'dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     mpKs = pd.DataFrame.from_dict({guide:df_withindex.index,'Median_Ks':ks_or}).set_index(guide)
@@ -1145,10 +1227,10 @@ def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95
     logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
     lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide)
-    if user: get95CIap_MP(user_low,user_upp,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user)
-    else: get95CIap_MP(lower95CI,upper95CI,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user)
+    if user: get95CIap_MP(user_low,user_upp,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
+    else: get95CIap_MP(lower95CI,upper95CI,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
 
-def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False):
+def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -1193,11 +1275,12 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     #lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
     lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci)
-    if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user)
-    else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user)
+    if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
+    else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
 
-def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
+def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False,kscutoff=5):
     if type(lower) == float:
+        upper = min([upper,kscutoff])
         ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
         sp_m = '{}'.format(sp)
         if na: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_node_averaged.tsv".format(sp_m))
@@ -1211,6 +1294,7 @@ def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
         else: fname = os.path.join(outdir, "{}_Manual_CI_AP_for_dating_weighted_format.tsv".format(sp_m))
         ap_format.to_csv(fname,header=True,index=True,sep='\t')
     elif len(lower) == 1:
+        upper[0] = min([upper[0],kscutoff])
         ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper[0]) & (gs_ks['dS']>=lower[0]),:]
         sp_m = '{}'.format(sp)
         if user:
@@ -1233,7 +1317,7 @@ def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False):
         ap_format.to_csv(fname,header=True,index=True,sep='\t')
     else:
         for indice,i in enumerate(zip(lower,upper)):
-            lower,upper = i[0],i[1]
+            lower,upper = i[0],min([i[1],kscutoff])
             text = 'Peak_{}_'.format(indice+1)
             ap_95CI = gs_ks.loc[(gs_ks['dS']<=upper) & (gs_ks['dS']>=lower),:]
             sp_m = text + '{}'.format(sp)
@@ -1265,9 +1349,10 @@ def add_mpgmmlabels(df,df_index,labels,outdir,n,regime='multiplicon'):
     df.to_csv(fname,header=True,index=True,sep='\t')
     return df
 
-def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
+def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False,kscutoff=5):
     gs_ks = gs_ks.reset_index().set_index(guide).join(mpKs)
     if type(lower) == float:
+        upper = min([kscutoff,upper])
         ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
         sp_m = '{}_guided_{}'.format(guide,sp)
         fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
@@ -1279,6 +1364,7 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
         fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating_format.tsv".format(sp_m))
         ap_format.to_csv(fname,header=True,index=True,sep='\t')
     elif len(lower) == 1:
+        upper[0] = min([upper[0],kscutoff])
         ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper[0]) & (gs_ks['Median_Ks']>=lower[0]),:]
         sp_m = '{}_guided_{}'.format(guide,sp)
         if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
@@ -1294,7 +1380,7 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
     else:
         for indice,i in enumerate(zip(lower,upper)):
             text = 'Peak_{}_'.format(indice+1)
-            lower,upper = i[0],i[1]
+            lower,upper = i[0],min([i[1],kscutoff])
             ap_95CI = gs_ks.loc[(gs_ks['Median_Ks']<=upper) & (gs_ks['Median_Ks']>=lower),:]
             sp_m = text + '{}_guided_{}'.format(guide,sp)
             if user: fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
@@ -1308,58 +1394,6 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False):
             else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating_format.tsv".format(sp_m,ci))
             ap_format.to_csv(fname,header=True,index=True,sep='\t')
 
-
-def get_outlierexcluded(df,cutoff = 5):
-    df = df[df['dS']<cutoff]
-    weight_exc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
-    weight_exc = weight_exc.to_frame(name='weightoutlierexcluded')
-    return weight_exc
-
-def get_outlierincluded(df):
-    weight_inc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
-    weight_inc = weight_inc.to_frame(name='weightoutlierincluded')
-    return weight_inc
-
-def get_nodeaverged_dS_outlierincluded(df):
-    node_averaged_dS_inc = df.groupby(["family", "node"])["dS"].mean()
-    node_averaged_dS_inc = node_averaged_dS_inc.to_frame(name='node_averaged_dS_outlierincluded')
-    return node_averaged_dS_inc
-
-def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
-    df = df[df['dS']<cutoff]
-    node_averaged_dS_exc = df.groupby(["family", "node"])["dS"].mean()
-    node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
-    return node_averaged_dS_exc
-
-def formatv2(ksdf):
-    if "Ks" in ksdf.columns: ksdf = ksdf.rename(columns={"Ks":"dS"})
-    if "Ka" in ksdf.columns: ksdf = ksdf.rename(columns={"Ka":"dN"})
-    if "Omega" in ksdf.columns: ksdf = ksdf.rename(columns={"Omega":"dN/dS"})
-    if "Family" in ksdf.columns: ksdf = ksdf.rename(columns={"Family":"family"})
-    if "Node" in ksdf.columns: ksdf = ksdf.rename(columns={"Node":"node"})
-    if "AlignmentIdentity" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentIdentity":"alignmentidentity"})
-    if "AlignmentLength" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentLength":"alignmentlength"})
-    if "AlignmentCoverage" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentCoverage":"alignmentcoverage"})
-    if "Paralog1" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog1":"gene1"})
-    if "Paralog2" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog2":"gene2"})
-    if "WeightOutliersIncluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersIncluded"])
-    if "WeightOutliersExcluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersExcluded"])
-    if "weightoutlierexcluded" not in ksdf.columns: weight_inc = get_outlierincluded(ksdf)
-    if "weightoutlierincluded" not in ksdf.columns:
-        weight_exc = get_outlierexcluded(ksdf,cutoff = 5)
-        ksdf = ksdf.join(weight_inc).join(weight_exc)
-    if "node_averaged_dS_outlierincluded" not in ksdf.columns:
-        node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(ksdf)
-    if "node_averaged_dS_outlierexcluded" not in ksdf.columns:
-        node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(ksdf,cutoff = 5)
-        ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
-        ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
-    #ksdf = ksdf.join(weight_inc).join(weight_exc) # here I kept the NaN value
-    #ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
-    #ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
-    if "index" in ksdf.columns: ksdf = ksdf.set_index('index')
-    ksdf.index.name = 'pair'
-    return ksdf
 
 def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None):
     text = "AnchorKs_PeakCI_"
@@ -1672,7 +1706,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
-def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,showCI=False,cutoff = 3):
+def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=False,cutoff = 5,peak_threshold=0.1,rel_height=0.4):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1706,8 +1740,8 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
         #else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
         #fig.savefig(fname)
         #plt.close()
-        fig, CI = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI)
-        if showCI: df_c_CI = add_apCI(df_c,outdir,CI,n,cutoff)
+        fig, CI = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,heuristic=heuristic,peak_threshold=peak_threshold,rel_height=rel_height)
+        if showCI or heuristic: df_c_CI = add_apCI(df_c,outdir,CI,n,cutoff)
         if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
         fig.savefig(fname)
@@ -1716,14 +1750,23 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
     return df
 
 def add_apCI(df,outdir,CI,n,cutoff):
-    for comp, ci in CI.items():
-        df_tmp = df[df['AnchorKs_GMM_Component']==comp]
-        maxi = min([ci[1],cutoff])
-        df_tmp = df_tmp[ci[0]<=df_tmp['dS']]
-        df_tmp = df_tmp[df_tmp['dS']<=maxi].loc[:,['dS']].copy()
-        df_tmp['gene_x'], df_tmp['gene_y'] = [pair.split("__")[0] for pair in df_tmp.index], [pair.split("__")[1] for pair in df_tmp.index]
-        fname = os.path.join(outdir,'Original_AnchorKs_GMM_{0}components_C{1}_95%CI.tsv'.format(n,comp))
-        df_tmp.to_csv(fname,header=True,index=True,sep='\t')
+    for categ, content in CI.items():
+        if len(content) == 0:
+            continue
+        for comp, ci in content.items():
+            if ci is None:
+                continue
+            df_tmp = df[df['AnchorKs_GMM_Component']==comp]
+            maxi = min([ci[1],cutoff])
+            df_tmp = df_tmp[ci[0]<=df_tmp['dS']]
+            df_tmp = df_tmp[df_tmp['dS']<=maxi].loc[:,['dS']].copy()
+            df_tmp['gene_x'], df_tmp['gene_y'] = [pair.split("__")[0] for pair in df_tmp.index], [pair.split("__")[1] for pair in df_tmp.index]
+            if categ == 'showci':
+                fname = os.path.join(outdir,'Original_AnchorKs_GMM_{0}components_C{1}_95%CI.tsv'.format(n,comp))
+            elif categ == 'heuristic':
+                fname = os.path.join(outdir,'Original_AnchorKs_GMM_{0}components_P{1}_95%CI.tsv'.format(n,comp))
+            df_tmp.to_csv(fname,header=True,index=True,sep='\t')
+
 
 def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
     """

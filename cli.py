@@ -335,7 +335,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
 @click.option('--hdr', default=95, show_default=True,type=int, help='highest density region (HDR) in a given distribution to date')
 @click.option('--heuristic', is_flag=True,help="heuristic CI for dating")
-@click.option('--kscutoff', '-kc', default=3, show_default=True, type=float, help='Ks Saturation cutoff for genes in Dating')
+@click.option('--kscutoff', '-kc', default=5, show_default=True, type=float, help='Ks Saturation cutoff for genes in Dating')
 @click.option('--showci', is_flag=True,help="show CI for original anchor Ks gmm analysis")
 def peak(**kwargs):
     """
@@ -365,11 +365,11 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
             df_ap = fit_kmedoids(guide, anchorpoints, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, n_kmedoids = n_clusters, segment = segments, multipliconpairs=multipliconpairs,listelement=listelements)
         else:
             df_ap_mp = fit_apgmm_guide(hdr,guide,anchorpoints,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=segments,multipliconpairs=multipliconpairs,listelement=listelements,cutoff = kscutoff)
-            df_ap = fit_apgmm_ap(hdr,anchorpoints,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,showCI=showci,cutoff = kscutoff)
+            df_ap = fit_apgmm_ap(hdr,anchorpoints,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=showci,cutoff = kscutoff,peak_threshold=prominence_cutoff,rel_height=rel_height)
         if heuristic:
-            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
-            find_mpeak(df_ap_mp,anchorpoints,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset)
+            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff)
+            find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff)
+            find_mpeak(df_ap_mp,anchorpoints,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset,kscutoff=kscutoff)
         logging.info('Done')
         exit()
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])

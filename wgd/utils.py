@@ -11,6 +11,55 @@ from progressbar import ProgressBar
 from numpy import mean, std
 from scipy.spatial.distance import cdist
 
+def formatv2(ksdf):
+    if "Ks" in ksdf.columns: ksdf = ksdf.rename(columns={"Ks":"dS"})
+    if "Ka" in ksdf.columns: ksdf = ksdf.rename(columns={"Ka":"dN"})
+    if "Omega" in ksdf.columns: ksdf = ksdf.rename(columns={"Omega":"dN/dS"})
+    if "Family" in ksdf.columns: ksdf = ksdf.rename(columns={"Family":"family"})
+    if "Node" in ksdf.columns: ksdf = ksdf.rename(columns={"Node":"node"})
+    if "AlignmentIdentity" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentIdentity":"alignmentidentity"})
+    if "AlignmentLength" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentLength":"alignmentlength"})
+    if "AlignmentCoverage" in ksdf.columns: ksdf = ksdf.rename(columns={"AlignmentCoverage":"alignmentcoverage"})
+    if "Paralog1" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog1":"gene1"})
+    if "Paralog2" in ksdf.columns: ksdf = ksdf.rename(columns={"Paralog2":"gene2"})
+    if "WeightOutliersIncluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersIncluded"])
+    if "WeightOutliersExcluded" in ksdf.columns: ksdf = ksdf.drop(columns=["WeightOutliersExcluded"])
+    if "weightoutlierexcluded" not in ksdf.columns: weight_inc = get_outlierincluded(ksdf)
+    if "weightoutlierincluded" not in ksdf.columns:
+        weight_exc = get_outlierexcluded(ksdf,cutoff = 5)
+        ksdf = ksdf.join(weight_inc).join(weight_exc)
+    if "node_averaged_dS_outlierincluded" not in ksdf.columns:
+        node_averaged_dS_inc = get_nodeaverged_dS_outlierincluded(ksdf)
+    if "node_averaged_dS_outlierexcluded" not in ksdf.columns:
+        node_averaged_dS_exc = get_nodeaverged_dS_outlierexcluded(ksdf,cutoff = 5)
+        ksdf = ksdf.reset_index().merge(node_averaged_dS_inc,on = ['family', 'node'])
+        ksdf = ksdf.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
+    if "index" in ksdf.columns: ksdf = ksdf.set_index('index')
+    ksdf.index.name = 'pair'
+    return ksdf
+
+def get_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<cutoff]
+    weight_exc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_exc = weight_exc.to_frame(name='weightoutlierexcluded')
+    return weight_exc
+
+def get_outlierincluded(df):
+    weight_inc = 1/df.groupby(['family', 'node'])['dS'].transform('count')
+    weight_inc = weight_inc.to_frame(name='weightoutlierincluded')
+    return weight_inc
+
+def get_nodeaverged_dS_outlierincluded(df):
+    node_averaged_dS_inc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_inc = node_averaged_dS_inc.to_frame(name='node_averaged_dS_outlierincluded')
+    return node_averaged_dS_inc
+
+def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<cutoff]
+    node_averaged_dS_exc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
+    return node_averaged_dS_exc
+
 def can_i_run_software(software):
     """
     Test if external software is executable
