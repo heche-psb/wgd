@@ -297,8 +297,8 @@ def getcompheuri(df,peak_threshold,rel_height,na=False,ci=95):
     spl.set_smoothing_factor(0.01)
     spl_x = np.linspace(min_ks, max_ks+0.1, num=int(round((abs(min_ks) + (max_ks+0.1)) *100)))
     spl_y = spl(spl_x)
-    if na: logging.info('Detecting likely peaks from node-averaged data')
-    else: logging.info('Detecting likely peaks from node-weighted data')
+    #if na: logging.info('Detecting likely peaks from node-averaged data')
+    #else: logging.info('Detecting likely peaks from node-weighted data')
     init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=peak_threshold,rel_height=rel_height)
     x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
     if len(init_means) == 0:
@@ -352,6 +352,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
     CI_dict, CI_dict_heri = {},{}
+    Hs_maxs,y_lim_beforekde_s=[],[]
     if weighted:
         for num,color in zip(range(nums),colors):
             # here I recover the std by sqrt
@@ -368,19 +369,31 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
+            Hs_max = max(Hs)
+            Hs_maxs.append(Hs_max)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekde_s.append(y_lim_beforekde)
             ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            y_lim_afterkde = ax.get_ylim()[1]
+            if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+            safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+            ax.set_ylim(0, safe_max)
             if heuristic:
                 CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=False,ci=95)
                 CI_dict_heri[num]=CI_95
                 if not (CI_95 is None):
-                    plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                    plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                    CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+                    CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+                    plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                    plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
                 CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
                 #CI_95 = stats.lognorm(std,loc=0,scale=np.exp(mean)).interval(0.95)
                 CI_dict[num]=CI_95
-                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+                CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     else:
         for num,color in zip(range(nums),colors):
             mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
@@ -394,20 +407,33 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
+            Hs_max = max(Hs)
+            Hs_maxs.append(Hs_max)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekde_s.append(y_lim_beforekde)
             ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(num,np.exp(mean - std**2)))
+            y_lim_afterkde = ax.get_ylim()[1]
+            if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+            safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+            ax.set_ylim(0, safe_max)
             if heuristic:
                 CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=True,ci=95)
                 CI_dict_heri[num]=CI_95
                 if not (CI_95 is None):
-                    plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                    plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                    CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+                    CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+                    plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                    plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
                 CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
                 CI_dict[num]=CI_95
-                plt.axvline(x = CI_95[0], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.axvline(x = CI_95[1], color = color, alpha = 0.5, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+                CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     #ax.legend(loc='upper right', fontsize='small',frameon=False)
-    ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
+    ax.legend(loc='upper right',frameon=False)
+    #ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
@@ -437,7 +463,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             if len(y) < 2:
                 logging.info("Detected one component with less than 2 elements, will skip it")
                 continue
-            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+            kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
@@ -452,10 +478,13 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+            #ax.axvline(x = mode, ymin=0,ymax=scaling*maxim/Hs_max, color = color, alpha = 0.8, ls = ':', lw = 1)
+            plt.plot([mode,mode], [0,scaling*maxim], color=color,alpha = 0.8,linestyle='-.')
             upper_HPD,lower_HPD = calculateHPD(y,hdr)
-            ax.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
-            ax.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1)
+            plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':')
+            plt.plot([lower_HPD,lower_HPD], [0,scaling*kde(lower_HPD)], color=color,alpha = 0.8,linestyle=':')
+            #ax.axvline(x = upper_HPD, ymin=0, ymax=upper_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
+            #ax.axvline(x = lower_HPD, ymin=0, ymax=lower_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1)
             HDRs[num] = (lower_HPD,upper_HPD)
     else:
         for num,color in zip(range(nums),colors):
@@ -466,7 +495,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             if len(y) < 2:
                 logging.info("Detected one component with less than 2 elements, will skip it")
                 continue
-            kde = stats.gaussian_kde(y,bw_method=0.1)
+            kde = stats.gaussian_kde(y,bw_method='scott')
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
@@ -481,13 +510,19 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            ax.axvline(x = mode, color = color, alpha = 0.8, ls = ':', lw = 1)
+            plt.plot([mode,mode], [0,scaling*maxim], color=color,alpha = 0.8,linestyle='-.')
+            #ax.axvline(x = mode, ymin=0, ymax=scaling*maxim/Hs_max, color = color, alpha = 0.8, ls = ':', lw = 1)
             upper_HPD,lower_HPD = calculateHPD(y,hdr)
-            ax.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
-            ax.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1)
+            #upper_HPD_y = scaling*kde(upper_HPD)/Hs_max
+            #lower_HPD_y = scaling*kde(lower_HPD)/Hs_max
+            plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':')
+            plt.plot([lower_HPD,lower_HPD], [0,scaling*kde(lower_HPD)], color=color,alpha = 0.8,linestyle=':')
+            #ax.axvline(x = upper_HPD, ymin=0, ymax=upper_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
+            #ax.axvline(x = lower_HPD, ymin=0, ymax=lower_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1)
             HDRs[num] = (lower_HPD,upper_HPD)
     #ax.legend(loc='upper right', fontsize='small',frameon=False)
-    ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
+    ax.legend(loc='upper right', frameon=False)
+    #ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
@@ -1433,7 +1468,7 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
     bin_width = 0.1
     cs = ['b','g','y','r','k']
-    alphas = np.linspace(0.3, 0.7, len(init_means))
+    #alphas = np.linspace(0.3, 0.7, len(init_means))
     ci_l = (1-ci/100)/2
     ci_u = 1-(1-ci/100)/2
     CI_95s = []
@@ -1444,8 +1479,10 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
         ax.plot(x_points_strictly_positive,scaling*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(mean),s=std), c=cs[i], ls='-', lw=1.5, alpha=0.8, label='Peak {} mode {:.2f}'.format(i+1,np.exp(mean - std**2)))
         CI_95 = stats.lognorm.ppf([ci_l, ci_u], scale=np.exp(mean), s=std)
         CI_95s.append(CI_95)
-        plt.axvline(x = CI_95[0], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(i+1,ci,CI_95[0]))
-        plt.axvline(x = CI_95[1], color = cs[i], alpha = alphas[i], ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(i+1,ci,CI_95[1]))
+        CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)/ax.get_ylim()[1]
+        CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)/ax.get_ylim()[1]
+        plt.axvline(x = CI_95[0], ymin=0, ymax=CI_95_y0, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(i+1,ci,CI_95[0]))
+        plt.axvline(x = CI_95[1], ymin=0, ymax=CI_95_y1, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(i+1,ci,CI_95[1]))
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     if guide == 'segment': plt.ylabel("Number of segment pair", fontsize = 10)
     elif guide != None: plt.ylabel("Number of {}".format(guide), fontsize = 10)

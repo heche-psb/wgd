@@ -546,6 +546,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             logging.info("ELMM analysis on extra paralogous Ks")
             ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
             drawtime = drawtime + 1
+    Hs_maxs,y_lim_beforekdes = [],[]
     for i,item in enumerate(df_perspair.items()):
         pair,df_per = item[0],item[1]
         df_per = df_per.copy()
@@ -563,11 +564,13 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray', alpha=1, rwidth=0.8,label='Whole paranome')
             else:
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekdes.append(y_lim_beforekde)
             if not (df_para is None):
                 continue
             if not plotelmm:
                 if plotkde:
-                    kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                    kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
                     kde_y = kde(kde_x)
                     CHF = get_totalH(Hs)
                     scaling = CHF*0.1
@@ -578,13 +581,17 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
                 continue
             if plotkde:
-                kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
                 kde_y = kde(kde_x)
                 CHF = get_totalH(Hs)
                 scaling = CHF*0.1
                 ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
+            Hs_maxs.append(max(Hs))
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
+            y_lim_beforekde = ax.get_ylim()[1]
+            y_lim_beforekdes.append(y_lim_beforekde)
+            Hs_maxs.append(max(Hs))
         if corrected_ks_spair != None:
             if pair in corrected_ks_spair.keys():
                 #since paralogous genes and orthologous genes between focus and outgroup speices have no corrected Ks data
@@ -614,8 +621,13 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='g', rwidth=0.8,label='Anchor pairs')
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
+        Hs_maxs.append(max(Hs))
+        y_lim_beforekde = ax.get_ylim()[1]
+        y_lim_beforekdes.append(y_lim_beforekde)
         if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs)
     ax.set_xlabel(_labels["dS"])
+    safe_max = max([max(y_lim_beforekdes),max(Hs_maxs)])
+    ax.set_ylim(0, safe_max)
     #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
     if len(df_perspair) == 1 and len(paralog_pair) == 1:
         ax.legend(loc=1,fontsize=7,frameon=False)
@@ -1139,7 +1151,8 @@ def syntenic_depth_plot(segprofile):
         #ax.set_xlabel("# segments")
     #axs[0].set_ylabel("A:B ratio")
     fig.suptitle('Collinear ratio', x=0.5, y=1.02, ha='center', va='top')
-    plt.figtext(0.5, 0.02, 'Number of segments', ha='center', va='top')
+    #plt.figtext(0.5, 0.02, 'Number of segments', ha='center', va='top')
+    plt.figtext(0.5, 0.01, 'Number of segments', ha='center', va='top')
     sns.despine(trim=False, offset=3)
     plt.tight_layout()
     return fig
@@ -2498,6 +2511,7 @@ def filter_mingenumber(segs,mingenenum,outdir,N):
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
     if N <=5 :
+        logging.info("Making Syndepth plot")
         fig = syntenic_depth_plot(profile)
         fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
         fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
