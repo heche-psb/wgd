@@ -961,10 +961,15 @@ def e_step(num_comp, ks, means, stdevs, weights, lambd):
     return fit_loglikelihood, posteriors
 
 def m_step(num_comp, ks, posteriors):
+    # The mean of Exponential distribution is 1/lambda
     new_lambda = sum(posteriors[0]) / sum(posteriors[0] * ks)
     points_per_k = [sum(posteriors[i]) for i in range(num_comp)]
     # here the new weights is overall weight instead of weight per datapoint
-    new_weights = [points_per_k[i]/len(ks) for i in range(num_comp)]
+    new_weights = [round(points_per_k[i]/len(ks),2) for i in range(num_comp)]
+    for indice in range(len(points_per_k)):
+        if not points_per_k[indice]>0:
+            logging.info("Found component weight as zero")
+            points_per_k[indice] = 1e-6
     new_means = [sum(posteriors[i+1] * np.log(ks)) / points_per_k[i+1] for i in range(num_comp-1)]
     new_stdevs = [np.sqrt(sum(posteriors[i+1]*pow(np.log(ks)-new_means[i],2))/points_per_k[i+1]) for i in range(num_comp-1)]
     return new_means, new_stdevs, new_weights, new_lambda
