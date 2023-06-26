@@ -1685,7 +1685,7 @@ def hmmer4g2f(outdir,s,nthreads,querys,df,eval,fam2assign,Noldsp,Nnewsp,gsmap,tm
     treepaths = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(finalinfertree)(fp,tree_method,treeset) for fp in pps)
     logging.info("The path of tree files is at {}".format(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered','pep')))
     logging.info("Pruning the tree")
-    df = filtersp(treepaths,gsmap,Noldsp,Nnewsp,df)
+    df = filtersp(treepaths,gsmap,Nnewsp,df)
     fname = os.path.join(outdir,os.path.basename(fam2assign)+".assigned.furtherscorefiltered.tree-based")
     df.to_csv(fname,header=True,index=True,sep='\t')
     fromgene2count(df,outdir,fam2assign,third=True)
@@ -1714,7 +1714,8 @@ def findsubfamily(tree,oldsps,newsps,df,fam,gsmaps):
     df = prunebranch(allchildren,newsps,df,gsmaps,fam)
     return df
 
-def filtersp(treepaths,gsmap,Noldsp,Nnewsp,df):
+def filtersp(treepaths,gsmap,Nnewsp,df):
+    Noldsp = [i for i in df.columns if i not in Nnewsp]
     treepaths = {fam:tp for tp,fam in zip(treepaths,df.index)}
     for fam,tp in treepaths.items():
         tree = Phylo.read(tp,'newick')
