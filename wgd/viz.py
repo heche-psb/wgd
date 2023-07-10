@@ -566,6 +566,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekdes.append(y_lim_beforekde)
+            Hs_maxs.append(max(Hs))
             if not (df_para is None):
                 continue
             if not plotelmm:
@@ -586,7 +587,6 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 CHF = get_totalH(Hs)
                 scaling = CHF*0.1
                 ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
-            Hs_maxs.append(max(Hs))
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
             y_lim_beforekde = ax.get_ylim()[1]

@@ -167,6 +167,33 @@ def get_totalH(Hs):
     for i in Hs: CHF = CHF + i
     return CHF
 
+def plot_mpbackap_lognormal(df,kdexs,kdeys,modes,guide):
+    colors = cm.viridis(np.linspace(0, 1, len(modes)))
+    fig, ax = plt.subplots()
+    x = np.array(list(df['dS']))
+    y = x[np.isfinite(x)]
+    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, color = 'g', alpha=1, rwidth=0.8)
+    Hs_max = max(Hs)
+    y_lim_beforekde = ax.get_ylim()[1]
+    CHF = get_totalH(Hs)
+    scaling = CHF*0.1
+    for kde_x,kde_y,mode,color,i in zip(kdexs,kdeys,modes,colors,range(len(modes))):
+        ax.plot(kde_x,scaling*kde_y, alpha=0)
+        y_lim_afterkde = ax.get_ylim()[1]
+        print(y_lim_afterkde)
+        scalingtmp=y_lim_beforekde/y_lim_afterkde*scaling
+        print((scalingtmp,mode))
+        ax.plot(kde_x,scalingtmp*kde_y, c=color, ls='-', lw=1.5, alpha=0.8, label='{} component {} mode {:.2f}'.format(guide,i,mode))
+    ax.set_ylim(0, max([Hs_max,y_lim_beforekde]))
+    ax.legend(loc='upper right', frameon=False)
+    ax.set_xlabel("$K_\mathrm{S}$")
+    ax.set_ylabel("Duplication events")
+    ax.set_xticks([0,1,2,3,4,5])
+    sns.despine(offset=1)
+    plt.title('Anchor '+'$K_\mathrm{S}$'+'components')
+    fig.tight_layout()
+    return fig
+
 def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Counts",regime='multiplicon'):
     #labels = labels[(X<5) & (X>0)]
     #X = X[(X<5) & (X>0)]
@@ -175,6 +202,8 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     kde_x = np.linspace(0,5,num=bins*kdesity)
     fig, ax = plt.subplots()
     df = pd.DataFrame.from_dict({'label':labels,'dS':X})
+    Hs_maxs,y_lim_beforekde_s = [],[]
+    kdexs,kdeys,modes=[],[],[]
     for i,color in enumerate(colors):
         # here I recover the std by sqrt
         mean,std,weight = means[i][0],np.sqrt(stds[i][0][0]),weights[i]
@@ -182,12 +211,25 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
         x = np.array(list(df_comp['dS']))
         y = x[np.isfinite(x)]
         Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(i))
+        Hs_max = max(Hs)
+        Hs_maxs.append(Hs_max)
+        y_lim_beforekde = ax.get_ylim()[1]
+        y_lim_beforekde_s.append(y_lim_beforekde)
         CHF = get_totalH(Hs)
         scaling = CHF*0.1
         #upper_HPD,lower_HPD = calculateHPD(y,hdr)
         #plt.axvline(x = upper_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Upper {:.2f}".format(hdr,upper_HPD))
         #plt.axvline(x = lower_HPD, color = color, alpha = 0.8, ls = '-.', lw = 1,label="{}% HDR CI Lower {:.2f}".format(hdr,lower_HPD))
-        ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
+        kde_y = np.array([stats.lognorm.pdf(j, scale=np.exp(mean),s=std) for j in kde_x])
+        #ax.plot(kde_x,scaling*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
+        ax.plot(kde_x,scaling*kde_y, c=color, ls='-', lw=1.5, alpha=0.8, label='component {} mode {:.2f}'.format(i,np.exp(mean - std**2)))
+        kdexs.append(kde_x)
+        kdeys.append(kde_y)
+        modes.append(np.exp(mean - std**2))
+        y_lim_afterkde = ax.get_ylim()[1]
+        if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
+    safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+    ax.set_ylim(0, safe_max)
     ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
@@ -197,7 +239,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     elif regime== 'segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
-    return fig
+    return fig, kdexs, kdeys, modes
 
 def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regime='multiplicon'):
     labels = labels[(X<5) & (X>0)]
@@ -378,7 +420,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            if heuristic:
+            if showCI and heuristic:
                 CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=False,ci=95)
                 CI_dict_heri[num]=CI_95
                 if not (CI_95 is None):
@@ -416,7 +458,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            if heuristic:
+            if showCI and heuristic:
                 CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=True,ci=95)
                 CI_dict_heri[num]=CI_95
                 if not (CI_95 is None):
@@ -445,6 +487,18 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     fig.tight_layout()
     return fig, {'showci':CI_dict,'heuristic':CI_dict_heri}
 
+def getmediankdexy(kdex,kdey):
+    weights = [kdex[i]*kdey[i] for i in range(len(kdex))]
+    half_weight = sum(weights)/2
+    cum_weight = 0
+    medianx = 0
+    for i,weight in enumerate(weights):
+        cum_weight = cum_weight + weight
+        if cum_weight >= half_weight:
+            medianx = kdex[i]
+            break
+    return medianx
+
 def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
@@ -466,7 +520,9 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
+            #median = getmediankdexy(kde_x,kde_y)
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
+            #Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f} median {:.2f})".format(num,mode,median))
             Hs_max = max(Hs)
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
@@ -480,6 +536,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             ax.set_ylim(0, safe_max)
             #ax.axvline(x = mode, ymin=0,ymax=scaling*maxim/Hs_max, color = color, alpha = 0.8, ls = ':', lw = 1)
             plt.plot([mode,mode], [0,scaling*maxim], color=color,alpha = 0.8,linestyle='-.')
+            #plt.plot([median,median], [0,scaling*kde(median)], color=color,alpha = 0.8,linestyle='-.')
             upper_HPD,lower_HPD = calculateHPD(y,hdr)
             plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':')
             plt.plot([lower_HPD,lower_HPD], [0,scaling*kde(lower_HPD)], color=color,alpha = 0.8,linestyle=':')
@@ -498,7 +555,9 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             kde = stats.gaussian_kde(y,bw_method='scott')
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
+            #median = getmediankdexy(kde_x,kde_y)
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f})".format(num,mode))
+            #Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {} (mode {:.2f} median {:.2f})".format(num,mode,median))
             Hs_max = max(Hs)
             Hs_maxs.append(Hs_max)
             y_lim_beforekde = ax.get_ylim()[1]
@@ -511,6 +570,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
             plt.plot([mode,mode], [0,scaling*maxim], color=color,alpha = 0.8,linestyle='-.')
+            #plt.plot([median,median], [0,scaling*kde(median)], color=color,alpha = 0.8,linestyle='-.')
             #ax.axvline(x = mode, ymin=0, ymax=scaling*maxim/Hs_max, color = color, alpha = 0.8, ls = ':', lw = 1)
             upper_HPD,lower_HPD = calculateHPD(y,hdr)
             #upper_HPD_y = scaling*kde(upper_HPD)/Hs_max
@@ -1527,7 +1587,7 @@ def get_anchors(anchor):
 
 def get_anchor_ksd(ksdf, apdf):
     return ksdf.join(apdf).dropna()
-    # here any NA occurred per row is dropped
+    # here any NA occurred per row is dropped, normally a row has all NaN or only weightexclu and nodeKsexcl NaN
 
 def bc_group_anchor(df,regime='multiplicon'):
     #median_df = df.groupby(["basecluster"]).median()
@@ -1556,8 +1616,8 @@ def add_seg(df,listelement,multipliconpairs,segment):
     mp = pd.read_csv(multipliconpairs, sep="\t", index_col=0)
     if len(mp.columns) == 5: mp = mp.drop(columns=['gene_y']).rename(columns = {'gene_x':'gene_y'}).rename(columns = {'Unnamed: 2':'gene_x'})
     mp = mp.loc[:,['multiplicon','gene_x','gene_y']]
-    mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(list(mp['gene_x']),list(mp['gene_y']))]
-    mp = mp.drop_duplicates(subset=['pair'])
+    mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(mp['gene_x'],mp['gene_y'])]
+    mp = mp.drop_duplicates(subset=['pair']) # at this step half of the data will be filtered out
     mp.loc[:,['id']] = [i for i in range(mp.shape[0])]
     #mp= mp.drop_duplicates(subset=['pair']) #Here the same gene pair can be in different multiplicon
     df_seg = pd.read_csv(segment,header=0,index_col=None,sep='\t').rename(columns = {'id':'segment'}).loc[:,['segment','multiplicon']]
@@ -1568,18 +1628,22 @@ def add_seg(df,listelement,multipliconpairs,segment):
     df_mp_le = df_mp_le[df_mp_le['multiplicon_x'] == df_mp_le['multiplicon']]
     df_mp_le = df_mp_le.rename(columns = {'segment':'segment_x'})
     # here the genes belonging to two segments in the same multiplicon were removed because of indeterminacy
-    df_mp_le = df_mp_le.drop_duplicates(subset=['id'],keep=False)
+    #df_mp_le = df_mp_le.drop_duplicates(subset=['id'],keep=False)
     df_mp_le_r = df_mp_le.drop(columns=['multiplicon_x','gene']).merge(df_le,left_on='gene_y',right_on='gene')
     df_mp_le_r = df_mp_le_r[df_mp_le_r['multiplicon_x'] == df_mp_le_r['multiplicon']]
     df_mp_le_r = df_mp_le_r.rename(columns = {'segment':'segment_y'})
-    df_mp_le_r = df_mp_le_r.drop_duplicates(subset=['id'],keep=False)
+    #df_mp_le_r = df_mp_le_r.drop_duplicates(subset=['id'],keep=False)
+    df_mp_le_r = df_mp_le_r.drop_duplicates() # only drop those fully duplicated
     df_mp_le_r = df_mp_le_r.loc[:,['multiplicon','gene_x','gene_y','segment_x','segment_y','pair']].set_index('pair')
     df_mp_le_r.loc[:,['segment_pair']] = ["__".join(sorted([x,y])) for x,y in zip(list(df_mp_le_r['segment_x'].astype(str)),list(df_mp_le_r['segment_y'].astype(str)))]
-    df_cal_medKs = df_mp_le_r.loc[:,['segment_pair','multiplicon']].join(df).rename(columns = {'segment_pair':'segment'}).dropna(subset=['dS']) # here I kept Ks > 5 and duplicated index (pair)
+    df_cal_medKs = df_mp_le_r.loc[:,['segment_pair','multiplicon']].join(df).rename(columns = {'segment_pair':'segment'}).dropna(subset=['dS'])
+    # here I filter  Ks >= 5
     dS_median = df_cal_medKs.groupby(['segment'])['dS'].median()
+    seg_weight = {seg:len(df_tmp) for seg, df_tmp in list(df_cal_medKs.groupby(['segment']))}
     dS_median = dS_median[dS_median<5]
     dS_median.name = 'Segment_dS'
     df_cal_medKs = df_cal_medKs.reset_index().merge(dS_median.reset_index(),on='segment').dropna(subset=['Segment_dS']).set_index('pair')
+    segment_weight = list(df_cal_medKs['segment'].apply(lambda x:seg_weight[x]))
     #df_cal_medKs = df.join(df_mp_le_r.loc[:,['segment_pair','multiplicon']]).rename(columns = {'segment_pair':'segment'}) # here I did keep the NaN value, which impacted and changed the median Ks values afterwards
     #df_mp_le_r = mp.merge(df_le,left_on='gene_y',right_on='gene')
     #df_mp_le_r = df_mp_le_r[df_mp_le_r['multiplicon_x'] == df_mp_le_r['multiplicon']]
@@ -1599,7 +1663,7 @@ def add_seg(df,listelement,multipliconpairs,segment):
     #dup_ri = df_withKs[df_withKs.duplicated(subset=['segment','gene_x'], keep=False)]
     #dup_combined = pd.concat([dup_le,dup_ri], ignore_index=True).drop_duplicates()
     #dup_combined_work = dup_combined.loc[:,['segment','gene_x','gene_y','dS']]
-    return df_cal_medKs
+    return df_cal_medKs, segment_weight
 
 def getDM(X):
     dm = np.zeros((len(X), len(X)))
@@ -1683,6 +1747,20 @@ def calculateHPD(train_in,per):
     lower,upper = sorted(candidates, key=lambda y: y[0])[0][1][0],sorted(candidates, key=lambda y: y[0])[0][1][1]
     return sorted_in[upper],sorted_in[lower]
 
+def get_mp_ksd(multipliconpairs,df):
+    mp = pd.read_csv(multipliconpairs, sep="\t", index_col=0)
+    if len(mp.columns) == 5: mp = mp.drop(columns=['gene_y']).rename(columns = {'gene_x':'gene_y'}).rename(columns = {'Unnamed: 2':'gene_x'})
+    mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(mp['gene_x'],mp['gene_y'])]
+    mp = mp.drop_duplicates(subset=['pair']).set_index('pair').loc[:,['multiplicon','gene_x','gene_y']]
+    mp_ks = mp.join(df).dropna()
+    return mp_ks
+
+def weighttransform(X_log,seg_weight):
+    new_X_log = np.array([])
+    for ks,times in zip(X_log,seg_weight):
+        new_X_log = np.append(new_X_log,np.repeat(ks, times))
+    return new_X_log.reshape(-1, 1)
+
 def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
     logging.info("GMM modeling on Log-scale segment Ks data")
     if anchor == None:
@@ -1690,13 +1768,15 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         exit(0)
     df_ap = get_anchors(anchor)
     df = get_anchor_ksd(dfor, df_ap)
+    df_mp = get_mp_ksd(multipliconpairs,df_nofilter)
     df_nofilter = df_nofilter[df_nofilter['dS']>0]
     if segment!= None:
-        df = add_seg(df_nofilter,listelement,multipliconpairs,segment)
+        df, seg_weight = add_seg(df_nofilter,listelement,multipliconpairs,segment)
         df.to_csv(os.path.join(outdir, "Segment_Ks.tsv"),header=True,index=True,sep='\t')
     df_withindex,X = bc_group_anchor(df,regime=guide)
     X_log = np.log(X).reshape(-1, 1)
     out_file = os.path.join(outdir, "{}_Ks_GMM_AIC_BIC.pdf".format(guide))
+    #X_log = weighttransform(X_log,seg_weight)
     if method == 'gmm': models, aic, bic, besta, bestb, N = fit_gmm(out_file, X_log, seed, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
@@ -1715,13 +1795,16 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         fname = os.path.join(outdir, "{}_Ks_Clusters_GMM_Component{}.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig = plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Number of segment pair",regime=guide)
+        fig, kdexs, kdeys, modes = plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Number of segment pair",regime=guide)
         #hdr_ap(hdr,df,df_withindex)
         fname = os.path.join(outdir, "{}_Ks_Clusters_Lognormal_GMM_Component{}.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-    plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime=guide)
-    for n, m in zip(N,models):
+        fig = plot_mpbackap_lognormal(df_mp,kdexs,kdeys,modes,guide)
+        fname = os.path.join(outdir, "Syntelogs_Ks_Clusters_From_{}_Component{}.pdf".format(guide,n))
+        fig.savefig(fname)
+        plt.close()
+    #for n, m in zip(N,models):
         fig = plot_ak_component(df_c.dropna(),n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide)
         if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted.pdf".format(guide,n))
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged.pdf".format(guide,n))
@@ -1733,6 +1816,7 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
+    plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime=guide)
     return df
 
 def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
@@ -1814,7 +1898,6 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
         exit(0)
     df_ap = get_anchors(anchor)
     df = get_anchor_ksd(df, df_ap)
-    #if segment!= None: df = add_seg(df,segment)
     df_nofilter = df_nofilter[df_nofilter['dS']>0]
     if segment!= None:
         df = add_seg(df_nofilter,listelement,multipliconpairs,segment)
