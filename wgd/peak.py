@@ -180,9 +180,9 @@ def plot_mpbackap_lognormal(df,kdexs,kdeys,modes,guide):
     for kde_x,kde_y,mode,color,i in zip(kdexs,kdeys,modes,colors,range(len(modes))):
         ax.plot(kde_x,scaling*kde_y, alpha=0)
         y_lim_afterkde = ax.get_ylim()[1]
-        print(y_lim_afterkde)
+        #print(y_lim_afterkde)
         scalingtmp=y_lim_beforekde/y_lim_afterkde*scaling
-        print((scalingtmp,mode))
+        #print((scalingtmp,mode))
         ax.plot(kde_x,scalingtmp*kde_y, c=color, ls='-', lw=1.5, alpha=0.8, label='{} component {} mode {:.2f}'.format(guide,i,mode))
     ax.set_ylim(0, max([Hs_max,y_lim_beforekde]))
     ax.legend(loc='upper right', frameon=False)
@@ -194,7 +194,7 @@ def plot_mpbackap_lognormal(df,kdexs,kdeys,modes,guide):
     fig.tight_layout()
     return fig
 
-def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Counts",regime='multiplicon'):
+def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Counts",regime='multiplicon',user_xlim=None,user_ylim=None):
     #labels = labels[(X<5) & (X>0)]
     #X = X[(X<5) & (X>0)]
     colors = cm.viridis(np.linspace(0, 1, n))
@@ -234,6 +234,8 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime== 'multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
     elif regime== 'segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
@@ -241,7 +243,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     fig.tight_layout()
     return fig, kdexs, kdeys, modes
 
-def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regime='multiplicon'):
+def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regime='multiplicon',user_xlim=None,user_ylim=None):
     labels = labels[(X<5) & (X>0)]
     X = X[(X<5) & (X>0)]
     colors = cm.viridis(np.linspace(0, 1, n))
@@ -264,6 +266,8 @@ def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regi
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime== 'multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
     elif regime== 'segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
@@ -271,7 +275,7 @@ def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regi
     fig.tight_layout()
     return fig
 
-def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon'):
+def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication events",weighted=True,regime='multiplicon',user_xlim=None,user_ylim=None):
     colors = cm.viridis(np.linspace(0, 1, nums))
     fig, ax = plt.subplots()
     if plot == 'identical':
@@ -311,6 +315,8 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime== 'multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
     elif regime== 'segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
@@ -388,7 +394,7 @@ def onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=0.1,rel_height=0.4)
             init_stdevs.append(width/2/100)
     return init_means, init_stdevs,good_prominences
 
-def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',showCI=False,heuristic=False, peak_threshold=0.1, rel_height=0.4):
+def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',showCI=False,heuristic=False, peak_threshold=0.1, rel_height=0.4, user_xlim=None,user_ylim=None):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -479,6 +485,8 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
     elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
@@ -499,7 +507,7 @@ def getmediankdexy(kdex,kdey):
             break
     return medianx
 
-def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon'):
+def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',user_xlim=None,user_ylim=None):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -586,6 +594,8 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
     elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
@@ -594,7 +604,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
     fig.tight_layout()
     return fig,HDRs
 
-def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',**kwargs):
+def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical',user_xlim=None,user_ylim=None,**kwargs):
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
     colors = colors or ['black'] * ndists
@@ -699,6 +709,8 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
     axs[0,0].set_ylim(0, safe_max)
     axs[1,0].set_ylabel(ylabel)
     axs[0,0].set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: axs[0,0].set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: axs[0,0].set_xlim(user_xlim[0],user_xlim[1])
     # finalize plot
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
@@ -706,7 +718,7 @@ def default_plot_kde(*args,bins=50,alphas=None,colors=None,weighted=True,title="
     plt.subplots_adjust(top=0.85)  # prevent suptitle from overlapping
     return fig,safe_max,yticks
 
-def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical', ylim=1500,yticks='',**kwargs):
+def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",ylabel="Duplication events",nums = "", plot = 'identical', ylim=1500,yticks='',user_xlim=None,user_ylim=None,**kwargs):
     ndists = len(args)
     alphas = alphas or list(np.linspace(0.2, 1, ndists))
     colors = colors or ['black'] * ndists
@@ -779,6 +791,8 @@ def default_plot(*args,bins=50,alphas=None,colors=None,weighted=True,title="",yl
     axs[0,0].set_ylabel(ylabel)
     axs[1,0].set_ylabel(ylabel)
     axs[0,0].set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: axs[0,0].set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: axs[0,0].set_xlim(user_xlim[0],user_xlim[1])
     # finalize plot
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
@@ -981,7 +995,7 @@ def draw_kde_CI(kdemethod,outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=
     logging.info("The kde-mode of original WGD dates is {} billion years".format(mode_orig))
     plt.xlabel("Billion years ago", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
-    print(Ten_multi(int(maxim_orig)))
+    #print(Ten_multi(int(maxim_orig)))
     plt.yticks(np.linspace(0,Ten_multi(int(maxim_orig))+10,num=10,dtype=int))
     plt.hist(train_in,bins = np.linspace(minm, maxm, num=50),density=True,color = 'black', alpha=0.15, rwidth=0.8)
     props = dict(boxstyle='round', facecolor='grey', alpha=0.1)
@@ -1129,7 +1143,7 @@ def kde_method(kdemethod,bw,X,kde_x,w=None):
     if kdemethod == 'fftkde': kde_y = FFTKDE(bw=bw).fit(X,weights=w).evaluate(kde_x)
     return kde_y
 
-def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon',user_xlim=None,user_ylim=None):
     fname = os.path.join(outdir,"{}-guide_AnchorKs_KMedoids_Clustering_{}components_kde.pdf".format(regime,n))
     f, ax = plt.subplots()
     kdesity = 100
@@ -1190,6 +1204,8 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=Tr
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     elif regime=='segment': plt.title('Segment-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
@@ -1198,7 +1214,7 @@ def plot_kmedoids_kde(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=Tr
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
 
-def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment'):
+def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment',user_xlim=None,user_ylim=None):
     fname = os.path.join(outdir,"{}_Ks_KMedoids_Clustering_{}components.pdf".format(regime,n))
     f, ax = plt.subplots()
     df = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
@@ -1213,6 +1229,8 @@ def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment'):
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Number of segment pair", fontsize = 10)
     ax.legend(loc=1,fontsize='small',frameon=False)
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon $K_\mathrm{S}$ KMedoid modeling')
     elif regime=='segment': plt.title('Segment  $K_\mathrm{S}$ KMedoid modeling')
@@ -1221,7 +1239,7 @@ def plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime='segment'):
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
 
-def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon'):
+def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,title="",plot='identical',alpha=0.50,regime='multiplicon',user_xlim=None,user_ylim=None):
     fname = os.path.join(outdir,"{}-guided_AnchorKs_KMedoids_Clustering_{}components.pdf".format(regime,n))
     f, ax = plt.subplots()
     kdesity = 100
@@ -1262,6 +1280,8 @@ def plot_kmedoids(boots,kdemethod,dfo,outdir,n,bin_width,bins=50,weighted=True,t
     plt.xlabel("$K_\mathrm{S}$", fontsize = 10)
     plt.ylabel("Frequency", fontsize = 10)
     ax.legend(loc=1,fontsize='large',frameon=False)
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
     elif regime=='segment': plt.title('Segment-guided Anchor $K_\mathrm{S}$ KMedoid modeling')
@@ -1761,7 +1781,7 @@ def weighttransform(X_log,seg_weight):
         new_X_log = np.append(new_X_log,np.repeat(ks, times))
     return new_X_log.reshape(-1, 1)
 
-def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None):
+def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None,user_xlim=None,user_ylim=None):
     logging.info("GMM modeling on Log-scale segment Ks data")
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
@@ -1791,26 +1811,26 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         df_c = add_apgmmlabels(df,df_withindex,labels,outdir,n,regime=guide)
         means,stds,weights = m.means_,m.covariances_,m.weights_
         Losses.append(Elbow_lossf(X_log,[i[0] for i in means],labels))
-        fig = plot_mp_component(X,labels,n,bins=50,plot = plot,ylabel="Number of segment pair",regime=guide)
+        fig = plot_mp_component(X,labels,n,bins=50,plot = plot,ylabel="Number of segment pair",regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
         fname = os.path.join(outdir, "{}_Ks_Clusters_GMM_Component{}.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig, kdexs, kdeys, modes = plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Number of segment pair",regime=guide)
+        fig, kdexs, kdeys, modes = plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel="Number of segment pair",regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
         #hdr_ap(hdr,df,df_withindex)
         fname = os.path.join(outdir, "{}_Ks_Clusters_Lognormal_GMM_Component{}.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig = plot_mpbackap_lognormal(df_mp,kdexs,kdeys,modes,guide)
-        fname = os.path.join(outdir, "Syntelogs_Ks_Clusters_From_{}_Component{}.pdf".format(guide,n))
-        fig.savefig(fname)
+        #fig = plot_mpbackap_lognormal(df_mp,kdexs,kdeys,modes,guide)
+        #fname = os.path.join(outdir, "Syntelogs_Ks_Clusters_From_{}_Component{}.pdf".format(guide,n))
+        #fig.savefig(fname)
         plt.close()
     #for n, m in zip(N,models):
-        fig = plot_ak_component(df_c.dropna(),n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide)
+        fig = plot_ak_component(df_c.dropna(),n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
         if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted.pdf".format(guide,n))
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig,HDRs = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide)
+        fig,HDRs = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
         getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,guide,cutoff)
         if weighted: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_weighted_kde.pdf".format(guide,n))
         else: fname = os.path.join(outdir, "{}-guided_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(guide,n))
@@ -1827,7 +1847,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
-def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=False,cutoff = 5,peak_threshold=0.1,rel_height=0.4):
+def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=False,cutoff = 5,peak_threshold=0.1,rel_height=0.4,user_xlim=None,user_ylim=None):
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1851,7 +1871,7 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
         means,stds,weights = m.means_,m.covariances_,m.weights_
         Losses.append(Elbow_lossf(X_log,[i[0] for i in means],labels))
         df_c = add_apgmmlabels_pairs(df,df_withindex,labels,outdir,n)
-        fig = plot_ak_component(df_c,n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime='original')
+        fig = plot_ak_component(df_c,n,bins=50,plot = plot,ylabel="Duplication events",weighted=weighted,regime='original',user_xlim=user_xlim,user_ylim=user_ylim)
         if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted.pdf".format(n))
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged.pdf".format(n))
         fig.savefig(fname)
@@ -1861,7 +1881,7 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
         #else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(n))
         #fig.savefig(fname)
         #plt.close()
-        fig, CI = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,heuristic=heuristic,peak_threshold=peak_threshold,rel_height=rel_height)
+        fig, CI = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,heuristic=heuristic,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim)
         if showCI or heuristic: df_c_CI = add_apCI(df_c,outdir,CI,n,cutoff)
         if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
@@ -1889,7 +1909,7 @@ def add_apCI(df,outdir,CI,n,cutoff):
             df_tmp.to_csv(fname,header=True,index=True,sep='\t')
 
 
-def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None):
+def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilter, df, outdir, seed, n, em_iter=100, metric='euclidean', method='pam', init ='k-medoids++', plot = 'identical', n_kmedoids = 5, segment= None, multipliconpairs=None,listelement=None,user_xlim=None,user_ylim=None):
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
@@ -1913,7 +1933,7 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
     cluster_centers = kmedoids.cluster_centers_
     centers = info_centers(cluster_centers)
     labels = kmedoids.labels_
-    plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime=guide)
+    plot_segment_kmedoids(labels,X,outdir,bin_width,n,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
     #labels = kmedoids.predict(X_log)
     Losses,labels_plot = [],[]
     for p in range(1,n_kmedoids+1):
@@ -1926,14 +1946,14 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
         Losses.append(loss)
     if n_kmedoids > 0:
         plot_silhouette_score(X_log,2,n_kmedoids+1,labels_plot[1:],outdir,guide+'_Ks','KMedoids')
-        print((len(range(2,n_kmedoids+1)),len(labels_plot[1:])))
+        #print((len(range(2,n_kmedoids+1)),len(labels_plot[1:])))
         significance_test_cluster(X_log,2,n_kmedoids+1,labels_plot[1:])
     plot_Elbow_loss(Losses,outdir,regime=guide)
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])
     df_c = write_labels(df,df_withindex,labels,outdir,n,regime=guide)
-    plot_kmedoids(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide)
-    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide)
+    plot_kmedoids(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
+    plot_kmedoids_kde(boots,kdemethod,df_c,outdir,n,bin_width,bins=50,weighted=weighted,title="",plot=plot,alpha=0.5,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
     return df
 
 def retreive95CI(family,ksdf_filtered,outdir,lower,upper):
