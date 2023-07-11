@@ -2998,7 +2998,7 @@ class KsDistributionBuilder:
         self.n_threads = n_threads
 
     def get_distribution(self):
-        Parallel(n_jobs=self.n_threads,backend='locky')(
+        Parallel(n_jobs=self.n_threads)(
             delayed(_get_ks)(family) for family in self.families)
         df = pd.concat([pd.read_csv(x.out, index_col=0) 
             for x in self.families], sort=True)
