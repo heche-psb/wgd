@@ -475,7 +475,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
     return ax
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=None,user_ylim=None):
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -638,6 +638,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else:
         ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if len(df_perspair) == 1:
         title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
@@ -662,7 +664,7 @@ def reflect_logks(ks,w):
     ks_refed,w_refed = np.hstack([ks,np.array(right)]),np.hstack([w,np.array(right_w)])
     return ks_refed,cutoff,w_refed
 
-def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False,rel_height=0.4):
+def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False,rel_height=0.4,user_xlim=None,user_ylim=None):
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -796,9 +798,9 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     model_bic_ordered = [(k,v) for k,v in sorted(bic_dict.items(), key=lambda y:y[0])]
     model_ordered, bic_ordered = [k for k,v in model_bic_ordered],[v for k,v in model_bic_ordered]
     plot_bic(model_ordered,bic_ordered,outdir,sp,na=na)
-    plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=na)
+    plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=na,user_xlim=user_xlim,user_ylim=user_ylim)
 
-def plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=False):
+def plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitted_parameters,na=False,user_xlim=None,user_ylim=None):
     fig, ax = plt.subplots(1, 1, figsize=(10.0, 7.0))
     fig.suptitle("$K_\mathregular{S}$" + " distribution for {}".format(sp))
     if na: hist = ax.hist(ks_or,weights=w,bins=np.linspace(0, 50, num=51,dtype=int)/10,color='gray',label="Whole-paranome (node averaged)",rwidth=0.8)
@@ -811,8 +813,10 @@ def plot_final(ks_or,deconvoluted_data,w,sp,outdir,best_model_id,all_models_fitt
     if na: ax.set_ylabel("Number of retained duplicates (node averaged)",fontsize='x-large')
     else: ax.set_ylabel("Number of retained duplicates (weighted)",fontsize='x-large')
     ax.set_xlabel("$K_\mathregular{S}$",fontsize='x-large')
-    sns.despine(offset=10)
     ax.set_xlim(0, 5)
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
+    sns.despine(offset=10)
     plt.setp(ax.yaxis.get_majorticklabels(), rotation=90, verticalalignment='center')
     plt.tight_layout()
     if na:
@@ -1089,7 +1093,7 @@ def default_plot(
         colors=None,
         weighted=True, 
         title="",
-        ylabel="duplication events",
+        ylabel="duplication events",user_xlim=None,user_ylim=None,
         **kwargs):
     """
     Make a figure of node-weighted histograms for multiple distributions and
@@ -1126,6 +1130,8 @@ def default_plot(
     axs[1,0].set_xticks([-4,-3,-2,-1,0,1])
     axs[0,1].set_xticks([-4,-3,-2,-1,0,1])
     # finalize plot
+    if not (user_ylim[0]) is None: axs[0,0].set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: axs[0,0].set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
     fig.tight_layout()
