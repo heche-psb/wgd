@@ -18,6 +18,7 @@ before_install:
     - pushd paml4.9j/src && make -f Makefile && popd 
     - export PATH=$PATH:$PWD/paml4.9j/src/
 install:
+    - pip install --upgrade cython
     - pip install -r requirements.txt
     - pip install .
 script: pytest
