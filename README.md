@@ -8,19 +8,19 @@
 [![Latest PyPI version](https://img.shields.io/pypi/v/wgd.svg)](https://pypi.python.org/pypi/wgd)
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/wgd/README.html)
 [![Downloads](https://pepy.tech/badge/wgd)](https://pepy.tech/project/wgd)
+[![Downloads][downloads-badge]][releases]
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
 
 [**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.org/)**, VIB-UGent Center for Plant Systems Biology**
 
-[**Introduction**](#Introduction) | 
-[**Installation**](#Installation) | 
-[**Parameters**](#Parameters) | 
-[**Usage**](#Usage) | 
-[**Illustration**](#Illustration) |
+[**Introduction**](#introduction) | 
+[**Installation**](#installation) | 
+[**Parameters**](#parameters) | 
+[**Usage**](#usage) | 
+[**Illustration**](#illustration) |
 [**Documentation**](https://wgdv2.readthedocs.io/en/latest/?badge=latest) |
-[**Citation**](#Citation)
-
+[**Citation**](#citation)
 
 </div>
 
