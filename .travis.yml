@@ -17,6 +17,6 @@ before_install:
     - pushd paml4.9j/src && make -f Makefile && popd 
     - export PATH=$PATH:$PWD/paml4.9j/src/
 install:
-    - pip install -r requirements.txt
+    - python setup.py install
     - pip install .
 script: pytest
