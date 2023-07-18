@@ -5,6 +5,7 @@ python:
     - '3.8'
     - '3.9'
 before_install:
+    - sudo apt-get install build-essential
     - sudo apt-get update
     - sudo apt-get -y install mcl
     - sudo apt-get -y install mafft
