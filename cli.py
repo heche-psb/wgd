@@ -186,7 +186,8 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--chainset', '-cs', nargs=2,default= (10000,100), show_default=True, help='MCMC chain info (length,frequency) for beast')
 @click.option('--beastlgjar', default=None, show_default=True,help='path of beastLG.jar')
 @click.option('--beagle', is_flag=True,help='using beagle')
-@click.option('--protdating', is_flag=True,help='only run protein concatenation dating')
+@click.option('--protcocdating', is_flag=True,help='only run protein concatenation dating')
+@click.option('--protdating', is_flag=True,help='only run protein dating')
 def focus(**kwargs):
     """
     Multiply species RBH or c-score defined orthologous family's gene tree inference, species tree inference and absolute dating pipeline.
@@ -215,9 +216,9 @@ def focus(**kwargs):
     """
     _focus(**kwargs)
 
-def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath, fossil, rootheight, chainset, beastlgjar, beagle, protdating):
+def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath, fossil, rootheight, chainset, beastlgjar, beagle, protdating, protcocdating):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST, get_only_protaln, Run_MCMCTREE_concprot, Concat_prot
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST, get_only_protaln, Run_MCMCTREE_concprot, Concat_prot, Parallel_MCMCTREE_Prot
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -232,11 +233,21 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     for s in seqs: logging.info("tmpdir = {} for {}".format(s.tmp_path,s.prefix))
     fams = read_MultiRBH_gene_families(families)
-    if protdating:
+    if protcocdating:
         logging.info("Only implement protein concatenation dating via mcmctree")
-        pro_alns = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
+        pro_alns,pro_alnfs = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
         Concat_palnf,Concat_paln,slist = Concat_prot(pro_alns,families,outdir)
         Run_MCMCTREE_concprot(Concat_paln,Concat_palnf,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads)
+        end = timer()
+        logging.info("Total run time: {}s".format(int(end-start)))
+        logging.info("Done")
+        if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
+        exit()
+    if protdating:
+        logging.info("Only implement protein dating via mcmctree")
+        pro_alns,pro_alnfs = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
+        Concat_palnf,Concat_paln,slist = Concat_prot(pro_alns,families,outdir)
+        Parallel_MCMCTREE_Prot(Concat_palnf,Concat_paln,pro_alns,pro_alnfs,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads)
         end = timer()
         logging.info("Total run time: {}s".format(int(end-start)))
         logging.info("Done")

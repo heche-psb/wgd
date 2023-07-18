@@ -653,10 +653,14 @@ def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
     famid = "GF{:0>8}".format(i+1)
     fnamep =os.path.join(outdir, famid + ".pep")
     fnamec =os.path.join(outdir, famid + ".cds")
-    for seqid in fam:
-        safeid = idmap.get(seqid)
-        with open(fnamep,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
-        with open(fnamec,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
+    with open(fnamep,'w') as f:
+        for seqid in fam:
+            safeid = idmap.get(seqid)
+            f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+    with open(fnamec,'w') as f:
+        for seqid in fam:
+            safeid = idmap.get(seqid)
+            f.write(">{}\n{}\n".format(seqid, seq_cds.get(safeid)))
     fnamepaln =os.path.join(outdir, famid + ".paln")
     mafft_cmd(fnamep,option,fnamepaln)
     fnamecaln =os.path.join(outdir, famid + ".caln")
@@ -900,25 +904,27 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
 def getproaln(i,fam,outdir,idmap,seq_pro,option):
     famid = "GF{:0>8}".format(i+1)
     fnamep =os.path.join(outdir, famid + ".pep")
-    for seqid in fam:
-        safeid = idmap.get(seqid)
-        with open(fnamep,'a') as f: f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
+    with open(fnamep,'w') as f:
+        for seqid in fam:
+            safeid = idmap.get(seqid)
+            f.write(">{}\n{}\n".format(seqid, seq_pro.get(safeid)))
     fnamepaln =os.path.join(outdir, famid + ".paln")
     mafft_cmd(fnamep,option,fnamepaln)
 
-def addproaln(i,outdir,pro_alns):
+def addproaln(i,outdir,pro_alns,pro_alnfs):
     famid = "GF{:0>8}".format(i+1)
     fnamepaln =os.path.join(outdir, famid + ".paln")
     pro_alns[famid] = AlignIO.read(fnamepaln, "fasta")
+    pro_alnfs[famid] = fnamepaln
 
 def get_only_protaln(seqs,fams,outdir,nthreads,option="--auto"):
-    seq_pro,idmap,pro_alns = {},{},{}
+    seq_pro,idmap,pro_alns,pro_alnfs = {},{},{},{}
     for i in range(len(seqs)):
         seq_pro.update(seqs[i].pro_sequence)
         idmap.update(seqs[i].idmap)
     Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(getproaln)(i,fam,outdir,idmap,seq_pro,option) for i, fam in enumerate(fams))
-    for i in range(len(fams)): addproaln(i,outdir,pro_alns)
-    return pro_alns
+    for i in range(len(fams)): addproaln(i,outdir,pro_alns,pro_alnfs)
+    return pro_alns,pro_alnfs
 
 def Concat_prot(pro_alns,families,outdir):
     gsmap, slist = GetG2SMap(families, outdir)
@@ -950,9 +956,10 @@ def Concat_prot(pro_alns,families,outdir):
                         break
         if slist_set != added_sp: logging.info('Error in concatenation process that multiple genes were concatenated to the same species. Please check the input file that if two genes in the same family could be assigned to the same species!')
         pro_alns_rn[famid] = pro_aln
-    for spname in range(len(slist)):
-        spn = slist[spname]
-        with open(Concat_palnf,"a") as f: f.write(">{}\n{}\n".format(spn, proseq[spn]))
+    with open(Concat_palnf,"w") as f:
+        for spname in range(len(slist)):
+            spn = slist[spname]
+            f.write(">{}\n{}\n".format(spn, proseq[spn]))
     Concat_paln = AlignIO.read(Concat_palnf, "fasta")
     return Concat_palnf,Concat_paln,slist
 
@@ -960,7 +967,6 @@ def Run_MCMCTREE_concprot(Concat_paln,Concat_palnf,tmpdir,outdir,speciestree,dat
     CI_table,PM_table = {},{}
     wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
     Concat_palnf_paml = fasta2paml(Concat_paln,Concat_palnf)
-    McMctrees = []
     if aamodel == 'wag':
         logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
     elif aamodel == 'lg':
@@ -970,6 +976,25 @@ def Run_MCMCTREE_concprot(Concat_paln,Concat_palnf,tmpdir,outdir,speciestree,dat
     else:
         logging.info('Running mcmctree using Poisson without gamma rates for protein model')
     McMctree = mcmctree(None, Concat_palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
+    McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+
+def Parallel_MCMCTREE_Prot(Concat_palnf,Concat_paln,palns,palnfs,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads):
+    palns_palnfs = [(palns[key],palnfs[key]) for key in palns.keys()] + [(Concat_paln,Concat_palnf)]
+    if aamodel == 'wag':
+        logging.info('Running mcmctree using Hessian matrix of WAG+Gamma for protein model')
+    elif aamodel == 'lg':
+        logging.info('Running mcmctree using Hessian matrix of LG+Gamma for protein model')
+    elif aamodel == 'dayhoff':
+        logging.info('Running mcmctree using Hessian matrix of Dayhoff-DCMut for protein model')
+    else:
+        logging.info('Running mcmctree using Poisson without gamma rates for protein model')
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(Run_MCMCTREE_onlyprot)(paln,palnf,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads) for paln,palnf in palns_palnfs)
+
+def Run_MCMCTREE_onlyprot(paln,palnf,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads):
+    CI_table,PM_table = {},{}
+    wgd_mrca = [sp for sp in slist if sp[-4:] == '_ap1' or sp[-4:] == '_ap2']
+    palnf_paml = fasta2paml(paln,palnf)
+    McMctree = mcmctree(None, palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
     McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
 
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", runtree=False, **kwargs):
@@ -1113,12 +1138,14 @@ def Concat(cds_alns, pro_alns, families, tree_method, treeset, outdir, infer_tre
         if slist_set != added_sp: logging.info('Error in concatenation process that multiple genes were concatenated to the same species. Please check the input file that if two genes in the same family could be assigned to the same species!')
         cds_alns_rn[famid] = cds_aln
         pro_alns_rn[famid] = pro_aln
-    for spname in range(len(slist)):
-        spn = slist[spname]
-        with open(Concat_palnf,"a") as f:
+    with open(Concat_palnf,"w") as f:
+        for spname in range(len(slist)):
+            spn = slist[spname]
             sequence = proseq[spn]
             f.write(">{}\n{}\n".format(spn, sequence))
-        with open(Concat_calnf,"a") as f:
+    with open(Concat_calnf,"w") as f:
+        for spname in range(len(slist)):
+            spn = slist[spname]
             sequence = cdsseq[spn]
             f.write(">{}\n{}\n".format(spn, sequence))
     Concat_caln = AlignIO.read(Concat_calnf, "fasta")

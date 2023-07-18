@@ -132,7 +132,7 @@ class mcmctree:
     Implementation of mcmctree provided a MRBH family for phylogenetic dating
     """
     def __init__(self, calnf_rn, palnf_rn, tmpdir, outdir, speciestree, datingset, aamodel, partition):
-        self.tree = speciestree
+        self.tree = os.path.abspath(speciestree)
         self.partition = partition
         self.aamodel = aamodel
         self.calnf_rn = calnf_rn
