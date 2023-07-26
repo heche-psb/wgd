@@ -1637,7 +1637,7 @@ def add_seg(df,listelement,multipliconpairs,segment):
     if len(mp.columns) == 5: mp = mp.drop(columns=['gene_y']).rename(columns = {'gene_x':'gene_y'}).rename(columns = {'Unnamed: 2':'gene_x'})
     mp = mp.loc[:,['multiplicon','gene_x','gene_y']]
     mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(mp['gene_x'],mp['gene_y'])]
-    mp = mp.drop_duplicates(subset=['pair']) # at this step half of the data will be filtered out
+    #mp = mp.drop_duplicates(subset=['pair']) # at this step half of the data will be filtered out
     mp.loc[:,['id']] = [i for i in range(mp.shape[0])]
     #mp= mp.drop_duplicates(subset=['pair']) #Here the same gene pair can be in different multiplicon
     df_seg = pd.read_csv(segment,header=0,index_col=None,sep='\t').rename(columns = {'id':'segment'}).loc[:,['segment','multiplicon']]

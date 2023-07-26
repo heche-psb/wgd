@@ -476,7 +476,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     return ax
 
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=None,user_ylim=None):
-    if na:
+    if na and not reweight:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
@@ -485,7 +485,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
     df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     df_para = None
-    if extraparanomeks != None:
+    if not (extraparanomeks is None):
         df_para = pd.read_csv(extraparanomeks,header=0,index_col=0,sep='\t')
         df_para = formatv2(df_para)
         df_para = apply_filters(df_para, [("dS", 0., 5.)])
@@ -569,24 +569,24 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             Hs_maxs.append(max(Hs))
             if not (df_para is None):
                 continue
-            if not plotelmm:
-                if plotkde:
-                    kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
-                    kde_y = kde(kde_x)
-                    CHF = get_totalH(Hs)
-                    scaling = CHF*0.1
-                    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
+            #if not plotelmm:
+            #    if plotkde:
+            #        kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
+            #        kde_y = kde(kde_x)
+            #        CHF = get_totalH(Hs)
+            #        scaling = CHF*0.1
+            #        ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
                 logging.info("ELMM analysis on paralogous Ks of {}".format(pair.split("__")[0]))
                 ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
                 continue
-            if plotkde:
-                kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
-                kde_y = kde(kde_x)
-                CHF = get_totalH(Hs)
-                scaling = CHF*0.1
-                ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
+            #if plotkde:
+            #    kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
+            #    kde_y = kde(kde_x)
+            #    CHF = get_totalH(Hs)
+            #    scaling = CHF*0.1
+            #    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
         else:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
             y_lim_beforekde = ax.get_ylim()[1]
