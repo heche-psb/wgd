@@ -475,8 +475,14 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
     return ax
 
+def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
+    df = df[df['dS']<cutoff]
+    node_averaged_dS_exc = df.groupby(["family", "node"])["dS"].mean()
+    node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
+    return node_averaged_dS_exc
+
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=None,user_ylim=None):
-    if na and not reweight:
+    if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
@@ -972,7 +978,7 @@ def m_step(num_comp, ks, posteriors):
     new_weights = [round(points_per_k[i]/len(ks),2) for i in range(num_comp)]
     for indice in range(len(points_per_k)):
         if not points_per_k[indice]>0:
-            logging.info("Found component weight as zero")
+            logging.debug("Found component weight as zero")
             points_per_k[indice] = 1e-6
     new_means = [sum(posteriors[i+1] * np.log(ks)) / points_per_k[i+1] for i in range(num_comp-1)]
     new_stdevs = [np.sqrt(sum(posteriors[i+1]*pow(np.log(ks)-new_means[i],2))/points_per_k[i+1]) for i in range(num_comp-1)]
