@@ -484,7 +484,7 @@ def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=None,user_ylim=None):
     if na:
         df = df.drop_duplicates(subset=['family','node'])
-        df = df.loc[:,['node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
         df['weightoutlierexcluded'] = 1
         logging.info("Implementing node-averaged Ks analysis")
     else: logging.info("Implementing node-weighted Ks analysis")
@@ -1136,8 +1136,8 @@ def default_plot(
     axs[1,0].set_xticks([-4,-3,-2,-1,0,1])
     axs[0,1].set_xticks([-4,-3,-2,-1,0,1])
     # finalize plot
-    if not (user_ylim[0]) is None: axs[0,0].set_ylim(user_ylim[0],user_ylim[1])
-    if not (user_xlim[0]) is None: axs[0,0].set_xlim(user_xlim[0],user_xlim[1])
+    if not (user_ylim is None): axs[0,0].set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim is None): axs[0,0].set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     fig.suptitle(title, x=0.125, y=0.9, ha="left", va="top")
     fig.tight_layout()
