@@ -49,7 +49,7 @@ _labels = {
         "dN" : "$K_\mathrm{A}$",
         "dN/dS": "$\omega$"}
 
-def getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=None):
+def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=None):
     df_perspair = {}
     allspair = []
     paralog_pair = []
@@ -58,9 +58,18 @@ def getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=None):
         if i.split(';')[0].strip() == i.split(';')[1].strip(): paralog_pair.append(pair)
         if pair not in allspair: allspair.append(pair)
     #If users provide various paralogous pair, we still only consider the first one in correction
-    df['spair'] = ['__'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
+    if not (spgenemap is None):
+        df['spair'] = ['__'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
+    #else:
+    #for x in zip(df['g1'],df['']):
+    #    if not type(x) is float:
+    #        print(x)
+    else:
+        Sp1,Sp2 = ["_".join(x.split("_")[:-1]) for x in df['g1']], ["_".join(x.split("_")[:-1]) for x in df['g2']]
+    #df['sp1'],df['sp2'] = df['g1'].apply(lambda x:"_".join(x.split("_")[:-1])),df['g2'].apply(lambda x:"_".join(x.split("_")[:-1]))
+        df['spair'] = ['__'.join(sorted([sp1,sp2])) for sp1,sp2 in zip(Sp1,Sp2)]
     #If users provide no paralogous pair, we don't do the correction
-    if sptree != None and len(paralog_pair) !=0 : corrected_ks_spair,Outgroup_spnames = correctks(df,sptree,paralog_pair[0],reweight,onlyrootout)
+    if sptree != None and len(paralog_pair) !=0 : corrected_ks_spair,Outgroup_spnames = correctks(df,sptree,paralog_pair[0],reweight,onlyrootout,na=na)
     else: corrected_ks_spair,Outgroup_spnames = None,None
     for p in allspair: df_perspair[p] = df[df['spair']==p]
     return df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames
@@ -115,24 +124,37 @@ def gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade):
             Trios_dict[sppair].append((focusp,sister,outgroup))
     return all_spairs,spairs,trios,Trios_dict
 
-def getspairks(spairs,df,reweight,method='mode'):
+def getspairks(spairs,df,reweight,method='mode',na=False):
     bins = 50
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
     spairs_ks = {}
     for spair in spairs:
-        df_tmp = df[df['spair']==spair]
-        x = df_tmp['dS']
-        y = x[np.isfinite(x)]
-        w = reweighted(df_tmp) if reweight else df_tmp['weightoutlierexcluded']
-        if method == 'mode':
-            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
-            kde_y = kde(kde_x)
-            mode, maxim = kde_mode(kde_x, kde_y)
-            spairs_ks[spair] = mode
-        elif method == 'median':
-            median = np.median(kde_y)
-            spairs_ks[spair] = median
+        if na:
+            df_tmp = df[df['spair']==spair]
+            x = df_tmp.groupby(['family','node'])['dS'].mean()
+            y = x[np.isfinite(x)]
+            if method == 'mode':
+                kde = stats.gaussian_kde(y,bw_method=0.1)
+                kde_y = kde(kde_x)
+                mode, maxim = kde_mode(kde_x, kde_y)
+                spairs_ks[spair] = mode
+            elif method == 'median':
+                median = np.median(kde_y)
+                spairs_ks[spair] = median
+        else:
+            df_tmp = df[df['spair']==spair]
+            x = df_tmp['dS']
+            y = x[np.isfinite(x)]
+            w = reweighted(df_tmp) if reweight else df_tmp['weightoutlierexcluded']
+            if method == 'mode':
+                kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                kde_y = kde(kde_x)
+                mode, maxim = kde_mode(kde_x, kde_y)
+                spairs_ks[spair] = mode
+            elif method == 'median':
+                median = np.median(kde_y)
+                spairs_ks[spair] = median
     return spairs_ks
 
 def ksadjustment(Trios_dict,ks_spair):
@@ -150,7 +172,7 @@ def ksadjustment(Trios_dict,ks_spair):
         corrected_ks_spair[spair] = final_adjusted_Ks
     return corrected_ks_spair
 
-def correctks(df,sptree,focus,reweight,onlyrootout):
+def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     focusp = focus.split('__')[0]
     tree = Phylo.read(sptree, "newick")
     for i,clade in enumerate(tree.get_nonterminals()): clade.name = "internal_node_{}".format(i)
@@ -167,7 +189,7 @@ def correctks(df,sptree,focus,reweight,onlyrootout):
     Ingroup_spnames = [i.name.replace('_Outgroup','').replace('_Ingroup','') for i in Ingroup_clade.get_terminals()]
     if onlyrootout: all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
     else: all_spairs,spairs,Trios,Trios_dict = gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade)
-    ks_spair = getspairks(all_spairs,df,reweight,method='mode')
+    ks_spair = getspairks(all_spairs,df,reweight,method='mode',na=na)
     corrected_ks_spair = ksadjustment(Trios_dict,ks_spair)
     return corrected_ks_spair,Outgroup_spnames
 
@@ -483,9 +505,9 @@ def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
 
 def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=None,user_ylim=None):
     if na:
-        df = df.drop_duplicates(subset=['family','node'])
-        df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
-        df['weightoutlierexcluded'] = 1
+        #df = df.drop_duplicates(subset=['family','node'])
+        #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        #df['weightoutlierexcluded'] = 1
         logging.info("Implementing node-averaged Ks analysis")
     else: logging.info("Implementing node-weighted Ks analysis")
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
@@ -499,10 +521,10 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         df = pd.concat([df,df_para])
     # I add this dropduplicates to prevent the same paralogous pair from occuring twice and also use preferentially paranome
     df = df[~df.index.duplicated(keep='last')]
-    if not ksd: spgenemap = getgsmap(gsmap)
+    if not ksd and not (gsmap is None): spgenemap = getgsmap(gsmap)
     else: spgenemap = gsmap
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,spgenemap,reweight,onlyrootout,sptree=sptree)
+    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap)
     if len(paralog_pair) == 1:
         if len(df_perspair) == 1:
             if na:
@@ -557,14 +579,19 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         pair,df_per = item[0],item[1]
         df_per = df_per.copy()
         #for ax, k, f in zip(axs.flatten(), keys, funs):
-        if reweight:
-            w = reweighted(df_per)
-            df_per['weightoutlierexcluded'] = w
+        if na:
+            x = df_per.groupby(['family','node'])['dS'].mean()
+            y = x[np.isfinite(x)]
+            w = [1 for ds in x]
         else:
-            w = df_per['weightoutlierexcluded']
-        x = df_per['dS']
-        y = x[np.isfinite(x)]
-        w = w[np.isfinite(x)]
+            if reweight:
+                w = reweighted(df_per)
+                df_per['weightoutlierexcluded'] = w
+            else:
+                w = df_per['weightoutlierexcluded']
+            x = df_per['dS']
+            y = x[np.isfinite(x)]
+            w = w[np.isfinite(x)]
         if pair in paralog_pair:
             if len(df_perspair) == 1:
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray', alpha=1, rwidth=0.8,label='Whole paranome')
@@ -607,11 +634,11 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
-            logging.info('The mode of species pair {} is {:.2f}'.format(pair,mode))
+            logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
-            ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
+            ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.3f} of {}'.format(mode,pair))
             if corrected_ks_spair != None:
                 if pair in corrected_ks_spair.keys():
                     ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
@@ -619,10 +646,15 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         df_ap = pd.read_csv(ap,header=0,index_col=0,sep='\t')
         df_ap.loc[:,"pair"] = df_ap[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
         df_working = df_ap.set_index('pair').join(df).dropna(subset=['dS','weightoutlierexcluded'])
-        w = reweighted(df_working) if reweight else df_working['weightoutlierexcluded']
-        x = df_working['dS']
-        y = x[np.isfinite(x)]
-        w = w[np.isfinite(x)]
+        if na:
+            x = df_working.groupby(['family','node'])['dS'].mean()
+            y = x[np.isfinite(x)]
+            w = [1 for ds in x]
+        else:
+            w = reweighted(df_working) if reweight else df_working['weightoutlierexcluded']
+            x = df_working['dS']
+            y = x[np.isfinite(x)]
+            w = w[np.isfinite(x)]
         if len(df_perspair) == 1:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='g', rwidth=0.8,label='Anchor pairs')
         else:

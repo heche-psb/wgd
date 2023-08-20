@@ -508,7 +508,7 @@ wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -sp speciestree.nw --reweigh
 
 As displayed above, the orthologous *K*<sub>S</sub> values bewteen *Aquilegia coerulea* and *Acorus americanus* has the highest mode, indicatingthe faster substitution rate of *Aquilegia coerulea* compared to *Protea cynaroides* and *Vitis vinifera*.
 
-Note that a necessary gene-species map file is needed for its implementation in `wgd viz`, which should be automately produced by the last `wgd ksd` step. The `gene_species.map` has contents as below in which each line is the joined string of gene name and species name by space.
+Before v2.0.21, the gene-species map file is neccessarily needed for its implementation in `wgd viz`, which should be automately produced by the last `wgd ksd` step given the `spair` and `speciestree` parameters. The `gene_species.map` has contents as below in which each line is the joined string of gene name and species name by space. After v2.0.21 (included), the gene-species map file is not neccessarily needed anymore.
 
 ```
 Aqcoe6G057800.1 Aquilegia_coerulea
