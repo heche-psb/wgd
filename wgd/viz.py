@@ -572,6 +572,10 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     if plotelmm:
         if not (df_para is None):
             logging.info("ELMM analysis on extra paralogous Ks")
+            if na:
+                df_para = df_para.drop_duplicates(subset=['family','node'])
+                df_para = df_para.drop(['dS'], axis=1).rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+                df_para['weightoutlierexcluded'] = 1
             ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
             drawtime = drawtime + 1
     Hs_maxs,y_lim_beforekdes = [],[]
