@@ -55,6 +55,13 @@ def _parse_pair(lines, start):
     x.update({"pair": p, "gene1": a, "gene2": b, "l": l})
     return x
 
+def check_noneresult(codeml_out):
+    with open(codeml_out, "r") as f: content = f.read()
+    if "pairwise comparison" not in content:
+        return False
+    else:
+        return True
+
 def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
     """
     Run codeml assuming all necessary files are written and we are in the
@@ -65,6 +72,7 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
     logging.debug("Performing codeml {} times".format(times))
     max_results = None 
     max_likelihood = None
+    Noresults = False
     for i in range(times):
         logging.debug("Codeml iteration {0} for {1}".format(str(i+1), control_file))
         sp.run([exe, control_file], stdout=sp.PIPE)
@@ -72,11 +80,18 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
             '2NG.t', 'rst', 'rst1', 'rub'], stdout=sp.PIPE, stderr=sp.PIPE)
         if not os.path.isfile(out_file):
             raise FileNotFoundError('Codeml output file not found')
+        if check_noneresult(out_file):
+            Noresults = True
+            break
         results = _parse_pairwise(out_file)
         likelihood = sum(results["l"])
         if not max_likelihood or likelihood > max_likelihood:
             max_likelihood = likelihood
             max_results = results
+    if Noresults:
+        if not preserve:
+            os.remove(out_file)
+        return None
     logging.debug('Best MLE: ln(L) = {}'.format(max_likelihood))
     #os.remove(control_file)
     if not preserve:
@@ -213,9 +228,13 @@ class Codeml:
         os.chdir(self.tmp)  # go to tmpdir
         self.write_ctrl() 
         _write_aln_codeml(self.aln, self.aln_file)
-        results = _run_codeml(self.exe, self.control_file, self.out_file, **kwargs) 
+        results = _run_codeml(self.exe, self.control_file, self.out_file, **kwargs)
         os.chdir(parentdir)
-        return results, []
+        if results is None:
+            logging.warning("No codeml result for {} due to no resolved nucleotides".format(self.prefix))
+            return None, _all_pairs(self.aln)
+        else:
+            return results, []
 
     def run_codeml_pairwise(self, **kwargs):
         """
