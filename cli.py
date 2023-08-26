@@ -493,6 +493,9 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     logging.info("Saving to {}".format(outfile))
     ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
     logging.info("Making plots")
+    if "dS" not in ksdb.df.columns or len(ksdb.df.dropna(subset=["dS"]))==0:
+        logging.info("No valid Ks values for plotting")
+        exit(0)
     df = apply_filters(ksdb.df, [("dS", 0., 5.)])
     ylabel = "Duplications"
     if len(sequences) == 2:
