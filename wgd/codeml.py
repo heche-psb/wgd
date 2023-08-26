@@ -80,7 +80,7 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
             '2NG.t', 'rst', 'rst1', 'rub'], stdout=sp.PIPE, stderr=sp.PIPE)
         if not os.path.isfile(out_file):
             raise FileNotFoundError('Codeml output file not found')
-        if check_noneresult(out_file):
+        if not check_noneresult(out_file):
             Noresults = True
             break
         results = _parse_pairwise(out_file)
@@ -253,8 +253,11 @@ class Codeml:
                 else:
                     self.write_ctrl() 
                     _write_aln_codeml(stripped_pair, self.aln_file)
-                    results.append(_run_codeml(self.exe, self.control_file, 
-                        self.out_file, **kwargs) )
+                    if _run_codeml(self.exe, self.control_file,self.out_file, **kwargs) is None:
+                        no_results.append([p.id for p in pair])
+                    else:
+                        results.append(_run_codeml(self.exe, self.control_file, 
+                            self.out_file, **kwargs) )
         if len(no_results) > 0:
             logging.warning("Alignment length of 0 for {} pairs in {}".format(
                 len(no_results), self.prefix))
