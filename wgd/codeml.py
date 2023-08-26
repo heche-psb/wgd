@@ -253,11 +253,11 @@ class Codeml:
                 else:
                     self.write_ctrl() 
                     _write_aln_codeml(stripped_pair, self.aln_file)
-                    if _run_codeml(self.exe, self.control_file,self.out_file, **kwargs) is None:
+                    tmp_result = _run_codeml(self.exe, self.control_file,self.out_file, **kwargs)
+                    if tmp_result is None:
                         no_results.append([p.id for p in pair])
                     else:
-                        results.append(_run_codeml(self.exe, self.control_file, 
-                            self.out_file, **kwargs) )
+                        results.append(tmp_result)
         if len(no_results) > 0:
             logging.warning("Alignment length of 0 for {} pairs in {}".format(
                 len(no_results), self.prefix))
