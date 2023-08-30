@@ -1552,8 +1552,8 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     ci_l = (1-ci/100)/2
     ci_u = 1-(1-ci/100)/2
     CI_95s = []
+    Hs, Bins, patches = ax.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
     for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
-        Hs, Bins, patches = ax.hist(ks_or,bins = np.linspace(0, 5, num=int(5/bin_width)+1),weights=w,color='gray', alpha=1, rwidth=0.8)
         CHF = get_totalH(Hs)
         scaling = CHF*0.1
         ax.plot(x_points_strictly_positive,scaling*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(mean),s=std), c=cs[i], ls='-', lw=1.5, alpha=0.8, label='Peak {} mode {:.2f}'.format(i+1,np.exp(mean - std**2)))
