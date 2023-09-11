@@ -503,7 +503,7 @@ def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
     node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
     return node_averaged_dS_exc
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False,user_xlim=(None,None),user_ylim=(None,None)):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -680,8 +680,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else:
         ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
-    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
-    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
+    #if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    #if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if len(df_perspair) == 1:
         title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
@@ -1159,6 +1159,8 @@ def default_plot(
             x = f(dist[k])
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
+            #if funs[0] == f: ax.hist(y, bins = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0], weights=w, color=c, alpha=1, rwidth=0.8)
+            #if funs[0] == f: ax.hist(y, bins = 51, weights=w, color=c, alpha=1, rwidth=0.8)
             if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
             if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
             else: ax.hist(y, weights=w, color=c, alpha=1, rwidth=0.8,**kwargs)
@@ -1168,7 +1170,8 @@ def default_plot(
             ax.set_xlabel(xlabel)
     axs[0,0].set_ylabel(ylabel)
     axs[1,0].set_ylabel(ylabel)
-    axs[0,0].set_xticks([0,1,2,3,4,5])
+    #axs[0,0].set_xticks([0,1,2,3,4,5])
+    axs[0,0].set_xlim(0,5)
     axs[1,0].set_xticks([-4,-3,-2,-1,0,1])
     axs[0,1].set_xticks([-4,-3,-2,-1,0,1])
     # finalize plot
