@@ -503,7 +503,7 @@ def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
     node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
     return node_averaged_dS_exc
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None)):
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -680,8 +680,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     else:
         ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
-    #if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
-    #if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
+    if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
+    if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if len(df_perspair) == 1:
         title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
