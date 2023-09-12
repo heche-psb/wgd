@@ -726,8 +726,8 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         b = apply_filters(anchor_ks, [("dS", 0, 5.)])
         logging.info("Generating anchor Ks distribution")
         fig = default_plot(a, b, title=prefix, bins=50, ylabel=ylabel)
-        fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
-        fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
+        fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)),dpi=300, bbox_inches='tight')
+        fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)),dpi=300, bbox_inches='tight')
     logging.info("Done")    
 
 # MIXTURE MODELING
