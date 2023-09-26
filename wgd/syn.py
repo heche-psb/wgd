@@ -130,8 +130,8 @@ def write_config_adhore(
         config_file, output_path, genelists, families, gap_size=30,
         cluster_gap=35, q_value=0.75, prob_cutoff=0.01, anchor_points=3,
         alignment_method='gg2', level_2_only='false', table_type='family',
-        multiple_hypothesis_correction='FDR', visualize_ghm='false',
-        visualize_alignment='false'):
+        multiple_hypothesis_correction='FDR', visualizeGHM='false',
+        visualizeAlignment='false'):
     """
     Write out the config file for I-ADHoRe. See I-ADHoRe manual for information
     on parameter settings.
@@ -149,8 +149,8 @@ def write_config_adhore(
     :param level_2_only: see I-ADHoRe 3.0 documentation
     :param table_type: see I-ADHoRe 3.0 documentation
     :param multiple_hypothesis_correction: see I-ADHoRe 3.0 documentation
-    :param visualize_ghm: see I-ADHoRe 3.0 documentation
-    :param visualize_alignment: see I-ADHoRe 3.0 documentation
+    :param visualizeGHM: see I-ADHoRe 3.0 documentation
+    :param visualizeAlignment: see I-ADHoRe 3.0 documentation
     :return: configuration file see I-ADHoRe 3.0 documentation
     """
     with open(config_file, 'w') as o:
@@ -172,8 +172,8 @@ def write_config_adhore(
         o.write('table_type= {}\n'.format(table_type))
         o.write('multiple_hypothesis_correction= {}\n'.format(
                 multiple_hypothesis_correction))
-        o.write('visualizeGHM= {}\n'.format(visualize_ghm))
-        o.write('visualizeAlignment= {}\n'.format(visualize_alignment))
+        o.write('visualizeGHM= {}\n'.format(visualizeGHM))
+        o.write('visualizeAlignment= {}\n'.format(visualizeAlignment))
     return os.path.abspath(output_path)
 
 def run_adhore(config_file):

@@ -668,7 +668,9 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         y_lim_beforekdes.append(y_lim_beforekde)
         if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs)
     ax.set_xlabel(_labels["dS"])
-    safe_max = max([max(y_lim_beforekdes),max(Hs_maxs)])
+    #safe_max = max([max(y_lim_beforekdes),max(Hs_maxs)])
+    #safe_max = max(Hs_maxs)
+    safe_max = max(Hs_maxs) * 1.1
     ax.set_ylim(0, safe_max)
     #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
     if len(df_perspair) == 1 and len(paralog_pair) == 1:
