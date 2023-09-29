@@ -578,9 +578,11 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
     return gene_families
 
 def identity_ratio(aln):
-    identity = [i for i in range(aln.get_alignment_length()) if len(set(aln[:,i]))==1]
-    ratio = len(identity)/aln.get_alignment_length()
-    return ratio
+    if aln.get_alignment_length() == 0: return 0
+    else:
+        identity = [i for i in range(aln.get_alignment_length()) if len(set(aln[:,i]))==1]
+        ratio = len(identity)/aln.get_alignment_length()
+        return ratio
 
 def Aligninfo(aln):
     aln_strip = _strip_gaps(aln)
