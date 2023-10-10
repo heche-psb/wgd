@@ -65,7 +65,7 @@ setup(
        'threadpoolctl==2.1.0',
        'toml==0.10.2',
        'tornado==6.0.4',
-       'tqdm==4.65.0',
+       'tqdm>=4.64.1',
        'typing-extensions>=3.10.0.0',
        'zipp==3.4.0'
     ],
