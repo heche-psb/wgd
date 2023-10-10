@@ -27,6 +27,7 @@ setup(
        'colorama==0.4.4',
        'commonmark==0.9.1',
        'cycler==0.10.0',
+       'ete3>=3.1.3',
        'fastcluster==1.1.28',
        'humanfriendly==8.2',
        'importlib-metadata==3.1.0',
@@ -64,6 +65,7 @@ setup(
        'threadpoolctl==2.1.0',
        'toml==0.10.2',
        'tornado==6.0.4',
+       'tqdm==4.65.0',
        'typing-extensions>=3.10.0.0',
        'zipp==3.4.0'
     ],

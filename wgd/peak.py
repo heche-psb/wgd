@@ -228,7 +228,7 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
         modes.append(np.exp(mean - std**2))
         y_lim_afterkde = ax.get_ylim()[1]
         if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
-    safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
+    safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)]) * 1.1
     ax.set_ylim(0, safe_max)
     ax.legend(loc='upper right', fontsize='small',frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")

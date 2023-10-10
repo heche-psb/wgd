@@ -487,14 +487,22 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     x_points_strictly_positive = np.linspace(0, 5, int(5 * 100))
     total_pdf = final_weights[0] * stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd)
     ax.plot(x_points_strictly_positive,scaling*final_weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
+    #if not density: ax.plot(x_points_strictly_positive,scaling*final_weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
+    #else: ax.plot(x_points_strictly_positive,final_weights[0]*stats.expon.pdf(x_points_strictly_positive, scale=1/final_lambd), c='g', ls='-', lw=1.5, alpha=0.8, label='Exponential optimized')
     lognormal_peaks = {i:round(np.exp(final_means[i] - pow(final_stdevs[i], 2)), 2) for i in range(len(final_stdevs))}
     lognormals_sorted_by_peak = [k for k,v in sorted(lognormal_peaks.items(), key=lambda y:y[1])]
     letter_dict = dict(zip(lognormals_sorted_by_peak, [ "a", "b", "c", "d", "e", "f", "g"][:len(final_stdevs)]))
     colors = ["b", "r", "c", "m", "k"][:len(final_stdevs)-1] + ["y"]
     for comp, color in zip(lognormals_sorted_by_peak, colors):
         ax.plot(x_points_strictly_positive,scaling*final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(final_means[comp]),s=final_stdevs[comp]), c=color, ls='-', lw=1.5, alpha=0.8, label=f'Lognormal {letter_dict[comp]} optimized (mode {lognormal_peaks[comp]})')
+        #if not density:
+        #    ax.plot(x_points_strictly_positive,scaling*final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(final_means[comp]),s=final_stdevs[comp]), c=color, ls='-', lw=1.5, alpha=0.8, label=f'Lognormal {letter_dict[comp]} optimized (mode {lognormal_peaks[comp]})')
+        #else:
+        #    ax.plot(x_points_strictly_positive,final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive, scale=np.exp(final_means[comp]),s=final_stdevs[comp]), c=color, ls='-', lw=1.5, alpha=0.8, label=f'Lognormal {letter_dict[comp]} optimized (mode {lognormal_peaks[comp]})')
         total_pdf = total_pdf + final_weights[comp+1]*stats.lognorm.pdf(x_points_strictly_positive,scale=np.exp(final_means[comp]),s=final_stdevs[comp])
     ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
+    #if not density: ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
+    #else: ax.plot(x_points_strictly_positive, total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
     return ax
 
 def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
@@ -503,7 +511,27 @@ def get_nodeaverged_dS_outlierexcluded(df,cutoff = 5):
     node_averaged_dS_exc = node_averaged_dS_exc.to_frame(name='node_averaged_dS_outlierexcluded')
     return node_averaged_dS_exc
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None)):
+def getSca(ax,df_perspair,paralog_pair,na,reweight):
+    pair, df_per = sorted(df_perspair.items(),key=lambda x:x[0]==paralog_pair[0],reverse=True)[0]
+    df_per = df_per.copy()
+    if na:
+        x = df_per.groupby(['family','node'])['dS'].mean()
+        y = x[np.isfinite(x)]
+        w = [1 for ds in x]
+    else:
+        if reweight:
+            w = reweighted(df_per)
+            df_per['weightoutlierexcluded'] = w
+        else:
+            w = df_per['weightoutlierexcluded']
+        x = df_per['dS']
+        y = x[np.isfinite(x)]
+        w = w[np.isfinite(x)]
+    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray', alpha=0, rwidth=0.8)
+    return max(Hs)
+    #return sum([v1*v2 for v1,v2 in zip(y,w)])
+
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5):
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -555,6 +583,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             fnames = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.svg')
             fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.pdf')
     cs = cm.viridis(np.linspace(0, 1, len(allspair)))
+    #cs = cm.viridis(np.linspace(1, 0, len(allspair)))
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
     funs = [lambda x: x, np.log10, np.log10, np.log10]
@@ -579,7 +608,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
             drawtime = drawtime + 1
     Hs_maxs,y_lim_beforekdes = [],[]
-    for i,item in enumerate(df_perspair.items()):
+    if adjustortho: Sca = getSca(ax,df_perspair,paralog_pair,na,reweight)
+    for i,item in enumerate(sorted(df_perspair.items(),key=lambda x:x[0]==paralog_pair[0],reverse=False)):
         pair,df_per = item[0],item[1]
         df_per = df_per.copy()
         #for ax, k, f in zip(axs.flatten(), keys, funs):
@@ -625,16 +655,18 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             #    scaling = CHF*0.1
             #    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
         else:
-            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.5, rwidth=0.8,label=pair)
+            if not adjustortho:
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.2, rwidth=0.8,label=pair)
+            else:
+                #Sca_ortho = sum([v1*v2 for v1,v2 in zip(y,w)])
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0, rwidth=0.8)
+                Sca_ortho = max(Hs)
+                factr = Sca_ortho/(Sca*adfactor)
+                w = [i/factr for i in w]
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.2, rwidth=0.8,label=pair)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekdes.append(y_lim_beforekde)
             Hs_maxs.append(max(Hs))
-        if corrected_ks_spair != None:
-            if pair in corrected_ks_spair.keys():
-                #since paralogous genes and orthologous genes between focus and outgroup speices have no corrected Ks data
-                ax.axvline(x = corrected_ks_spair[pair], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
-                logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
-        if pair not in paralog_pair:
             kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
             kde_y = kde(kde_x)
             mode, maxim = kde_mode(kde_x, kde_y)
@@ -642,10 +674,14 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             CHF = get_totalH(Hs)
             scaling = CHF*0.1
             if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
-            ax.axvline(x = mode, color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
+            ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
+            #ax.axvline(x = mode, ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
             if corrected_ks_spair != None:
                 if pair in corrected_ks_spair.keys():
+                    ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                    #ax.axvline(x = corrected_ks_spair[pair], ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
                     ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                    logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
     if ap != None:
         df_ap = pd.read_csv(ap,header=0,index_col=0,sep='\t')
         df_ap.loc[:,"pair"] = df_ap[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
@@ -662,7 +698,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         if len(df_perspair) == 1:
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='g', rwidth=0.8,label='Anchor pairs')
         else:
-            Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
+             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, fill=False, rwidth=0.8,label='Anchor pairs',linewidth=0,hatch = '////////',edgecolor='black')
         Hs_maxs.append(max(Hs))
         y_lim_beforekde = ax.get_ylim()[1]
         y_lim_beforekdes.append(y_lim_beforekde)
