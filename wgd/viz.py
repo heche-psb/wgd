@@ -49,10 +49,13 @@ _labels = {
         "dN" : "$K_\mathrm{A}$",
         "dN/dS": "$\omega$"}
 
-def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=None):
+def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=None,focus2all=None):
     df_perspair = {}
     allspair = []
     paralog_pair = []
+    if not (focus2all is None):
+        tree = Phylo.read(sptree,'newick')
+        spair = [";".join([focus2all,clade.name]) for clade in tree.get_terminals()]
     for i in spair:
         pair = '__'.join(sorted([j.strip() for j in i.split(';')]))
         if i.split(';')[0].strip() == i.split(';')[1].strip(): paralog_pair.append(pair)
@@ -531,7 +534,7 @@ def getSca(ax,df_perspair,paralog_pair,na,reweight):
     return max(Hs)
     #return sum([v1*v2 for v1,v2 in zip(y,w)])
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None):
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -552,7 +555,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     if not ksd and not (gsmap is None): spgenemap = getgsmap(gsmap)
     else: spgenemap = gsmap
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap)
+    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap,focus2all=focus2all)
     if len(paralog_pair) == 1:
         if len(df_perspair) == 1:
             if na:
