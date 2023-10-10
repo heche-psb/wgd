@@ -622,11 +622,9 @@ The posterior mean, median and mode of the Ranunculales WGD age is 112.92, 113.4
 
 ## Citation
  
-Please cite us at https://doi.org/10.1093/bioinformatics/bty915
+Please cite us at https://doi.org/10.1007/978-1-0716-2561-3_1.
 
 ```
-Arthur Zwaenepoel, Yves Van de Peer, wgd—simple command line tools for the analysis of ancient whole-genome duplications, Bioinformatics, Volume 35, Issue 12, June 2019, Pages 2153–2155, https://doi.org/10.1093/bioinformatics/bty915
-
 Hengchi Chen, Arthur Zwaenepoel (2023). Inference of Ancient Polyploidy from Genomic Data. In: Van de Peer, Y. (eds) Polyploidy. Methods in Molecular Biology, vol 2545. Humana, New York, NY. https://doi.org/10.1007/978-1-0716-2561-3_1
 ```
 
