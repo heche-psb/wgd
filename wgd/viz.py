@@ -531,7 +531,7 @@ def getSca(ax,df_perspair,paralog_pair,na,reweight):
     return max(Hs)
     #return sum([v1*v2 for v1,v2 in zip(y,w)])
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5):
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -656,14 +656,14 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             #    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
         else:
             if not adjustortho:
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.2, rwidth=0.8,label=pair)
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
             else:
                 #Sca_ortho = sum([v1*v2 for v1,v2 in zip(y,w)])
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0, rwidth=0.8)
                 Sca_ortho = max(Hs)
                 factr = Sca_ortho/(Sca*adfactor)
                 w = [i/factr for i in w]
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.2, rwidth=0.8,label=pair)
+                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekdes.append(y_lim_beforekde)
             Hs_maxs.append(max(Hs))
