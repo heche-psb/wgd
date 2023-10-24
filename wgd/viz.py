@@ -9,6 +9,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 import os
+import copy
 from matplotlib.patches import Rectangle
 from matplotlib.path import Path
 import matplotlib.patches as patches
@@ -20,10 +21,10 @@ from Bio import Phylo
 from sklearn import mixture
 from wgd.utils import formatv2
 
-def node_averages(df):
+def node_averages(df, entitle = 'dS'):
     # note that this returns a df with fewer rows, i.e. one for every
     # node in the gene family trees.
-    return df.groupby(["family", "node"])["dS"].mean()
+    return df.groupby(["family", "node"])[entitle].mean()
 
 def node_weights(df):
     # note that this returns a df with the same number of rows
@@ -161,9 +162,9 @@ def getspairks(spairs,df,reweight,method='mode',na=False):
     return spairs_ks
 
 def ksadjustment(Trios_dict,ks_spair):
-    corrected_ks_spair = {}
+    corrected_ks_spair,corrected_ks_spair_sisters = {},{}
     for spair,trios in Trios_dict.items():
-        Ks_adjusted_all = []
+        Ks_adjusted_all,Ks_adjusted_all_sister = [],[]
         for trio in trios:
             Ks_focus_outgroup = ks_spair["{}".format("__".join(sorted([trio[0],trio[2]])))]
             Ks_sister_outgroup = ks_spair["{}".format("__".join(sorted([trio[1],trio[2]])))]
@@ -171,16 +172,18 @@ def ksadjustment(Trios_dict,ks_spair):
             Ks_focus_specific = ((Ks_focus_outgroup - Ks_sister_outgroup) + Ks_focus_sister)/2
             Ks_adjusted = Ks_focus_specific * 2
             Ks_adjusted_all.append(Ks_adjusted)
-        final_adjusted_Ks = np.array(Ks_adjusted_all).mean()
-        corrected_ks_spair[spair] = final_adjusted_Ks
-    return corrected_ks_spair
+            Ks_sister_specific = ((Ks_sister_outgroup - Ks_focus_outgroup) + Ks_focus_sister)/2
+            Ks_adjusted_sister = Ks_sister_specific
+            Ks_adjusted_all_sister.append(Ks_adjusted_sister)
+        final_adjusted_Ks, final_adjusted_Ks_sister = np.array(Ks_adjusted_all).mean(), np.array(Ks_adjusted_all_sister).mean()
+        corrected_ks_spair[spair],corrected_ks_spair_sisters[spair] = final_adjusted_Ks,final_adjusted_Ks_sister
+    return corrected_ks_spair, corrected_ks_spair_sisters
 
 def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     focusp = focus.split('__')[0]
     tree = Phylo.read(sptree, "newick")
     for i,clade in enumerate(tree.get_nonterminals()): clade.name = "internal_node_{}".format(i)
     tree.root.name = 'assumed_root'
-    focussp_clade = next(tree.find_clades({"name": focusp}))
     Depths = tree.root.depths(unit_branch_lengths=True)
     first_children_of_root = []
     for clade,depth in Depths.items():
@@ -193,8 +196,59 @@ def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     if onlyrootout: all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
     else: all_spairs,spairs,Trios,Trios_dict = gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade)
     ks_spair = getspairks(all_spairs,df,reweight,method='mode',na=na)
-    corrected_ks_spair = ksadjustment(Trios_dict,ks_spair)
+    corrected_ks_spair, corrected_ks_spair_sisters = ksadjustment(Trios_dict,ks_spair)
+    #plotkstree(ks_spair,tree,focusp,Ingroup_clade,corrected_ks_spair,corrected_ks_spair_sisters)
     return corrected_ks_spair,Outgroup_spnames
+
+def plotkstree(ks_spair,tree,focusp,Ingroup_clade,corrected_ks_spair,corrected_ks_spair_sisters,Outgroup_clade):
+    first_children_of_root = []
+    tree_copy = copy.deepcopy(tree)
+    y = lambda x:"__".join([x[0],x[1]])
+    for clade,depth in Ingroup_clade.root.depths(unit_branch_lengths=True).items():
+        if depth == 1: first_children_of_root.append(clade)
+    for i,internal_clade in enumerate(first_children_of_root):
+        if internal_clade.is_terminal():
+            A = internal_clade
+            for B in first_children_of_root[1-i].get_terminals():
+                # Consider a trio of (A,B,O)
+                AB_ks = ks_spair[y((internal_clade.name,B.name))]
+                A_specific_ks_list = []
+                for O in Outgroup_clade.get_terminals():
+                    AO_ks = ks_spair[y((internal_clade.name,O.name))]
+                    BO_ks = ks_spair[y((B.name,O.name))]
+                    A_specific_ks = (AO_ks - BO_ks + AB_ks)/2
+                    A_specific_ks_list.append(A_specific_ks)
+                corrected_A_specific_ks = np.array(A_specific_ks_list).mean()
+                next(tree_copy.find_clades(A.name)).branch_length = corrected_A_specific_ks
+        else:
+            startpoint = max(internal_clade.depths(unit_branch_lengths=True).values()) - 1
+            for key,value in internal_clade.depths(unit_branch_lengths=True).items():
+                if value == startpoint:
+                    AB = key
+                    #B_specific_ks = (BO_ks - AO_ks + AB_ks)/2
+        #if focusp not in [clade.name for clade in internal_clade.get_terminals()]:
+        #    for clade,depth in sorted(internal_clade.depths(unit_branch_lengths=True).items(), key=lambda x:x[1]):
+                #if clade.is_terminal():
+                #    next(tree_copy.find_clades(clade.name)).branch_length = corrected_ks_spair_sisters["__".join([clade.name,focusp])]
+                #else:
+                #    if all([c.is_terminal() for c in clade.clades]):
+    #for i in tree.get_nonterminals(): i.branch_length = 1
+    #for i in tree.get_terminals(): i.branch_length = 1
+    #internal_nodes_good = []
+    #for i in Ingroup_clade.get_nonterminals():
+    #    if focusp in [clade.name for clade in i.get_terminals()]:
+    #        internal_nodes_good.append(i)
+    #for internal_node in sorted(internal_nodes_good, key=lambda x:x.count_terminals()):
+    #    if internal_node.count_terminals() == 2:
+    #        spair = "__".join(sorted([clade.name for clade in internal_node.get_terminals()]))
+    #        for clade in internal_node.get_terminals():
+    #            if clade.name == focusp: clade.branch_length = corrected_ks_spair[spair]
+    #            else: clade.branch_length = corrected_ks_spair_sisters[spair]
+    #    else:
+    #
+    #
+    #        focusp_clade = next(internal_node.find_clades(focusp))
+    #        focusp_clade.branch_length = 
 
 def get_totalH(Hs):
     CHF = 0
@@ -1174,7 +1228,7 @@ def default_plot(
         *args, 
         alphas=None,
         colors=None,
-        weighted=True, 
+        nodeaverage=True, 
         title="",
         ylabel="duplication events",user_xlim=None,user_ylim=None,
         **kwargs):
@@ -1196,15 +1250,23 @@ def default_plot(
     #for (c, a, dist) in zip(colors, alphas, args):
     for (c, dist) in zip(colors, args):
         for ax, k, f in zip(axs.flatten(), keys, funs):
-            w = node_weights(dist)
-            x = f(dist[k])
-            y = x[np.isfinite(x)]
-            w = w[np.isfinite(x)]
+            if not nodeaverage:
+                w = node_weights(dist)
+                x = f(dist[k])
+                y = x[np.isfinite(x)]
+                w = w[np.isfinite(x)]
             #if funs[0] == f: ax.hist(y, bins = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0], weights=w, color=c, alpha=1, rwidth=0.8)
             #if funs[0] == f: ax.hist(y, bins = 51, weights=w, color=c, alpha=1, rwidth=0.8)
-            if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
-            if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
-            else: ax.hist(y, weights=w, color=c, alpha=1, rwidth=0.8,**kwargs)
+                if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
+                if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), weights=w, color=c, alpha=1, rwidth=0.8)
+                else: ax.hist(y, weights=w, color=c, alpha=1, rwidth=0.8,**kwargs)
+            else:
+                x = node_averages(dist,entitle = k)
+                x = f(x)
+                y = x[np.isfinite(x)]
+                if funs[0] == f: ax.hist(y, bins = np.arange(0, 5.1, 0.1), color=c, alpha=1, rwidth=0.8)
+                if funs[1] == f or funs[2] == f: ax.hist(y, bins = np.arange(-4, 1.1, 0.1), color=c, alpha=1, rwidth=0.8)
+                else: ax.hist(y, color=c, alpha=1, rwidth=0.8,**kwargs)
             xlabel = _labels[k]
             if f == np.log10:
                 xlabel = "$\log_{10}" + xlabel[1:-1] + "$"

@@ -60,6 +60,11 @@ def _strip_gaps(aln):
             new_aln += aln[:,j:j+1]
     return new_aln
 
+def demension(l):
+    x = []
+    for i in l: x+= i.split()
+    return x
+
 def _pal2nal(pro_aln, cds_seqs):
     aln = {}
     for i, s in enumerate(pro_aln):
@@ -2913,15 +2918,34 @@ class GeneFamily:
             self.run_prequal()
         if self.aligner == "mafft":
             self.run_mafft(options=self.aln_options)
+        elif self.aligner == "muscle":
+            self.run_muscle(options=self.aln_options)
+        elif self.aligner == "prank":
+            self.run_prank(options=self.aln_options)
         else:
             logging.error("Unsupported aligner {}".format(self.aligner))
         self.get_codon_alignment()
 
     def run_mafft(self, options="--auto"):
-        cmd = ["mafft"] + options.split() + ["--amino", self.pro_fasta]
+        cmd = ["mafft"] + demension(options.split(',')) + ["--amino", self.pro_fasta]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         with open(self.pro_alnf, 'w') as f: f.write(out.stdout.decode('utf-8'))
         _log_process(out, program="mafft")
+        self.pro_aln = AlignIO.read(self.pro_alnf, "fasta")
+
+    def run_muscle(self, options="--auto"):
+        if options == "--auto": cmd = ["muscle"] + ['-in',self.pro_fasta] + ['-out',self.pro_alnf]
+        else: cmd = ["muscle"] + ['-in',self.pro_fasta] + ['-out',self.pro_alnf] + demension(options.split(','))
+        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        _log_process(out, program="muscle")
+        self.pro_aln = AlignIO.read(self.pro_alnf, "fasta")
+
+    def run_prank(self, options="--auto"):
+        if options == "--auto": cmd = ["prank"] + ['-d='+self.pro_fasta] + ['-o='+self.pro_alnf]
+        else: cmd = ["prank"] + ['-d='+self.pro_fasta] + ['-o='+self.pro_alnf] + demension(options.split(','))
+        out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
+        _log_process(out, program="prank")
+        self.pro_alnf = self.pro_alnf+".best.fas"
         self.pro_aln = AlignIO.read(self.pro_alnf, "fasta")
 
     def get_codon_alignment(self):
@@ -2949,18 +2973,20 @@ class GeneFamily:
         elif self.tree_method == "iqtree":
             tree = self.run_iqtree(options=self.tree_options)
         elif self.tree_method == "fasttree":
-            tree = self.run_fasttree()
+            tree = self.run_fasttree(options=self.tree_options)
         self.tree = tree
 
     def run_iqtree(self, options="-m LG"):
-        cmd = ["iqtree", "-s", self.pro_alnf] + options.split()
+        if options == None: cmd = ["iqtree", "-s", self.pro_alnf]
+        else: cmd = ["iqtree", "-s", self.pro_alnf] + demension(options.split(','))
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out, program="iqtree")
         return _process_unrooted_tree(self.pro_alnf + ".treefile",self.id)
 
-    def run_fasttree(self):
+    def run_fasttree(self, options=None):
         tree_pth = self.pro_alnf + ".nw"
-        cmd = ["FastTree", '-out', tree_pth, self.pro_alnf]
+        if options == None: cmd = ["FastTree", '-out', tree_pth, self.pro_alnf]
+        else: cmd = ["FastTree"] + demension(options) + ['-out', tree_pth, self.pro_alnf]
         out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
         _log_process(out, program="fasttree")
         return _process_unrooted_tree(self.pro_alnf + ".nw",self.id)

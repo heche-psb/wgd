@@ -432,10 +432,14 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
     help="run codeml on all gene pairs separately")
 @click.option('--strip_gaps', is_flag=True,
     help="remove all gap-containing columns in the alignment")
+@click.option('--aligner', type=click.Choice(['mafft', 'muscle', 'prank']), default='mafft', show_default=True, help="aligner method for MSA")
+@click.option('--aln_options', default='--auto', show_default=True, help="options in aligning, as a comma separated string")
 @click.option('--tree_method', '-tree', 
     type=click.Choice(['cluster', 'fasttree', 'iqtree']), 
     default='fasttree', show_default=True,
     help="Tree inference method for node weighting")
+@click.option('--tree_options', default=None, show_default=True, help="options in tree inference, as a comma separated string")
+@click.option('--node_average', is_flag=True, help="node-average way of de-redundancy instead of node-weighted")
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
 @click.option('--reweight', '-rw', is_flag=True, help='recalculate the weight per species pair')
@@ -470,7 +474,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, tree_method,spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all):
+        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -490,8 +494,8 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     fams = read_gene_families(families)
     fams = get_gene_families(s, fams, 
             pairwise=pairwise, 
-            strip_gaps=strip_gaps,
-            tree_method=tree_method)
+            strip_gaps=strip_gaps, aligner=aligner, aln_options = aln_options,
+            tree_method=tree_method, tree_options=tree_options)
     ksdb = KsDistributionBuilder(fams, s, n_threads=nthreads)
     ksdb.get_distribution()
     prefix = os.path.basename(families)
@@ -511,7 +515,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     if len(spair)!= 0 or (not focus2all is None):
         multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,na=True,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all)
         multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all)
-    fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel)
+    fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel, nodeaverage=node_average)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     plt.close()

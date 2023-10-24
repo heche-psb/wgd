@@ -426,14 +426,14 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            if showCI and heuristic:
-                CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=False,ci=95)
-                CI_dict_heri[num]=CI_95
-                if not (CI_95 is None):
-                    CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
-                    CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
-                    plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                    plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+            #if showCI and heuristic:
+            #    CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=False,ci=95)
+            #    CI_dict_heri[num]=CI_95
+            #    if not (CI_95 is None):
+            #        CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+            #        CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+            #        plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+            #        plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
                 CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
                 #CI_95 = stats.lognorm(std,loc=0,scale=np.exp(mean)).interval(0.95)
@@ -464,14 +464,15 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             if y_lim_afterkde > y_lim_beforekde: ax.set_ylim(0, y_lim_beforekde)
             safe_max = max([max(y_lim_beforekde_s),max(Hs_maxs)])
             ax.set_ylim(0, safe_max)
-            if showCI and heuristic:
-                CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=True,ci=95)
-                CI_dict_heri[num]=CI_95
-                if not (CI_95 is None):
-                    CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
-                    CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
-                    plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                    plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+            # Here I cancel the heuristic peak searching for each component
+            #if showCI and heuristic:
+            #    CI_95 = getcompheuri(df_comp,peak_threshold,rel_height,na=True,ci=95)
+            #    CI_dict_heri[num]=CI_95
+            #    if not (CI_95 is None):
+            #        CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
+            #        CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
+            #        plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+            #        plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='Peak {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
             if showCI:
                 CI_95 = stats.lognorm.ppf([0.025, 0.975], scale=np.exp(mean), s=std)
                 CI_dict[num]=CI_95
@@ -480,7 +481,9 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
                 plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
                 plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     #ax.legend(loc='upper right', fontsize='small',frameon=False)
-    ax.legend(loc='upper right',frameon=False)
+    ax.set_xlim(0, 5)
+    if nums<2: ax.legend(loc='upper right',frameon=False)
+    else: ax.legend(loc='upper right',frameon=False,fontsize='x-small')
     #ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
     ax.set_xlabel("$K_\mathrm{S}$")
     ax.set_ylabel(ylabel)
