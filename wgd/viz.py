@@ -1289,33 +1289,45 @@ def default_plot(
 def syntenic_depth_plot(segprofile):
     cols = segprofile.columns
     n = len(cols)
-    fig, axs = plt.subplots(1, int(n + n*(n-1)/2))
-    fig.set_size_inches(5*int(n + n*(n-1)/2), 10)
-    if n == 1:
-        axs = [axs]  # HACK
-    k = 0
+    #fig, axs = plt.subplots(1, int(n + n*(n-1)/2))
+    fig, axs = plt.subplots(n, n)
+    fig.set_size_inches(n*3.2, n*2.4)
+    #if n == 1:
+    #    axs = [axs]  # HACK
+    #k = 0
     for i in range(n):
-        for j in range(i, n):
+        #for j in range(i, n):
+        for j in range(n):
             pairs, counts = dupratios(segprofile[cols[i]], segprofile[cols[j]])
-            ax = axs[k]
-            ax.barh(np.arange(len(pairs)), counts, color="k", alpha=0.2)
+            #ax = axs[k]
+            if n!=1: ax = axs[i,j]
+            else: ax = axs
+            c = 'green' if i == j else 'blue'
+            ax.barh(np.arange(len(pairs)), counts, color=c, alpha=0.8)
             ax.set_yticks(np.arange(len(pairs)))
             ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
+            ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
+            #ax.set_title("{} : {}".format(cols[i], cols[j]))
             #ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)
-            ax.set_ylabel("{} : {}".format(cols[i], cols[j]))
-            k += 1
-    for ax in axs:
-        ymn, ymx = ax.get_ylim()
-        ax.set_ylim(-0.5, ymx)
+            #ax.set_ylabel("{} : {}".format(cols[i], cols[j]))
+            #ax.set_xlabel('Number of segments')
+            #k += 1
+    if n == 1:
+        ymn, ymx = axs.get_ylim()
+        axs.set_ylim(-0.5, ymx)
+    else:
+        for ax in axs.flatten():
+            ymn, ymx = ax.get_ylim()
+            ax.set_ylim(-0.5, ymx)
         #ax.set_xlabel("# segments")
     #axs[0].set_ylabel("A:B ratio")
-    fig.suptitle('Collinear ratio', x=0.5, y=1.02, ha='center', va='top')
+    #fig.suptitle('Collinear ratio', x=0.5, y=1.02, ha='center', va='top')
     #plt.figtext(0.5, 0.02, 'Number of segments', ha='center', va='top')
+    plt.figtext(-0.01, 0.5, 'Collinear ratio', ha='left', va='center', rotation='vertical')
     plt.figtext(0.5, 0.01, 'Number of segments', ha='center', va='top')
     sns.despine(trim=False, offset=3)
     plt.tight_layout()
     return fig
-
 
 def dupratios(col1, col2, by="first"):
     d = {}
@@ -2669,11 +2681,11 @@ def filter_mingenumber(segs,mingenenum,outdir,N):
     segs = segs.drop(rm_indice)
     counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
     profile = counted.unstack(level=-1).fillna(0)
-    if N <=5 :
-        logging.info("Making Syndepth plot")
-        fig = syntenic_depth_plot(profile)
-        fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
-        fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
+    #if N <=5 :
+    logging.info("Making Syndepth plot")
+    fig = syntenic_depth_plot(profile)
+    fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
+    fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs
 
