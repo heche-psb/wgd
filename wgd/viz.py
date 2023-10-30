@@ -1305,7 +1305,13 @@ def syntenic_depth_plot(segprofile):
             c = 'green' if i == j else 'blue'
             ax.barh(np.arange(len(pairs)), counts, color=c, alpha=0.8)
             ax.set_yticks(np.arange(len(pairs)))
-            ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
+            if len(pairs) >= 20:
+                ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs],fontdict={'fontsize':4})
+                ax.tick_params(axis='y', labelsize=4)
+            elif len(pairs) >= 15:
+                ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs],fontdict={'fontsize':6})
+                ax.tick_params(axis='y', labelsize=6)
+            else: ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
             ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
             #ax.set_title("{} : {}".format(cols[i], cols[j]))
             #ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)

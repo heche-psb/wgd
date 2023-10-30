@@ -554,7 +554,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
-@click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
+@click.option('--dotsize', '-ds', type=float, default=0.3, show_default=True, help='size of dots')
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
 @click.option('--hoalpha', '-ha', type=float, default=0, show_default=True, help='opacity of homolog dots')
 @click.option('--showrealtick', '-srt', is_flag=True, help='show the real tick in genes or bases')
@@ -633,7 +633,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="keyword for parsing the genes from the GFF file (column 3)")
 @click.option('--attribute', '-a', default='ID', show_default=True,
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
-@click.option('--additionalgffinfo', '-atg', default=None,multiple=True, show_default=True, help='the feature and attribute info of additional gff3 if different')
+@click.option('--additionalgffinfo', '-atg', default=None,multiple=True, show_default=True, help='the feature and attribute info of additional gff3 if different in the format of (feature;attribute)')
 @click.option('--minlen', '-ml', default=-1, show_default=True,
     help="minimum length of a genomic element to be included in dotplot.")
 @click.option('--maxsize', '-ms', default=200, show_default=True,
@@ -647,7 +647,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--minseglen', '-mg', default=10000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
-@click.option('--dotsize', '-ds', type=float, default=1, show_default=True, help='size of dots')
+@click.option('--dotsize', '-ds', type=float, default=0.3, show_default=True, help='size of dots')
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
 @click.option('--hoalpha', '-ha', type=float, default=0, show_default=True, help='opacity of homolog dots')
 @click.option('--showrealtick', '-srt', is_flag=True, help='show the real tick in genes or bases')
