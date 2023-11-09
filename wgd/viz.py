@@ -666,7 +666,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             drawtime = drawtime + 1
     Hs_maxs,y_lim_beforekdes = [],[]
     if adjustortho: Sca = getSca(ax,df_perspair,paralog_pair,na,reweight)
-    for i,item in enumerate(sorted(df_perspair.items(),key=lambda x:x[0]==paralog_pair[0],reverse=False)):
+    paralog_pair_tmp = paralog_pair if len(paralog_pair) != 0 else list(df_perspair.keys())[0]
+    for i,item in enumerate(sorted(df_perspair.items(),key=lambda x:x[0]==paralog_pair_tmp[0],reverse=False)):
         pair,df_per = item[0],item[1]
         df_per = df_per.copy()
         #for ax, k, f in zip(axs.flatten(), keys, funs):
@@ -1312,7 +1313,8 @@ def syntenic_depth_plot(segprofile):
                 ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs],fontdict={'fontsize':6})
                 ax.tick_params(axis='y', labelsize=6)
             else: ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
-            ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
+            if n!=1: ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
+            else: ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':4})
             #ax.set_title("{} : {}".format(cols[i], cols[j]))
             #ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)
             #ax.set_ylabel("{} : {}".format(cols[i], cols[j]))

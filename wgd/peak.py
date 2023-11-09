@@ -319,7 +319,7 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime== 'multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime== 'segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
@@ -492,7 +492,7 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime=='segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
@@ -601,7 +601,7 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if regime=='multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime=='segment': plt.title('Segment-guided Syntelog $K_\mathrm{S}$ GMM modeling')
+    elif regime=='segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
     elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
     else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
@@ -1847,7 +1847,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         df_tmp = df_c[df_c['AnchorKs_GMM_Component']==num]
         df_tmp = df_tmp.loc[(df_tmp['dS']<=min([cutoff,HDRs[num][1]])) & (df_tmp['dS']>=HDRs[num][0]),:]
         df_tmp = df_tmp.loc[:,['gene1','gene2','dS','Segment_dS','AnchorKs_GMM_Component']].rename(columns={"gene1":"gene_x","gene2":"gene_y"})
-        fname = os.path.join(outdir,"{}_guided_{}%HDR_Syntelogs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
+        fname = os.path.join(outdir,"{}_guided_{}%HDR_Anchor_Pairs_Component{}_Model{}_WGDating.tsv".format(regime,hdr,num,n))
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
 def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=False,cutoff = 5,peak_threshold=0.1,rel_height=0.4,user_xlim=None,user_ylim=None):
