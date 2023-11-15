@@ -656,6 +656,23 @@ def backtrans(fpaln,fcaln,idmap,seq_cds):
         for k, v in aln.items(): f.write(">{}\n{}\n".format(k, v))
     return pro_aln
 
+def getaln(famid,seqids,outdir,s,option):
+    fnamec =os.path.join(outdir, famid + ".cds")
+    fnamep =os.path.join(outdir, famid + ".pep")
+    with open(fnamep,'w') as f:
+        for seqid in seqids:
+            safeid = s.idmap.get(seqid)
+            f.write(">{}\n{}\n".format(seqid, s.pro_sequence.get(safeid)))
+    with open(fnamec,'w') as f:
+        for seqid in seqids:
+            safeid = s.idmap.get(seqid)
+            f.write(">{}\n{}\n".format(seqid, s.cds_sequence.get(safeid)))
+    fnamepaln =os.path.join(outdir, famid + ".paln")
+    mafft_cmd(fnamep,option,fnamepaln)
+    fnamecaln =os.path.join(outdir, famid + ".caln")
+    backtrans(fnamepaln,fnamecaln,s.idmap,s.cds_sequence)
+    return fnamecaln
+
 def getseqmetaln(i,fam,outdir,idmap,seq_pro,seq_cds,option):
     famid = "GF{:0>8}".format(i+1)
     fnamep =os.path.join(outdir, famid + ".pep")
@@ -744,27 +761,27 @@ def addiqfatree(famid,tree_fams,fnamecaln,tree_famsf,postfix):
     tree_fams[famid] = tree
     tree_famsf.append(tree_pth)
 
-def iqtree_run(treeset,fnamecaln):
+def iqtree_run(treeset,fnamecaln,treeoption=False):
     if not treeset is None:
+        if treeoption: treeset = treeset.split(',')
         treesetfull = []
         iq_cmd = ["iqtree", "-s", fnamecaln]
         for i in treeset:
             i = i.strip(" ").split(" ")
-            if type(i) == list: treesetfull = treesetfull + i
-            else: treesetfull.append(i)
+            treesetfull = treesetfull + i
         iq_cmd = iq_cmd + treesetfull
     else: iq_cmd = ["iqtree", "-s", fnamecaln] #+ ["-fast"] + ["-st","CODON"] + ["-bb", "1000"] + ["-bnni"]
     sp.run(iq_cmd, stdout=sp.PIPE)
 
-def fasttree_run(fnamecaln,treeset):
+def fasttree_run(fnamecaln,treeset,treeoption=False):
     tree_pth = fnamecaln + ".fasttree"
     if not treeset is None:
+        if treeoption: treeset = treeset.split(',')
         treesetfull = []
         ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
         for i in treeset:
             i = i.strip(" ").split(" ")
-            if type(i) == list: treesetfull = treesetfull + i
-            else: treesetfull.append(i)
+            treesetfull = treesetfull + i
         ft_cmd = ft_cmd[:1] + treesetfull + ft_cmd[1:]
     else: ft_cmd = ["FastTree", '-out', tree_pth, fnamecaln]
     sp.run(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE)
@@ -1003,6 +1020,87 @@ def Run_MCMCTREE_onlyprot(paln,palnf,tmpdir,outdir,speciestree,datingset,aamodel
     palnf_paml = fasta2paml(paln,palnf)
     McMctree = mcmctree(None, palnf_paml, tmpdir, outdir, speciestree, datingset, aamodel, partition=False)
     McMctree.run_mcmctree(CI_table,PM_table,wgd_mrca)
+
+def concatcalnf(calnfs,gsmap,slist,outdir):
+    seqs_persp = {sp:'' for sp in slist}
+    y = lambda x: [i for i in x if i!='-']
+    for calnf in calnfs:
+        occured_sp = {}
+        longest_sp = {}
+        for record in SeqIO.parse(calnf, 'fasta'):
+            sp = gsmap[record.id]
+            if sp not in occured_sp:
+                #seqs_persp[sp] += record.seq
+                longest_sp[sp] = record.seq
+                occured_sp[sp] = len(y(record.seq))
+            elif len(y(record.seq)) > occured_sp[sp]:
+                longest_sp[sp] = record.seq
+                occured_sp[sp] = len(y(record.seq))
+        for sp in seqs_persp.keys(): seqs_persp[sp] += longest_sp[sp]
+    concatf = os.path.join(outdir,'Concat.caln')
+    with open(concatf,'w') as f:
+        for key,value in seqs_persp.items():
+            f.write(">{0}\n{1}\n".format(key,value))
+    return concatf
+
+def addbackiqfatree(calnf,tree_method):
+    postfix = ".treefile" if tree_method == "iqtree" else ".fasttree"
+    treef = calnf + postfix
+    treef_c = treef+"clean"
+    tree = Phylo.read(treef,'newick')
+    if not tree.rooted: tree.root_at_midpoint()
+    for i in tree.get_nonterminals():
+        i.branch_length = None
+        i.comment = None
+        i.confidence = None
+    for i in tree.get_terminals():
+        i.branch_length = None
+        i.comment = None
+        i.confidence = None
+    Phylo.write(tree,treef_c,format='newick')
+    with open(treef_c,'r') as f: content = f.read().replace(':0.00000','')
+    with open(treef_c,'w') as f: f.write(content)
+    return treef_c
+
+def caln2tree(calnf,tree_method,tree_options):
+    if tree_method == "iqtree": iqtree_run(tree_options,calnf,treeoption=True)
+    if tree_method == "fasttree": fasttree_run(calnf,tree_options,treeoption=True)
+    treef = addbackiqfatree(calnf,tree_method)
+    return treef
+
+def getconcataln(seqs, families, nthreads, outdir, sptree, spgenemap, onlyconcatkstree, tree_options, option="--auto", tree_method="fasttree"):
+    kstree_dir,katree_dir,wtree_dir = _mkdir(os.path.join(outdir,"dStree")), _mkdir(os.path.join(outdir,"dNtree")), _mkdir(os.path.join(outdir,"wtree"))
+    s = seqs[0]
+    for i in seqs[1:]: s.merge_seqs(i)
+    fams = read_MultiRBH_gene_families(families)
+    df = pd.read_csv(families,header=0,index_col=0,sep='\t')
+    slist = list(df.columns)
+    fam_ids = list(df.index)
+    calnfs = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(getaln)(fam_ids[i],fam,s.tmp_path,s,option) for i, fam in enumerate(fams))
+    calnfs = [i for i in calnfs]
+    concatf = concatcalnf(calnfs,spgenemap,slist,outdir)
+    caln = AlignIO.read(concatf,'fasta')
+    caln_tmppath = _mkdir(os.path.join(outdir,"dStree_tmp"))
+    if not onlyconcatkstree:
+        treefs = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(caln2tree)(calnfs[i],tree_method,tree_options) for i in range(len(fams)))
+        treefs = [i for i in treefs]
+        calns = [AlignIO.read(i,'fasta') for i in calnfs]
+        caln_tmppaths = [_mkdir(os.path.join(caln_tmppath,i)) for i in fam_ids]
+    #getalnks(caln,s.tmp_path,sptree,kstree_dir,katree_dir,wtree_dir)
+        calns.append(caln)
+        caln_tmppaths.append(_mkdir(os.path.join(caln_tmppath,"Concatenated")))
+        fam_ids.append("Concatenated")
+        treefs.append(sptree)
+        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(getalnks)(calns[i],caln_tmppaths[i],treefs[i],kstree_dir,katree_dir,wtree_dir,fam_ids[i]) for i in range(len(calns)))
+    else:
+        getalnks(caln,_mkdir(os.path.join(caln_tmppath,"Concatenated")),sptree,kstree_dir,katree_dir,wtree_dir,"Concatenated")
+    out = sp.run(["rm", "-r", caln_tmppath], stdout=sp.PIPE, stderr=sp.PIPE)
+    out = sp.run(["rm", "-r", concatf], stdout=sp.PIPE, stderr=sp.PIPE)
+
+def getalnks(caln,tmp_path,sptree,kstree_dir,katree_dir,wtree_dir,gfid):
+    #codeml = Codeml(caln, exe="codeml", tmp=tmp_path, prefix="Concatenated",treefile=os.path.abspath(sptree))
+    codeml = Codeml(caln, exe="codeml", tmp=tmp_path, prefix=gfid, treefile=os.path.abspath(sptree))
+    result = codeml.run_codeml(preserve=True, times=1, kstree_dir=kstree_dir,katree_dir=katree_dir,wtree_dir=wtree_dir)
 
 def get_MultipRBH_gene_families(seqs, fams, tree_method, treeset, outdir,nthreads, option="--auto", runtree=False, **kwargs):
     idmap = {}
@@ -1958,7 +2056,7 @@ def back_dmdhits(i,j,s,eval):
 
 def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
     for i in range(len(s)):
-        Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11)(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
         #res = zip(*r)
         #for e in res: print(e.shape)
         #for j,e in zip(range(i, len(s)),res):
@@ -2838,6 +2936,9 @@ def bsog(s,buscohmm,outdir,eval,nthreads,buscocutoff):
     df = modifydf(fn,outs,outdir,'',bhmm = True, cutoff = buscocutoff)
     bgetseq(df,outdir,s,nthreads)
     mvassignf(outdir,bhmm = True)
+
+#def calculatekstree(fams,s,spgenemap):
+
 
 # NOTE: It would be nice to implement an option to do a complete approach
 # where we use the tree in codeml to estimate Ks-scale branch lengths?

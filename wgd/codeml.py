@@ -5,7 +5,11 @@ import subprocess as sp
 import logging
 import os
 import re
+from io import StringIO
+from Bio import Phylo
 from Bio.Align import MultipleSeqAlignment
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 GAPS = ["-", "?", "X"]  # these should be treated as gaps
@@ -55,12 +59,56 @@ def _parse_pair(lines, start):
     x.update({"pair": p, "gene1": a, "gene2": b, "l": l})
     return x
 
+def _parse_tree(codeml_out,kstree_dir, katree_dir, wtree_dir, prefix, parentdir):
+    content = []
+    with open(codeml_out, "r") as f:
+        for i in f.readlines(): content.append(i)
+    ds,dn,w = content[-9],content[-7],content[-4].replace(' #',': ')
+    os.chdir(parentdir)
+    _write_basic(ds,os.path.join(kstree_dir,'{}.dS.tree'.format(prefix)))
+    _write_basic(dn,os.path.join(katree_dir,'{}.dN.tree'.format(prefix)))
+    _write_basic(w,os.path.join(wtree_dir,'{}.w.tree'.format(prefix)))
+    #handle_ds,handle_dn,handle_w = StringIO(ds),StringIO(dn),StringIO(w)
+    #tree_ds,tree_dn,tree_w = Phylo.read(handle_ds, "newick"),Phylo.read(handle_dn, "newick"),Phylo.read(handle_w, "newick")
+    tree_ds,tree_dn,tree_w = Phylo.read(os.path.join(kstree_dir,'{}.dS.tree'.format(prefix)), "newick"),Phylo.read(os.path.join(katree_dir,'{}.dN.tree'.format(prefix)), "newick"),Phylo.read(os.path.join(wtree_dir,'{}.w.tree'.format(prefix)), "newick")
+    drawtree(tree_ds,os.path.join(kstree_dir,prefix+".dS.tree.pdf"))
+    drawtree(tree_dn,os.path.join(katree_dir,prefix+".dN.tree.pdf"))
+    drawtree(tree_w,os.path.join(wtree_dir,prefix+".w.tree.pdf"))
+    return ds,dn,w
+
+def drawtree(tree,fname):
+    fig,ax = plt.subplots()
+    Phylo.draw(tree,do_show=False,axes=ax)
+    sns.despine(offset=1)
+    fig.savefig(fname)
+    plt.close()
+
+def _write_basic(content,fname):
+    with open(fname,'w') as f: f.write(content)
+
 def check_noneresult(codeml_out):
     with open(codeml_out, "r") as f: content = f.read()
     if "pairwise comparison" not in content:
         return False
     else:
         return True
+
+def _run_codeml_tree(exe, control_file, out_file, prefix, kstree_dir, katree_dir, wtree_dir, parentdir, preserve=False, times=1):
+    #logging.debug("Performing codeml {} times".format(times))
+    #max_results = None
+    #max_likelihood = None
+    #Noresults = False
+    for i in range(times):
+        #logging.debug("Codeml iteration {0} for {1}".format(str(i+1), control_file))
+        sp.run([exe, control_file], stdout=sp.PIPE)
+        #sp.run(['rm', '2ML.dN', '2ML.dS', '2ML.t', '2NG.dN', '2NG.dS','2NG.t', 'rst', 'rst1', 'rub'], stdout=sp.PIPE, stderr=sp.PIPE)
+        if not os.path.isfile(out_file):
+            raise FileNotFoundError('Codeml output file not found')
+    ds,dn,w = _parse_tree(out_file,kstree_dir,katree_dir,wtree_dir,prefix,parentdir)
+    #_write_basic(ds,os.path.join(kstree_dir,'{}.dS.tree'.format(prefix)))
+    #_write_basic(dn,os.path.join(katree_dir,'{}.dN.tree'.format(prefix)))
+    #_write_basic(w,os.path.join(wtree_dir,'{}.w.tree'.format(prefix)))
+
 
 def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
     """
@@ -139,7 +187,7 @@ class Codeml:
         'cleandata': 1,
         'method': 0
     """
-    def __init__(self, aln, exe='codeml', tmp='./', prefix='codeml', **kwargs):
+    def __init__(self, aln, exe='codeml', tmp='./', prefix='codeml', treefile=None, **kwargs):
         """
         Codeml wrapper init. Initializes the default control file for Ks
         analysis as proposed by Vanneste et al. (2013). Takes as keyword
@@ -161,6 +209,7 @@ class Codeml:
         self.aln = aln
         self.exe = exe
         self.tmp = tmp
+        self.treefile = treefile
         self.control_file = self.prefix + '.ctrl'
         self.aln_file = self.prefix + '.cdsaln'
         self.out_file = self.prefix + '.codeml'
@@ -215,7 +264,7 @@ class Codeml:
     # We should output the pairs for which we couldn't estimate Ks separately,
     # so that we can make a nan_result for those, but work with those we could
     # estimate without much trouble
-    def run_codeml(self, **kwargs):
+    def run_codeml(self, kstree_dir=None, katree_dir=None, wtree_dir=None, **kwargs):
         """
         Run codeml on the full alignment. This will exclude all gap-containing
         columns, which may lead to a significant loss of data.
@@ -226,8 +275,16 @@ class Codeml:
             return None, _all_pairs(self.aln)
         parentdir = os.path.abspath(os.curdir)  # where we are currently
         os.chdir(self.tmp)  # go to tmpdir
+        if not (self.treefile is None):
+            self.control['treefile'] = self.treefile
+            self.control['model'] = 1
+            self.control['runmode'] = 0
+            self.control['fix_blength'] = 1
         self.write_ctrl() 
         _write_aln_codeml(self.aln, self.aln_file)
+        if not (self.treefile is None):
+            _run_codeml_tree(self.exe, self.control_file, self.out_file, self.prefix, kstree_dir, katree_dir, wtree_dir,parentdir,**kwargs)
+            return
         results = _run_codeml(self.exe, self.control_file, self.out_file, **kwargs)
         os.chdir(parentdir)
         if results is None:

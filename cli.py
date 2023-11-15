@@ -456,6 +456,8 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--adjustfactor', '-adf', type=float, default=0.5, show_default=True, help='adjust factor of ortholog Ks')
 @click.option('--okalpha', '-oa', type=float, default=0.5, show_default=True, help='opacity of ortholog Ks distribution in mixed plot')
 @click.option('--focus2all', '-fa', default=None, show_default=True, help='species pair to be between focus and all the remaining')
+@click.option('--kstree', '-ks', is_flag=True, help='infer Ks tree')
+@click.option('--onlyconcatkstree', '-ock', is_flag=True, help='only infer Ks tree under concatenated aln')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -474,9 +476,9 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all):
+        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
-    from wgd.core import read_gene_families, merge_seqs
+    from wgd.core import read_gene_families, merge_seqs, get_MultipRBH_gene_families, getconcataln
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
@@ -489,6 +491,10 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
             to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     spgenemap = {}
     for i in seqs: spgenemap.update(i.spgenemap())
+    if not (speciestree is None) and kstree:
+        getconcataln(seqs, families, nthreads, outdir, speciestree, spgenemap, onlyconcatkstree, tree_options, option="--auto",tree_method=tree_method)
+        if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
+        exit()
     s = merge_seqs(seqs)
     logging.info("tmpdir = {}".format(s.tmp_path))
     fams = read_gene_families(families)
@@ -496,6 +502,11 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
             pairwise=pairwise, 
             strip_gaps=strip_gaps, aligner=aligner, aln_options = aln_options,
             tree_method=tree_method, tree_options=tree_options)
+    #if not (speciestree is None) and kstree:
+        #getconcataln(s, families, nthreads, outdir, option="--auto")
+        #cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=False)
+        #calculatekstree(fams,s,spgenemap)
+        #exit()
     ksdb = KsDistributionBuilder(fams, s, n_threads=nthreads)
     ksdb.get_distribution()
     prefix = os.path.basename(families)
