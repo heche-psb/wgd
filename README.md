@@ -626,6 +626,18 @@ python $PATH/postplot.py postdis dates.txt --percentile 90 --title "WGD date" --
 
 The posterior mean, median and mode of the Ranunculales WGD age is 112.92, 113.44 and 112.54 mya, with 90% HPD 105.07 - 122.32 mya as manifested above.
 
+### Kstree
+
+In addition to pairwise *K*<sub>S</sub> estimation, a *K*<sub>S</sub> tree with branch length in *K*<sub>S</sub> unit can also be derived from the program `wgd ksd` given the option `--kstree` and `--speciestree`. Note that the additional option `--onlyconcatkstree` will only call the *K*<sub>S</sub> estimation for the concatenated alignment rather than all the alignments. Users need to provide a preset species tree for the *K*<sub>S</sub> tree inference of the concatenated alignment while the remaining alignments will be against an automately inferred tree from `fasttree` or `iqtree`. In the end, users will get a *K*<sub>S</sub> tree, a *K*<sub>A</sub> tree and a ω tree per fam and for the concatenated alignment.
+
+```
+wgd ksd data/kstree_data/fam.tsv data/kstree_data/Acorus_tatarinowii data/kstree_data/Amborella_trichopoda data/kstree_data/Aquilegia_coerulea data/kstree_data/Aristolochia_fimbriata data/kstree_data/Cycas_panzhihuaensi --kstree --speciestree data/kstree_data/species_tree1.nw --onlyconcatkstree -o wgd_kstree_topology1
+```
+
+![](data/kstree_results/kstree.svg)
+
+Above we used three alternative topologies to infer the *K*<sub>S</sub> tree which led to different branch length estimation. Note that the families we used were only two global MRBH families for the purpose of illustration. To acquire an accurate profile of the substitution rate variation, orthologues at the whole genome scale should be used.
+
 ## Citation
  
 Please cite us at https://doi.org/10.1007/978-1-0716-2561-3_1.
