@@ -478,8 +478,20 @@ wgd dmd --globalmrbh Aquilegia_coerulea Protea_cynaroides Acorus_americanus Viti
 
 In the global MRBH family, every pair of orthologous genes is the reciprocal best hit, suggesting true orthologous relationships. We would use the *K*<sub>S</sub> values associated with these orthologous pairs to delimit the divergence *K*<sub>S</sub> peak. Together with the whole paranome *K*<sub>S</sub> distribution, we conduct the rate correction using the command below.
 
+!!Since `wgd` version 2.0.24, we rewrote a cleaner and quicker way of doing substitution rate correction. It's not required to type in any speices pair and a series of *K*<sub>S</sub> plots will be produced. The required files are orthologous *K*<sub>S</sub> table, paralogous *K*<sub>S</sub> table, a species tree and a focused species (the one inputted with paralogous *K*<sub>S</sub> data). Users can choose to add one more layer of elmm modeling on paralogous *K*<sub>S</sub> values and/or gmm modeling on anchor *K*<sub>S</sub> values. The orthologous *K*<sub>S</sub> values can be calculated using the command below.
+
 ```
-wgd ksd wgd_globalmrbh/global_MRBH.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_globalmrbh_ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --plotkde (-ap wgd_syn/iadhore-out/anchorpoints.txt)
+wgd ksd wgd_globalmrbh/global_MRBH.tsv seqs* -o wgd_globalmrbh_ks
+```
+
+With the calculated orthologous *K*<sub>S</sub> table, we can use the command below to conduct the rate correction and/or mixture modeling analysis.
+
+```
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk Aquilegia_coerulea.ks.tsv -ap anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm
+```
+
+```
+wgd ksd wgd_globalmrbh/global_MRBH.tsv seqs* --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_globalmrbh_ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --plotkde (-ap wgd_syn/iadhore-out/anchorpoints.txt)
 ```
 
 The file `speciestree.nw` is the text file of species tree in newick that rate correction would be conducted on. Its content is as below. Users need to provide the species pairs to be plotted. We suggest adding the option `--reweight` to recalculate the weight per species pair such that the weight of orthologous gene pairs will become 1 as the paralogous gene pairs. The flag `--plotkde` can be added when the kde curve of orthologous *K*<sub>S</sub> is desired. Extra collinear data can be added by the option `-ap`.

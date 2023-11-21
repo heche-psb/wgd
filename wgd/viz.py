@@ -20,6 +20,7 @@ from io import StringIO
 from Bio import Phylo
 from sklearn import mixture
 from wgd.utils import formatv2
+from wgd.ratecorrect import ratediffplot
 
 def node_averages(df, entitle = 'dS'):
     # note that this returns a df with fewer rows, i.e. one for every
@@ -73,10 +74,10 @@ def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=Non
     #df['sp1'],df['sp2'] = df['g1'].apply(lambda x:"_".join(x.split("_")[:-1])),df['g2'].apply(lambda x:"_".join(x.split("_")[:-1]))
         df['spair'] = ['__'.join(sorted([sp1,sp2])) for sp1,sp2 in zip(Sp1,Sp2)]
     #If users provide no paralogous pair, we don't do the correction
-    if sptree != None and len(paralog_pair) !=0 : corrected_ks_spair,Outgroup_spnames = correctks(df,sptree,paralog_pair[0],reweight,onlyrootout,na=na)
+    if sptree != None and len(paralog_pair) !=0 : corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = correctks(df,sptree,paralog_pair[0],reweight,onlyrootout,na=na)
     else: corrected_ks_spair,Outgroup_spnames = None,None
     for p in allspair: df_perspair[p] = df[df['spair']==p]
-    return df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames
+    return df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered
 
 def findoutgroup(focusp,first_children_of_root):
     for clade in first_children_of_root:
@@ -179,6 +180,25 @@ def ksadjustment(Trios_dict,ks_spair):
         corrected_ks_spair[spair],corrected_ks_spair_sisters[spair] = final_adjusted_Ks,final_adjusted_Ks_sister
     return corrected_ks_spair, corrected_ks_spair_sisters
 
+def getoutorder(tree,focusp):
+    good_nodes_order = {}
+    spair_order = {}
+    rank = 0
+    occured_outspnames = []
+    for i in tree.get_nonterminals():
+        if i.name == 'assumed_root': continue
+        if focusp in [j.name for j in i.get_terminals()]:
+            order = int(i.name.replace('internal_node_',''))
+            outspname = [j.name for j in i.get_terminals() if j.name!=focusp]
+            good_nodes_order[order] = outspname
+    for order,outspnames in sorted(good_nodes_order.items(),key=lambda x:x[0],reverse=True):
+        rank +=1
+        for sp in outspnames:
+            if sp not in occured_outspnames:
+                spair_order["{}".format("__".join(sorted([focusp,sp])))] = rank
+            occured_outspnames.append(sp)
+    return spair_order
+
 def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     focusp = focus.split('__')[0]
     tree = Phylo.read(sptree, "newick")
@@ -186,6 +206,7 @@ def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     tree.root.name = 'assumed_root'
     Depths = tree.root.depths(unit_branch_lengths=True)
     first_children_of_root = []
+    Outgroup_spair_ordered = getoutorder(tree,focusp)
     for clade,depth in Depths.items():
         if depth == 1: first_children_of_root.append(clade)
     findoutgroup(focusp,first_children_of_root)
@@ -198,7 +219,7 @@ def correctks(df,sptree,focus,reweight,onlyrootout,na=False):
     ks_spair = getspairks(all_spairs,df,reweight,method='mode',na=na)
     corrected_ks_spair, corrected_ks_spair_sisters = ksadjustment(Trios_dict,ks_spair)
     #plotkstree(ks_spair,tree,focusp,Ingroup_clade,corrected_ks_spair,corrected_ks_spair_sisters)
-    return corrected_ks_spair,Outgroup_spnames
+    return corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered
 
 def plotkstree(ks_spair,tree,focusp,Ingroup_clade,corrected_ks_spair,corrected_ks_spair_sisters,Outgroup_clade):
     first_children_of_root = []
@@ -588,7 +609,21 @@ def getSca(ax,df_perspair,paralog_pair,na,reweight):
     return max(Hs)
     #return sum([v1*v2 for v1,v2 in zip(y,w)])
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None):
+def addrectangle(ax,mode,orig_mode,order,outspname,cr):
+    right_arrow_unicode = "\u2192"
+    left, width = mode-0.05, 0.1
+    bottom, height = ax.get_ylim()[1]*0.8, 0.1
+    right,top = left + width, bottom + height
+    ax.vlines(mode,0,bottom,ls='-',color=cr,label = "({0}) {1} ({2}{3}{4})".format(order,outspname,orig_mode,right_arrow_unicode,mode))
+    p = patches.Rectangle((left, bottom), width, height, color=cr, fill=False, transform=ax.transAxes, clip_on=False)
+    ax.add_patch(p)
+    ax.text(0.5*(left+right), 0.5*(bottom+top), str(order), horizontalalignment='center', verticalalignment='center', fontsize=2, color='k', transform=ax.transAxes)
+    return ax
+
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False):
+    if not clean:
+        ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm)
+        return
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
         #df = df.loc[:,['family','node','node_averaged_dS_outlierexcluded','gene1','gene2']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -609,7 +644,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     if not ksd and not (gsmap is None): spgenemap = getgsmap(gsmap)
     else: spgenemap = gsmap
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap,focus2all=focus2all)
+    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap,focus2all=focus2all)
     if len(paralog_pair) == 1:
         if len(df_perspair) == 1:
             if na:
@@ -639,7 +674,8 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         else:
             fnames = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.svg')
             fnamep = os.path.join(outdir,'Raw_Orthologues.ksd.weighted.pdf')
-    cs = cm.viridis(np.linspace(0, 1, len(allspair)))
+    if ksrateslike: cs = cm.viridis(np.linspace(0, 1, len(set(Outgroup_spair_ordered.values()))))
+    else: cs = cm.viridis(np.linspace(0, 1, len(allspair)))
     #cs = cm.viridis(np.linspace(1, 0, len(allspair)))
     keys = ["dS", "dS", "dN", "dN/dS"]
     np.seterr(divide='ignore')
@@ -688,7 +724,9 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             if len(df_perspair) == 1:
                 Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='gray', alpha=1, rwidth=0.8,label='Whole paranome')
             else:
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
+                if ksrateslike: Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
+                else:
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0.8, rwidth=0.8,label=pair,edgecolor='black',linewidth=0.8)
             y_lim_beforekde = ax.get_ylim()[1]
             y_lim_beforekdes.append(y_lim_beforekde)
             Hs_maxs.append(max(Hs))
@@ -713,33 +751,42 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             #    scaling = CHF*0.1
             #    ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '-', label = "{}".format(pair))
         else:
-            if not adjustortho:
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
+            if ksrateslike:
+                if pair in Outgroup_spair_ordered:
+                    order = Outgroup_spair_ordered[pair]
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0, rwidth=0.8)
+                    kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                    kde_y = kde(kde_x)
+                    mode, maxim = kde_mode(kde_x, kde_y)
+                    ax = addrectangle(ax,corrected_ks_spair[pair],mode,order,pair.replace(paralog_pair[0],''),cs[order-1])
             else:
-                #Sca_ortho = sum([v1*v2 for v1,v2 in zip(y,w)])
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0, rwidth=0.8)
-                Sca_ortho = max(Hs)
-                factr = Sca_ortho/(Sca*adfactor)
-                w = [i/factr for i in w]
-                Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
-            y_lim_beforekde = ax.get_ylim()[1]
-            y_lim_beforekdes.append(y_lim_beforekde)
-            Hs_maxs.append(max(Hs))
-            kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
-            kde_y = kde(kde_x)
-            mode, maxim = kde_mode(kde_x, kde_y)
-            logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
-            CHF = get_totalH(Hs)
-            scaling = CHF*0.1
-            if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
-            ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
-            #ax.axvline(x = mode, ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
-            if corrected_ks_spair != None:
-                if pair in corrected_ks_spair.keys():
-                    ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
-                    #ax.axvline(x = corrected_ks_spair[pair], ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
-                    ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
-                    logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
+                if not adjustortho:
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
+                else:
+                    #Sca_ortho = sum([v1*v2 for v1,v2 in zip(y,w)])
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=0, rwidth=0.8)
+                    Sca_ortho = max(Hs)
+                    factr = Sca_ortho/(Sca*adfactor)
+                    w = [i/factr for i in w]
+                    Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color=cs[i], alpha=okalpha, rwidth=0.8,label=pair)
+                y_lim_beforekde = ax.get_ylim()[1]
+                y_lim_beforekdes.append(y_lim_beforekde)
+                Hs_maxs.append(max(Hs))
+                kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+                kde_y = kde(kde_x)
+                mode, maxim = kde_mode(kde_x, kde_y)
+                logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
+                CHF = get_totalH(Hs)
+                scaling = CHF*0.1
+                if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
+                ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
+                #ax.axvline(x = mode, ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
+                if corrected_ks_spair != None:
+                    if pair in corrected_ks_spair.keys():
+                        ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        #ax.axvline(x = corrected_ks_spair[pair], ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                        logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
     if ap != None:
         df_ap = pd.read_csv(ap,header=0,index_col=0,sep='\t')
         df_ap.loc[:,"pair"] = df_ap[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)

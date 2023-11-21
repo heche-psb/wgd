@@ -3144,7 +3144,7 @@ def _get_ks(family):
         family.codeml_results = family.codeml_results.join(weight_exc)
         family.codeml_results = family.codeml_results.merge(node_averaged_dS_inc,on = ['family', 'node'])
         family.codeml_results = family.codeml_results.merge(node_averaged_dS_exc,on = ['family', 'node'],how = 'left')
-    family.codeml_results.to_csv(family.out)
+    family.codeml_results.to_csv(family.out,header=True,index=False)
 
 class KsDistributionBuilder:
     def __init__(self, gene_families, seqs, n_threads=4):
