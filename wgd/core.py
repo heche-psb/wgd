@@ -1587,12 +1587,19 @@ def endt(tmpdir,start,s):
     logging.info("Done")
     exit()
 
+def writevervangencat(files,fname):
+    with open (fname,'w') as f:
+        for i in files:
+            with open(i,'r') as ff:
+                f.write(ff.read()+'\n')
+
 def concathmm(outdir,df):
     hmmconcatf = os.path.join(outdir,'Full.hmm')
     gids = map(lambda i:os.path.join(outdir,i+'.pep.hmm'),df.index)
-    cmd = ['cat'] + [i for i in gids]
-    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-    with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    writevervangencat(gids,hmmconcatf)
+    #cmd = ['cat'] + [i for i in gids]
+    #out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    #with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return hmmconcatf
 
 def run_hmmerbc(ids,fc,fp,s):
@@ -2078,9 +2085,10 @@ def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
 
 def concatcdss(sequences,outdir):
     Concat_cdsf = os.path.join(outdir,'Orthologues')
-    cmd = ['cat'] + [s for s in sequences]
-    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-    with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    writevervangencat(sequences,Concat_cdsf)
+    #cmd = ['cat'] + [s for s in sequences]
+    #out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    #with open(Concat_cdsf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return Concat_cdsf
 
 def ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=100,nonormalization=False):
@@ -2319,9 +2327,10 @@ def phmmbuild(fp):
 def concatehmm(outd,famids):
     hmmconcatf = os.path.join(outd,'Full.hmm')
     gids = map(lambda i:os.path.join(outd,i+'.pep.hmm'),famids)
-    cmd = ['cat'] + [i for i in gids]
-    out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
-    with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
+    writevervangencat(gids,hmmconcatf)
+    #cmd = ['cat'] + [i for i in gids]
+    #out = sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    #with open(hmmconcatf,'w') as f: f.write(out.stdout.decode('utf-8'))
     return hmmconcatf
 
 def testassign(df):
