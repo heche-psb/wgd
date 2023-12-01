@@ -66,9 +66,9 @@ Note that the version of `numpy` is important (for many other packages are the s
 
 ## Parameters
 
-There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters.
+There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters. Please refer to the [Usage](#usage) for the scenarios to which each parameter applies.
 
-The program `wgd dmd` can realize the delineation of whole paranome, RBHs, MRBHs, orthogroups and some other orthogroup-related functions, including circumscription of nested single-copy orthogroups (NSOGs), unbiased uest of single-copy orthogroups (SOGs) over missing inparalogs, construction of BUSCO-guided single-copy orthogroups (SOGs),and the collinear coalescence inference of phylogeny.
+The program `wgd dmd` can realize the delineation of whole paranome, RBHs (Reciprocal Best Hits), MRBHs (Multiple Reciprocal Best Hits), orthogroups and some other orthogroup-related functions, including circumscription of nested single-copy orthogroups (NSOGs), unbiased uest of single-copy orthogroups (SOGs) over missing inparalogs, construction of BUSCO-guided single-copy orthogroups (SOGs),and the collinear coalescence inference of phylogeny.
 ```
 wgd dmd sequences (option)
 --------------------------------------------------------------------------------
@@ -77,8 +77,8 @@ wgd dmd sequences (option)
 -c, --cscore, the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
 -I, --inflation, the inflation factor for MCL program, default 2.0
 -e, --eval, the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10
---to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in-frame stop codon, else a full translation continuing on passing any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in-frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
 -f, --focus, the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
 -ap, --anchorpoints, the anchor points data file, default None
 -coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
@@ -116,8 +116,8 @@ wgd focus families sequences (option)
 -o, --outdir, the output directory, default wgd_focus
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -n, --nthreads, the number of threads to use, default 4
---to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in-frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in-frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
 --strip_gaps, flag option, whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
 -a, --aligner, which alignment program to use, default mafft
 -tree, --tree_method, which gene tree inference program to invoke, default fasttree
@@ -155,8 +155,8 @@ wgd ksd families sequences (option)
 -o, --outdir, the output directory, default wgd_ksd
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
 -n, --nthreads, the number of threads to use, default 4
---to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in frame stop codon, else a full translation continuing on past any stop codons will be initiated
---cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
+--to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in-frame stop codon, else a full translation continuing on past any stop codons will be initiated
+--cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in-frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
 --pairwise, flag option, whether to initiate pairwise Ks estimation, if the flag was set, pairwise Ks values will be estimated
 --strip_gaps, flag option, whether to drop all gaps in multiple sequence alignment, if the flag was set, all gaps will be dropped
 -tree, --tree_method, which gene tree inference program to invoke, default fasttree
@@ -284,42 +284,51 @@ wgd viz (option)
 
 ## Usage
 
-Here we provided the basic usage for each program.
+Here we provided the basic usage for each program and the relevant parameters.
 
 ### wgd dmd
 
 **The delineation of whole paranome**
 ```
-wgd dmd sequence
+wgd dmd Aquilegia_coerulea -I 2 -e 1e-10 -bs 100 -np 5 (-nn) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ``` 
+
+Note that we don't provide the data of this cds file `Aquilegia_coerulea` but it can be downloaded at [Phytozome](https://phytozome-next.jgi.doe.gov/info/Acoerulea_v3_1) (same for other Usage doc). In principle, only the primary transcript per gene of genome data should be used. Transcriptome data should be carefully treated with de-redundancy so as to reduce the false positive duplication bump caused by massive alternative splicing. Here the inflation factor parameter, given by `-I` or `--inflation`, affects the granularity or resolution of the clustering outcome and implicitly controlls the number of clusters, with low values such as 1.3 or 1.4 leading to fewer and larger clusters and high values such as 5 or 6 leading to more and smaller clusters. We set the default value as 2 as suggested by [MCL](https://micans.org/mcl/). The e-value cut-off for sequence similarity, given by `-e` or `--eval`, which denotes the expected value of the hit quantifies the number of alignments of similar or better quality that you expect to find searching this query against a database of random sequences the same size as the actual target database, is the key parameter measuring the significance of a hit, is set here as default 1e-10. Note that [DIAMOND](https://github.com/bbuchfink/diamond/wiki/1.-Tutorial) will by default only report all alignments with e-value < 0.001. The percentage of upper hits used for gene length normalization, given by `-np` or `--normalizedpercent`, which determines the upper percentile of hits per bin (categorized by gene length) used in the fit of linear regression, considering that not all hits per bin show apparent linear relationship, is set as default 5, indicating the usage of top 5% hits per bin. The number of bins divided in gene length normalization, given by `-bs` or `--bins`, determines the number of bins to categorize the gene length, is set as default 100. The parameter `-nn` or `--nonormalization` can be set to call off the normalization process, although it's suggested to conduct the normalization to acquire more accurate gene family clustering result. The parameters `--to_stop` and `--cds` control the behaviour of translating coding sequence into amino acid sequence. If the `--to_stop` was set, the translation would be terminated at the first in-frame stop codon, otherwise the translation would simply skip any stop codons. If the `--cds` was set, sequences that doesn't start with a valid start codon, or contains more than 1 in-frame stop codon, or is not dividable by 3, would be simply dropped, such that only strict complete coding sequences would be included in the subsequent analysis. The directory of output or intermediate files is determined by the parameter `-o` or `--outdir`, and `-t` or `--tmpdir`, which will be created by the program itself and be overwritten if the folder has already been created. Note that the software `diamond` should be installed and set in the environment path in all the analysis performed by `wgd dmd` except for the final collinear coalescence analysis.
 
 **The delineation of RBHs**
 ```
-wgd dmd sequence1 sequence2
+wgd dmd sequence1 sequence2 -e 1e-10 -bs 100 -np 5 (-nn) (-n 4) (-c 0.9) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
+
+To delineate RBHs between two cds sequence files, the relevant parameter is mostly the same as whole paranome inference, except for the parameter `-c` or `--cscore`, which is ranging from 0 to 1 and used to relax the similarity cutoff from only reciprocal best hits to a certain ratio as to the best hits. For instance, if the gene b1 from genome B has the best hit gene a1 from genome A with the bit score as 100, which is a scoring matrix independent measure of the (local) similarity of the two aligned sequences, with higher numbers meaning more similar, given the `-c 0.9`, genes from genome A which has the bit score with gene b1 higher than 0.9x100 will all be written in the result file, which in a sense is not RBH anymore of course, but the highly similar homologue pairs. If more than 2 sequence files were provided, every pair-wise RBHs would be calculated except for querying the same sequence itself. The number of parallel threads to booster the running speed can be set by `-n` or `--nthreads`.
 
 **The delineation of local MRBHs**
 ```
-wgd dmd sequence1 sequence2 sequence3 -f sequence1
+wgd dmd sequence1 sequence2 sequence3 -f sequence1 -e 1e-10 -bs 100 -np 5 (-nn) (-n 4) (-kf) (-kd) (-c 0.9) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
+
+Two types of MRBHs can be delineated by `wgd dmd`, the local MRBHs and the global MRBHs. The local MRBHs is constructed by merging all the relevant RBHs only with the focus species, which is set by `-f` or `--focus`. For instance, given 3 genome (A,B,C) and focus species C, two RBHs would be calculated, i.e., (A.vs.C) and (B.vs.C), and then the two RBHs tables would be merged on the species C to acquire the local MRBHs of C. The parameter `-kf` or `--keepfasta` can be set to write the sequence information of each MRBHs. The parameter `-kd` or `--keepduplicates` determines whether the same genes can appear in different local MRBHs. Normally there will be no duplicates in the local MRBHs but if users set the `-c` as 0.9 (for instance), it's likely that the same gene can appear multiply times in different local MRBHs. That is to say, the parameter `-kd` is meaningful only when it's set together with the parameter `-c`.
 
 **The delineation of global MRBHs**
 ```
-wgd dmd sequence1 sequence2 sequence3 -gm
+wgd dmd sequence1 sequence2 sequence3 -gm -e 1e-10 -bs 100 -np 5 (-nn) (-n 4) (-kf) (-kd) (-c 0.9) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
+
+The global MRBHs is constructed by exhaustively merging all the possible pair-wise RBHs except for querying the same sequence itself, which can be initiated by add the flag `-gm` or `--globalmrbh`. For instance, given 3 genome (A,B,C), three RBHs would be calculated, i.e., (A.vs.C), (A.vs.B) and (B.vs.C), and then they would be merged progressively and exhaustively. The rest of relevant parameters stays the same as the local MRBHs.
 
 **The delineation of orthogroups**
 ```
-wgd dmd sequence1 sequence2 sequence3 -oi (option)
+wgd dmd sequence1 sequence2 sequence3 -oi -oo -e 1e-10 -bs 100 -np 5 (-nn) (-cc) (-te) (-mc 0.8) (-gn) (-tree 'fasttree') (-ts '-fastest') (-n 4) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
-Note that users can add the analysis including NSOGs and BUSCO-guided SOGs etc, by adding the corresponding flags, for instance --getnsog and --buscosog.
+
+In `wgd v2`, we also implemented an algorithm of delineating orthogroups, which can be initiated with the parameter `-oi` or `--orthoinfer`. Two ways of delineation can be chosen, the concatenation way (set by the parameter `-cc` or `--concat`) or the non-concatenation (default) way. In brief, the concatenation way of delineating orthogroups starts with concatenating all the sequences into a single sequence file and then inferring the whole paranome of this single sequence file with the clustering results mapped back to the belonging species. While the non-concatenation way starts with respective pair-wise diamond search (including querying the same sequence itself) and then all the sequence similarity tables will be added up and clustered into orthogroups. Some other possibly useful post-clustering functions can be initiated, including the parameter `-te` or `--testsog`, which can be set to start the unbiased test of single-copy gene families (note that this function needs `hmmer` (v3.1b2) to be installed in the environment path), the parameter `-mc` or `--msogcut`, ranging from 0 to 1, which can be set to search the so-called mostly single-copy family which has higher than certain cut-off percentage of species coverage, the parameter `-gn` or `--getnsog`, which can be set to search for nested single-copy gene families (NSOGs) which is originally multiy-copy but has a (mostly) single-copy branch (which requires the chosen tree-inference program set by `-tree` or `--tree_method` to be pre-installed in the environment path with the parameters setting for gene tree inference controlled by `-ts` or `--treeset`). The program `wgd dmd` will still conduct the RBHs calculation unless the parameter `-oo` or `--onlyortho` was set. If one only wants to infer the orthogroups, it's suggested to add the flag `-oo` to just implement the orthogroups delineation analysis.
 
 **The collinear coalescence inference of phylogeny**
 ```
-wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata --collinearcoalescence
+wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata -coc (-tree 'fasttree') (-ts '-fastest') (-n 4) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
 
-Note that there should be no duplicated gene IDs in the sequence file.
+A novel phylogenetic inference method named "collinear coalescence inference" is also implemented in `wgd v2`. For this analysis, users need to provide the anchor points file by `-ap` or `--anchorpoints`, the collinear segment file by `-sm` or `--segments`, the listsegments file by `-le` or `--listelements`, and the gene table file by `-gt` or `--genetable`, all of which can be produced in the program `wgd syn`. The parameter `-coc` or `--collinearcoalescence` needs to be set for starting this analysis. The tree-inference program and the associated parameters can be set just as above by `-tree` or `--tree_method` and `-ts` or `--treeset`. Please also make sure the chosen tree-inference program is installed in the environment path. The program `astral-pro` is required to be installed in the environment path too. Note that there should be no duplicated gene IDs in the sequence file.
 
 ### wgd focus
 

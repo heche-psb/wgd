@@ -2593,14 +2593,14 @@ def writeseq_per_aps(mid,genes_sorted,seqs,f,nthreads):
 def Concat_by_order(MFs,MFs_order,seqs,f,nthreads):
     gsmap = {i:i for i in MFs.columns}
     findex,num_sp = [],len(gsmap)
-    print(num_sp)
+    #print(num_sp)
     for i in MFs.index:
         genes_allsp = list(MFs.loc[i,:])
         cutoff = 1
-        print(([j !='' for j in genes_allsp],sum([j !='' for j in genes_allsp])))
+        #print(([j !='' for j in genes_allsp],sum([j !='' for j in genes_allsp])))
         if sum([j !='' for j in genes_allsp])/num_sp < cutoff:
             continue
-        print('Multi{}'.format(i))
+        #print('Multi{}'.format(i))
         genes_per_sp_sorted = {}
         order_allsp = list(MFs_order.loc[i,:])
         for sp,genes,orders in zip(MFs.columns,genes_allsp,order_allsp):
@@ -2652,12 +2652,16 @@ def run_tree_msc(fpaln,tree_method,treeset):
     if tree_method == "fasttree": fasttree_run(fpaln,treeset)
     if tree_method == "mrbayes": mrbayes_run(os.path.join(fname_seq,'pep'),fpaln.strip('.pep.aln'),fpaln,AlignIO.read(fpaln, "fasta"),treeset)
 
-def getMultipliconstrees(fp,fc,i,outd,tree_method,tree_famsf,tree_fams):
-    x = lambda i : "Multiplicon{}".format(i)
-    fpaln,fcaln = fp + '.aln',fc + '.aln'
+#def getMultipliconstrees(fp,fc,i,outd,tree_method,tree_famsf,tree_fams):
+def getMultipliconstrees(findex,tree_method,tree_famsf,tree_fams):
+    y = lambda x:os.path.basename(x)
+    #x = lambda i : "Multiplicon{}".format(i)
+    #fpaln,fcaln = fp + '.aln',fc + '.aln'
     #if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.fasttree')
-    if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.fasttree')
-    if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.treefile')
+    #if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.fasttree')
+    if tree_method == 'fasttree': addiqfatree(y(findex),tree_fams,findex,tree_famsf,postfix = '.fasttree')
+    if tree_method == 'iqtree': addiqfatree(y(findex),tree_fams,findex,tree_famsf,postfix = '.treefile')
+    #if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.treefile')
     #if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.treefile')
     #if tree_method == 'mrbayes': addmbtree(outd,tree_fams,tree_famsf,i=i,concat=False,Multiplicon=True)
 
@@ -2896,30 +2900,31 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     fname_seq = _mkdir(os.path.join(outdir, "Multiplicons_Sequences"))
     assembled_df,mlt_ap = writeog(dfs_coc,outdir,sp_name,gene_sp_gl)
     writemscseq(assembled_df,fname_seq,seqs,nthreads,tree_method,treeset,gsmapf,outdir,mlt_ap,gene_sp_gl,gene_start)
-    #mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
-    #mlts_segs_anchors_ratios = mlts_segs_anchors.reset_index().set_index('multiplicon').join(profile).reset_index().set_index('segment')
-    #fname_msar = os.path.join(outdir, "Mlts_Segs_Ancs_Ratios.tsv")
-    #mlts_segs_anchors_ratios.to_csv(fname_msar,header = True,index =True,sep = '\t')
-    #MFs_coc,MFs_order_coc = msap2mf(mlts_segs_anchors,g_x_y_inorder)
+    mlts_segs_anchors = segs_anchors.join(df.set_index('segment'))
+    mlts_segs_anchors_ratios = mlts_segs_anchors.reset_index().set_index('multiplicon').join(profile).reset_index().set_index('segment')
+    fname_msar = os.path.join(outdir, "Mlts_Segs_Ancs_Ratios.tsv")
+    mlts_segs_anchors_ratios.to_csv(fname_msar,header = True,index =True,sep = '\t')
+    MFs_coc,MFs_order_coc = msap2mf(mlts_segs_anchors,g_x_y_inorder)
     #MFs_coc,MFs_order_coc = msap2mf(mlts_segs_anchors,segs_orders)
-    #MF_fname = os.path.join(outdir, "Multiplicon_Families.tsv")
-    #MFs_coc.to_csv(MF_fname,header = True,index =True,sep = '\t')
-    #MF_order_fname = os.path.join(outdir, "Multiplicon_Families_Order.tsv")
-    #MFs_order_coc.to_csv(MF_order_fname,header = True,index =True,sep = '\t')
-    #fname_seq = _mkdir(os.path.join(outdir, "Multiplicons_Sequences"))
+    MF_fname = os.path.join(outdir, "Multiplicon_Families.tsv")
+    MFs_coc.to_csv(MF_fname,header = True,index =True,sep = '\t')
+    MF_order_fname = os.path.join(outdir, "Multiplicon_Families_Order.tsv")
+    MFs_order_coc.to_csv(MF_order_fname,header = True,index =True,sep = '\t')
+    fname_seq = _mkdir(os.path.join(outdir, "Multiplicons_Sequences"))
     #fcs,fps,findex,gsmap,CDS = Concat_by_order(MFs_coc,MFs_order_coc,seqs,fname_seq)
-    #findex,gsmap = Concat_by_order(MFs_coc,MFs_order_coc,seqs,fname_seq,nthreads)
-    #gsmapf = os.path.join(outdir, "Genomes_Species.Map")
-    #writegsmap(gsmap,gsmapf)
-    #Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_tree_msc)(fpaln,tree_method,treeset) for fpaln in findex)
+    findex,gsmap = Concat_by_order(MFs_coc,MFs_order_coc,seqs,fname_seq,nthreads)
+    gsmapf = os.path.join(outdir, "Genomes_Species.Map")
+    writegsmap(gsmap,gsmapf)
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_tree_msc)(fpaln,tree_method,treeset) for fpaln in findex)
     #outd = _mkdir(os.path.join(fname_seq, "pep"))
     #Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(aln_2tree)(fps[i],fcs[i],seqs,tree_method,treeset,outd,findex[i],CDS) for i in range(len(fcs)))
     #for i in range(len(fcs)):
     #    aln_2tree(fps[i],fcs[i],seqs,tree_method,treeset,outd,findex[i],CDS)
-    #tree_famsf,tree_fams=[],{}
+    tree_famsf,tree_fams=[],{}
     #map(getMultipliconstrees(fps[i],fcs[i],findex[i],outd,tree_method,tree_famsf,tree_fams),range(len(fcs)))
     #for i in range(len(fcs)): getMultipliconstrees(fps[i],fcs[i],findex[i],outd,tree_method,tree_famsf,tree_fams)
-    #Astral_infer(tree_famsf,gsmapf,outdir)
+    for i in range(len(findex)): getMultipliconstrees(findex[i],tree_method,tree_famsf,tree_fams)
+    Astral_infer(tree_famsf,gsmapf,outdir)
     # segs_anchors indexed by segment, only one column as anchors
 
 def bget_seq(s, fid, gene, tmp_pathc, tmp_pathp):
