@@ -439,7 +439,8 @@ def addcorrectline(ax_spair,corrected_ks_spair,corrected_ks_spair_std,maxim_spai
 def addcorrectline_mixed(ax,corrected_ks_spair,corrected_ks_spair_std,ks_spair,Outgroup_spair_ordered,focusp):
     y = lambda x:x.replace(focusp,'').replace('__','')
     cs = cm.viridis(np.linspace(0, 1, len(set(Outgroup_spair_ordered.values()))))
-    for spair in corrected_ks_spair.keys():
+    for spair in sorted(corrected_ks_spair.keys(),key=lambda x:Outgroup_spair_ordered[x],reverse=True):
+    #for spair in corrected_ks_spair.keys():
         ax = addvvline(ax,corrected_ks_spair[spair],cs[Outgroup_spair_ordered[spair]-1],'-.','[{0}] {1} {2:.2f} {3} {4:.2f}'.format(Outgroup_spair_ordered[spair],y(spair),float(corrected_ks_spair[spair]),'\u2190',float(ks_spair[spair])),rawid=True)
         p = patches.Rectangle((corrected_ks_spair[spair]-corrected_ks_spair_std[spair], 0), 2*corrected_ks_spair_std[spair], ax.get_ylim()[1], edgecolor='none', facecolor=cs[Outgroup_spair_ordered[spair]-1], alpha=0.2)
         ax.add_patch(p)

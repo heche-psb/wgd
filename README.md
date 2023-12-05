@@ -334,8 +334,10 @@ A novel phylogenetic inference method named "collinear coalescence inference" is
 
 **The concatenation-based/coalescence-based phylogenetic inference**
 ```
-wgd focus families sequence1 sequence2 sequence3 --concatenation/--coalescence
+wgd focus families sequence1 sequence2 sequence3 (--concatenation) (--coalescence) (-tree 'fasttree') (-ts '-fastest') (-n 4) (--to_stop) (--cds) (-o wgd_focus) (-t working_tmp)
 ```
+
+The program `wgd focus` implemented two basic phylogenetic inference methods, i.e., concatenation-based and coalescence-based methods. To 
 
 **The functional annotation of gene families**
 ```
