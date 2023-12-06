@@ -1310,7 +1310,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     Loss = sum(D)
     return Loss
 
-def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5):
+def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5, keeptmp=False):
     gs_ks = df.loc[:,['gene1','gene2',guide,'dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     mpKs = pd.DataFrame.from_dict({guide:df_withindex.index,'Median_Ks':ks_or}).set_index(guide)
@@ -1340,15 +1340,15 @@ def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95
     ax.legend(loc=2,fontsize='large',frameon=False)
     ax.set_ylim(0, ax.get_ylim()[1] * 1.1)
     fig.tight_layout()
-    fig.savefig(os.path.join(outdir, "{}_guided_{}_Ks_spline.pdf".format(guide,sp)))
+    if keeptmp: fig.savefig(os.path.join(outdir, "{}_guided_{}_Ks_spline.pdf".format(guide,sp)))
     plt.close(fig)
     logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
-    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide,keeptmp=keeptmp)
     if user: get95CIap_MP(user_low,user_upp,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
     else: get95CIap_MP(lower95CI,upper95CI,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
 
-def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5):
+def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5,keeptmp=False):
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -1382,17 +1382,17 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     ax.set_ylim(0, ax.get_ylim()[1] * 1.1)
     fig.tight_layout()
     if na:
-        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.svg".format(sp)))
-        fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.pdf".format(sp)))
+        if keeptmp: fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.svg".format(sp)))
+        if keeptmp: fig.savefig(os.path.join(outdir, "{}.spline_node_averaged.pdf".format(sp)))
     else:
-        fig.savefig(os.path.join(outdir, "{}.spline_weighted.svg".format(sp)))
-        fig.savefig(os.path.join(outdir, "{}.spline_weighted.pdf".format(sp)))
+        if keeptmp: fig.savefig(os.path.join(outdir, "{}.spline_weighted.svg".format(sp)))
+        if keeptmp: fig.savefig(os.path.join(outdir, "{}.spline_weighted.pdf".format(sp)))
     plt.close(fig)
     if na: logging.info('Detecting likely peaks from node-averaged data')
     else: logging.info('Detecting likely peaks from node-weighted data')
     init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     #lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
-    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci, keeptmp=keeptmp)
     if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
     else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
 
@@ -1543,7 +1543,7 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     plt.close()
     return np.exp(mean)-std*2,np.exp(mean)+std*2
 
-def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None, ci=95):
+def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None, ci=95, keeptmp=False):
     if guide != None: fname = os.path.join(outdir, "{}Ks_PeakCI_{}.pdf".format(guide,sp))
     elif na: fname = os.path.join(outdir, "AnchorKs_PeakCI_{}_node_averaged.pdf".format(sp))
     else: fname = os.path.join(outdir, "AnchorKs_PeakCI_{}_node_weighted.pdf".format(sp))
@@ -1576,7 +1576,7 @@ def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, gu
     sns.despine(offset=1)
     plt.title('Anchor $K_\mathrm{S}$'+' distribution of {}'.format(sp))
     plt.tight_layout()
-    plt.savefig(fname,format ='pdf', bbox_inches='tight')
+    if keeptmp: plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
     return [i[0] for i in CI_95s],[i[1] for i in CI_95s]
     #return CI_95[0],CI_95[1]
