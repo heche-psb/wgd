@@ -504,6 +504,9 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
             pairwise=pairwise, 
             strip_gaps=strip_gaps, aligner=aligner, aln_options = aln_options,
             tree_method=tree_method, tree_options=tree_options)
+    if len(fams) == 0:
+        logging.error("All families are singleton families, No Ks can be calculated")
+        exit(0)
     #if not (speciestree is None) and kstree:
         #getconcataln(s, families, nthreads, outdir, option="--auto")
         #cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=False)
