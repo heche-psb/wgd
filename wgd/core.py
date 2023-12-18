@@ -507,7 +507,14 @@ class SequenceSimilarityGraph:
 
 # Gene family i/o
 def _rename(family, ids):
-    return [ids[x] for x in family]
+    orig_ids = []
+    for x in family:
+        if ids.get(x) is None:
+            logging.info("Couldn't find the gene id for {}".format(x))
+        else:
+            orig_ids.append(ids[x])
+    return orig_ids
+    #return [ids[x] for x in family]
 
 def read_gene_families(fname):
     """
@@ -579,7 +586,7 @@ def get_gene_families(seqs, families, rename=True, **kwargs):
             pro = {x: seqs.pro_seqs[x] for x in family}
             tmp = os.path.join(seqs.tmp_path, fid)
             gene_families.append(GeneFamily(fid, cds, pro, tmp, **kwargs))
-        else: logging.debug("Skipping singleton family {}{}".format(fid,family))
+        else: logging.info("Skipping singleton family {}{}".format(fid,family))
     return gene_families
 
 def identity_ratio(aln):
@@ -3003,7 +3010,8 @@ class GeneFamily:
     def combine_results(self):
         if self.no_codeml_results is None:
             return
-        self.codeml_results = pd.concat([self.codeml_results, self.no_codeml_results])
+        if self.codeml_results is not None: self.codeml_results = pd.concat([self.codeml_results, self.no_codeml_results])
+        else: self.codeml_results = self.no_codeml_results
     
     def nan_result(self, pairs):
         """
@@ -3170,7 +3178,7 @@ class KsDistributionBuilder:
     def get_distribution(self):
         Parallel(n_jobs=self.n_threads,backend='multiprocessing')(
             delayed(_get_ks)(family) for family in self.families)
-        df = pd.concat([pd.read_csv(x.out, index_col=0) 
+        df = pd.concat([pd.read_csv(x.out, index_col=None) 
             for x in self.families], sort=True)
         self.df = add_original_ids(df, self.seqs)
 
