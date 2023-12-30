@@ -1311,6 +1311,7 @@ def Elbow_lossf(X_log,cluster_centers,labels):
     return Loss
 
 def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5, keeptmp=False):
+    outdir = _mkdir(os.path.join(outdir,"SegmentKs_FindPeak"))
     gs_ks = df.loc[:,['gene1','gene2',guide,'dS']]
     df_withindex,ks_or = bc_group_anchor(df,regime=guide)
     mpKs = pd.DataFrame.from_dict({guide:df_withindex.index,'Median_Ks':ks_or}).set_index(guide)
@@ -1343,12 +1344,15 @@ def find_mpeak(df,anchor,sp,outdir,guide,peak_threshold=0.1,rel_height=0.4,ci=95
     if keeptmp: fig.savefig(os.path.join(outdir, "{}_guided_{}_Ks_spline.pdf".format(guide,sp)))
     plt.close(fig)
     logging.info('Detecting likely peaks from {}-guided Ks data '.format(guide))
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
-    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide,keeptmp=keeptmp)
+    if keeptmp: init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
+    else: init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=peak_threshold,rel_height=rel_height)
+    #init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,guide=guide,rel_height=rel_height)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, False, sp, ci=ci,guide=guide,keeptmp=True)
     if user: get95CIap_MP(user_low,user_upp,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
     else: get95CIap_MP(lower95CI,upper95CI,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=user,kscutoff=kscutoff)
 
 def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci=95,user_low=0,user_upp=1,user=False,kscutoff=5,keeptmp=False):
+    outdir = _mkdir(os.path.join(outdir,"AnchorKs_FindPeak"))
     gs_ks = df.loc[:,['gene1','gene2','dS']]
     if na:
         df = df.drop_duplicates(subset=['family','node'])
@@ -1390,9 +1394,11 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
     plt.close(fig)
     if na: logging.info('Detecting likely peaks from node-averaged data')
     else: logging.info('Detecting likely peaks from node-weighted data')
-    init_means, init_stdevs, good_prominences = find_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
+    if keeptmp: init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
+    else: init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,peak_threshold=peak_threshold,rel_height=rel_height)
+    #init_means, init_stdevs, good_prominences = onlyfind_peak_init_parameters(spl_x,spl_y,sp,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height)
     #lower95CI,upper95CI = plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp)
-    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci, keeptmp=keeptmp)
+    lower95CI,upper95CI = plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, ci=ci, keeptmp=True)
     if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
     else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
 
@@ -1785,6 +1791,7 @@ def weighttransform(X_log,seg_weight):
     return new_X_log.reshape(-1, 1)
 
 def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=None,multipliconpairs=None,listelement=None,cutoff=None,user_xlim=None,user_ylim=None):
+    outdir = _mkdir(os.path.join(outdir,"SegmentGuideKs_GMM"))
     logging.info("GMM modeling on Log-scale segment Ks data")
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
@@ -1851,6 +1858,7 @@ def getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir,regime,cutoff):
         df_tmp.to_csv(fname,sep='\t',header=True,index=True)
 
 def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=False,cutoff = 5,peak_threshold=0.1,rel_height=0.4,user_xlim=None,user_ylim=None):
+    outdir = _mkdir(os.path.join(outdir,"AnchorKs_GMM"))
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks GMM Clustering')
         exit(0)
@@ -1916,6 +1924,7 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
     """
     Clustering with KMedoids to delineate different anchor groups from anchor Ks distribution
     """
+    outdir = _mkdir(os.path.join(outdir,"AnchorKs_KMedoids"))
     if anchor == None:
         logging.error('Please provide anchorpoints.txt file for Anchor Ks KMedoids Clustering')
         exit(0)
