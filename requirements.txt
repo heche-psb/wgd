@@ -15,7 +15,7 @@ KDEpy==1.1.0
 kiwisolver==1.2.0
 MarkupSafe==1.1.1
 matplotlib==3.2.2
-numpy>=1.19.0,!=1.24.3
+numpy>=1.19.0,<1.24.0
 numexpr>=2.7.3
 packaging==20.4
 pandas<=1.4.4
