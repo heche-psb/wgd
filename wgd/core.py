@@ -823,7 +823,7 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
             tables = []
             Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[i],s[k],cscore,eval) for k in range(i+1,len(s)))
             for j in range(i+1,len(s)):
-                df = getrbhf(s[int(i)],s[int(j)],outdir)
+                df = getrbhf(s[i],s[j],outdir)
                 if table.empty: table = df
                 else:
                     table = table.merge(df)
@@ -2044,7 +2044,7 @@ def rmtmp(tmpdir,outdir,querys):
 def dmd4g2f(outdir,s,nthreads,querys,df):
     return None
 
-def genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset):
+def genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer'):
     Noldsp = [i.prefix for i in s]
     gsmap = {}
     for seq in s: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})

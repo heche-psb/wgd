@@ -58,6 +58,8 @@ def cli(verbosity):
     help='segments datafile')
 @click.option('--listelements', '-le', default=None, show_default=True,
     help='list elements datafile')
+@click.option('--genetable', '-gt', default= None, show_default=True, help='gene table file')
+@click.option('--collinearcoalescence','-coc', is_flag=True,help="collinear coalescence inference of phylogeny and WGD")
 @click.option('--keepfasta','-kf', is_flag=True,
     help="keep the fasta file of homologs family")
 @click.option('--keepduplicates','-kd', is_flag=True,
@@ -72,11 +74,9 @@ def cli(verbosity):
 @click.option('--treeset', '-ts', multiple=True, default=None, show_default=True,help='parameters setting for gene tree inference')
 @click.option('--msogcut', '-mc', type=float, default=0.8, show_default=True,help='ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference')
 @click.option('--geneassign','-ga', is_flag=True,help="assign genes to given gene families")
-@click.option('--assign_method', '-am',type=click.Choice(['hmmer', 'diamond']),default='hmmer',show_default=True,help="gene assignment method")
 @click.option('--seq2assign', '-sa', multiple=True, default= None, show_default=True, help='sequences to be assigned')
 @click.option('--fam2assign', '-fa',default= None, show_default=True, help='families to be assigned upon')
 @click.option('--concat','-cc', is_flag=True,help="concatenation pipeline for orthoinfer")
-@click.option('--collinearcoalescence','-coc', is_flag=True,help="collinear coalescence inference of phylogeny and WGD")
 @click.option('--testsog','-te', is_flag=True,help="Unbiased test of single-copy gene families")
 @click.option('--bins', '-bs', type=int, default=100, show_default=True, help='bins for gene length normalization')
 @click.option('--normalizedpercent', '-np', type=int, default=5, show_default=True, help='percentage of upper hits used for normalization')
@@ -84,13 +84,12 @@ def cli(verbosity):
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
 @click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='HMM profile of given busco dataset')
 @click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO')
-@click.option('--genetable', '-gt', default= None, show_default=True, help='gene table file')
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
 
     Requires diamond and mcl. Note the two key parameters, being the e-value
-    cut-off and inflation factor. It is advised to explore the effects of these
+    cut-off and inflation factor. It is advised to explore the effects of them
     on your analysis.
 
     Example 1 - whole paranome delineation:
@@ -112,7 +111,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, assign_method, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
+def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
@@ -127,7 +126,7 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         segmentsaps(genetable,listelements,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
-        genes2fams(assign_method,seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset)
+        genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer')
     if orthoinfer:
         logging.info("Infering orthologous gene families")
         ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getnsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=bins,nonormalization=nonormalization)

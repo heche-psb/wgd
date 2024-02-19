@@ -23,7 +23,7 @@
 
 </div>
 
-`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first give an introduction over the scope and mechanism of `wgd v2` and then the practical information of installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. If you use `wgd v2` in your research, please cite us. 
+`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first gave an introduction over the scope and mechanism of `wgd v2` and then the practical information pertaining to the installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested in more theoretical details, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. If you use `wgd v2` in your research, please cite us as suggested in [Citation](#citation) section.
 
 ## Introduction
 
@@ -31,9 +31,11 @@ Polyploidizations, the evolutionary process that the entire genome of an organis
 
 The *K*<sub>S</sub> method is established on a model of gene family evolution that each gene family is allowed to evolve via gene duplication and loss. Note that the gene family here is assumed to be the cluster of all genes descended from an ancestral gene in a single genome. Recovering the gene tree of such gene family informs the timing, scilicet the age, of gene duplication events. The age refered here, is not in real geological time, but in the unit of evolutionary distance, i.e., the number of substitutions per site. When the evolutionary rate remains approximately constant, the evolutionary distance is then supposed to be proportional to the real evolutionary time. The synonymous distance *K*<sub>S</sub>, the number of synonymous substitutions per synonymous site, is such candidate that synonymous substitutions would not incur the change of amino acid and are thus regarded as neutral, which according to the neutral theory should occur in constant rate. Given a model of gene family that allows the gene to duplicate and get lost in a fixed rate, one can derive that the probability density function of the *K*<sub>S</sub> age distribution of retained gene duplicates is a quasi-exponential function that most retained gene duplicates are recently borned with ~0 age while as the age going older the associated number of retained gene duplicates decay quasi-exponentially. Therefore, the occurance of large-scale gene duplication events, for instane WGDs, with varied retention rate, will leave an age peak from the burst of gene duplicates in a short time-frame upon the initial age distribution, and can be unveiled from mixture modeling analysis. However, WGDs identified from the paralogous *K*<sub>S</sub> age distributions can only inform the WGD timing in the time-scale of that specific species, which is not comparable in the phylogenetic context. Only with the orthologous *K*<sub>S</sub> age distributions, which convert the estimated body from paralogues to orthologues and inform the relative timing of speciation events, can we decipher the phylogenetic placement of WGDs after proper rate correction. `wgd v2` is such program that helps users construct paralogous and orthologous *K*<sub>S</sub> age distributions and realize both the identification and placement of WGDs.
 
+In the premise of phylogenetically located WGDs, the absolute age (in geological time) of WGDs can also be inferred from those WGD-retained gene duplicates, although there has been no easy or straightforward pipeline for this job so far. In `wgd v2`, we developed a feasible integrated pipleline for absolute dating of WGDs. The pipeline can be roughly divided into three main steps. 1) The construction of anchor *K*<sub>S</sub> distribution and the delineation of crediable *K*<sub>S</sub> range adopted for phylogenetic dating, using `wgd dmd`, `wgd ksd`, `wgd syn` and `wgd peak`. Note that here we only consider genome assembly because for transcriptome assembly it's impossible to distinguish WGD-derived duplicates from small-scale duplication-derived duplicates, which happened in a continuous time-frame instead of only a separate short time-frame and thus reflects the duration of that branch rather than the time at which WGD occurred. 2) The formulation of a starting tree used in the phylogenetic dating, composed of a few species and annotated with fossil calibration information. This step is essential for the result of absolute WGD dating that we suggest users of taking great caution to assure the tree topology and proper bounds for fossil calibrations. 3) The construction of orthogroups consisting of collinear duplicates of the focal species and their reciprocal best hits (RBHs) against other species in the starting tree and the phylogenetic dating using a molecular dating program for instance `mcmctree`, via program `wgd dmd` and `wgd focus`. We recommend the usage of Bayesian molecular dating program `mcmctree`, which provides a variety of different substitution and rate models. Nonetheless, we urge users to set prior distribution of different parameters with caution and assure adequate sampling of different parameters.
+
 ## Installation
 
-The easiest way to install `wgd v2` is using PYPI. Note that if you want to get the latest update, we suggest installing from the source, since the update on PYPI will be delayed compared to here in the source.
+The easiest way to install `wgd v2` is using PYPI. Note that if you want to get the latest update, we suggest installing from the source, since the update on PYPI will be delayed compared to here of source.
 
 ```
 pip install wgd
@@ -62,49 +64,48 @@ If multiply versions of `wgd` were installed in the system, please add the right
 export PATH="$PATH:~/.local/bin/wgd"
 ```
 
-Note that the version of `numpy` is important (for many other packages are the same of course), especially for `fastcluster` package. In our test, the `numpy` 1.19.0 works fine on `python3.6/8`. If you met some errors or warnings about numpy, maybe considering pre-install `numpy` as 1.19.0 or other close-by versions before you install `wgd`.
+Note that the version of `numpy` is important (for many other packages are the same of course), especially for `fastcluster` package. In our test, the `numpy` 1.19.0 works fine on `python3.6/8`. If you met some errors or warnings about `numpy`, maybe considering pre-install `numpy` as 1.19.0 or other close-by versions before you install `wgd`.
 
 ## Parameters
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters. Please refer to the [Usage](#usage) for the scenarios to which each parameter applies.
 
-The program `wgd dmd` can realize the delineation of whole paranome, RBHs (Reciprocal Best Hits), MRBHs (Multiple Reciprocal Best Hits), orthogroups and some other orthogroup-related functions, including circumscription of nested single-copy orthogroups (NSOGs), unbiased uest of single-copy orthogroups (SOGs) over missing inparalogs, construction of BUSCO-guided single-copy orthogroups (SOGs),and the collinear coalescence inference of phylogeny.
+The program `wgd dmd` can realize the delineation of whole paranome, RBHs (Reciprocal Best Hits), MRBHs (Multiple Reciprocal Best Hits), orthogroups and some other orthogroup-related functions, including circumscription of nested single-copy orthogroups (NSOGs), unbiased test of single-copy orthogroups (SOGs) over missing inparalogs, construction of BUSCO-guided single-copy orthogroups (SOGs),and the collinear coalescence inference of phylogeny.
 ```
 wgd dmd sequences (option)
 --------------------------------------------------------------------------------
 -o, --outdir, the output directory, default wgd_dmd
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir will be assigned random names in current directory and automately removed at the completion of program, else the tmpdir will be kept
--c, --cscore, the c-score to restrict the homologs of MRBHs, default None, if None was given, the c-score funcion won't be activated
--I, --inflation, the inflation factor for MCL program, default 2.0
+-c, --cscore, the c-score to restrict the homolog similarity of MRBHs, default None, if None was given, the c-score funcion won't be activated, else expecting a decimal within the range of 0 and 1
+-I, --inflation, the inflation factor for MCL program, default 2.0, with higher value leading to more but smaller clusters
 -e, --eval, the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10
 --to_stop, flag option, whether to translate through STOP codons, if the flag was set, translation will be terminated at the first in-frame stop codon, else a full translation continuing on passing any stop codons will be initiated
 --cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in-frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS will be translated
 -f, --focus, the species to be merged on local MRBHs, default None, if None was given, the local MRBHs won't be inferred
--ap, --anchorpoints, the anchor points data file, default None
--coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
+-ap, --anchorpoints, the anchor points data file from i-adhore for constructing the orthogroups with anchor pairs, default None
 -sm, --segments, the segments data file used in collinear coalescence analysis if initiated, default None
 -le, --listelements, the listsegments data file used in collinear coalescence analysis if initiated, default None
 -gt, --genetable, the gene table datafile used in collinear coalescence analysis if initiated, default None
+-coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis will be initiated
 -kf, --keepfasta, flag option, whether to output the sequence information of MRBHs, if the flag was set, the sequences of MRBHs will be in output
--kd, --keepduplicates, flag option, whether to allow the same gene to occur in different MRBHs, if the flag was set, the same gene can be assigned to different MRBHs
+-kd, --keepduplicates, flag option, whether to allow the same gene to occur in different MRBHs (only meaningful when the cscore was used), if the flag was set, the same gene can be assigned to different MRBHs
 -gm, --globalmrbh, flag option, whether to initiate global MRBHs construction, if the flag was set, the --focus option will be ignored and only global MRBHs will be built
 -n, --nthreads, the number of threads to use, default 4
 -oi, --orthoinfer, flag option, whether to initiate orthogroup infernece, if the flag was set, the orthogroup infernece program will be initiated
--oo, --onlyortho, flag option, whether to only conduct orthogroup infernece, if the flag was set, only the orthogroup infernece program will be conducted while the other analysis won't be initiated
--gn, --getnsog, flag option, whether to initiate the searching for nested single-copy gene families (NSOGs), if the flag was set, additional NSOGs analysis will be performed besides the basic orthogroup infernece
--tree, --tree_method, which gene tree inference program to invoke, default fasttree
+-oo, --onlyortho, flag option, whether to only conduct orthogroup infernece, if the flag was set, only the orthogroup infernece pipeline will be performed while the other analysis won't be initiated
+-gn, --getnsog, flag option, whether to initiate the searching for nested single-copy gene families (NSOGs) (only meaningful when the orthogroup infernece pipeline was activated), if the flag was set, additional NSOGs analysis will be performed besides the basic orthogroup infernece
+-tree, --tree_method, which gene tree inference program to invoke (only meaningful when the collinear coalescence, gene-to-family assignment or NSOGs analysis were activated), default fasttree
 -ts, --treeset, the parameters setting for gene tree inference, default None, this option can be provided multiple times
--mc, --msogcut, the ratio cutoff for mostly single-copy family and species representation in collinear coalescence inference, default 0.8.
+-mc, --msogcut, the ratio cutoff for mostly single-copy family (meaningful when activating the orthogroup infernece pipeline) and species representation in collinear coalescence analysis, default 0.8.
 -ga, --geneassign, flag option, whether to initiate the gene-to-family assignment analysis, if the flag was set, the analysis will be initiated
--am, --assign_method, which method to conduct the gene-to-family assignment analysis, default hmmer
 -sa, --seq2assign, the queried sequences data file in gene-to-family assignment analysis, default None, this option can be provided multiple times
 -fa, --fam2assign, the queried familiy data file in gene-to-family assignment analysis, default None
--cc, --concat, flag option, whether to initiate the concatenation pipeline for orthogroup infernece, if the flag was set, the analysis will be initiated
--te, --testsog, flag option, whether to initiate the unbiased test of single-copy gene families, if the flag was set, the analysis will be initiated
--bs, --bins, the number of bins divided in gene length normalization, default 100
+-cc, --concat, flag option, whether to initiate the concatenation pipeline for orthogroup infernece, if the flag was set, the analysis would be initiated
+-te, --testsog, flag option, whether to initiate the unbiased test of single-copy gene families, if the flag was set, the analysis would be initiated
+-bs, --bins, the number of bins divided in the gene length normalization, default 100
 -np, --normalizedpercent, the percentage of upper hits used for gene length normalization, default 5
--nn, --nonormalization, flag option, whether to call off the normalization, if the flag was set, no normalization will be conducted
--bsog, --buscosog, flag option, whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis will be initiated
+-nn, --nonormalization, flag option, whether to call off the normalization, if the flag was set, no normalization would be conducted
+-bsog, --buscosog, flag option, whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis would be initiated
 -bhmm, --buscohmm, the HMM profile datafile in the busco-guided single-copy gene family analysis, default None
 -bctf, --buscocutoff, the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None
 ```
@@ -366,6 +367,7 @@ wgd ksd families sequence1 sequence2
 wgd ksd families sequence1 sequence2 sequence3 -sr srdata -sp spdata
 ```
 
+There are 21 columns in the result ks.tsv file besides the index columns `pair` as the unique identifier for each gene pair. The `N`, `S`, `dN`, `dN/dS`, `dS`, `l` and `t` are from the codeml results, representing the N estimate, the S estimate, the dN estimate, the dN/dS (omega) estimate, the dS estimate, the log-likelihood and the t estimate, respectively. The `alignmentcoverage`, `alignmentidentity` and `alignmentlength` are the information pertaining to the alignment for each family, representing the 
 ### wgd mix
 
 **The mixture model clustering analysis of *K*<sub>S</sub> age distribution**

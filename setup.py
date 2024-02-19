@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='wgd',
-    version='2.0.24',
+    version='2.0.25',
     packages=['wgd'],
     url='http://github.com/heche-psb/wgd',
     license='GPL',
