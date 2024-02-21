@@ -148,7 +148,6 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
     endt(tmpdir,start,s)
 
-#MSA and ML tree inference for given sets of orthologous gene familes for species tree inference and WGD timing
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))
@@ -172,13 +171,13 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
 @click.option('--partition','-pt', is_flag=True,help="1st 2nd and 3rd codon partition analysis")
 @click.option('--aamodel', '-am', type=click.Choice(['poisson','wag', 'lg', 'dayhoff']),default='poisson',show_default=True,help="protein model to be used in mcmctree")
 @click.option('-ks', is_flag=True,help="Ks analysis for orthologous families")
-@click.option('--annotation',type=click.Choice(['none','eggnog', 'hmmpfam', 'interproscan']),default='none',show_default=True,help="Functional annotation for orthologous families")
 @click.option('--pairwise', is_flag=True,help="Pairwise gene-pair feeded into codeml")
+@click.option('--annotation',type=click.Choice(['none','eggnog', 'hmmpfam', 'interproscan']),default='none',show_default=True,help="Functional annotation for orthologous families")
 @click.option('--eggnogdata', '-ed', default=None, show_default=True,help='Eggnog data dirctory for annotation')
 @click.option('--pfam', type=click.Choice(['none', 'denovo', 'realign']),default='none',show_default=True,help='PFAM domains for annotation')
 @click.option('--dmnb', default=None, show_default=True,help='Diamond database for annotation')
 @click.option('--hmm', default=None, show_default=True,help='profile for hmmscan')
-@click.option('--evalue', default=1e-10, show_default=True,help='E-value threshold for annotation')
+@click.option('--evalue', '-e', default=1e-10, show_default=True,help='E-value threshold for annotation')
 @click.option('--exepath', default=None, show_default=True,help='Path to interproscan installation folder')
 @click.option('--fossil', '-f', nargs=5, default= ('clade1;clade2', 'taxa1,taxa2;taxa3,taxa4', '4;5', '0.5;0.6', '400;500'), show_default=True, help='fossil calibration info (id,taxa,mean,std,offset)')
 @click.option('--rootheight', '-rh', nargs=3,default= (4,0.5,400), show_default=True, help='root height calibration info (mean,std,offset)')
@@ -338,25 +337,24 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
 @click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster', 'segment']), default='segment', show_default=True, help="regime residing anchors")
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
+@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
 @click.option('--xlim', '-xl', nargs=2, type=float, default=(None, None), show_default=True, help='xlim of GMM Ks distribution')
 @click.option('--ylim', '-yl', nargs=2, type=float, default=(None, None), show_default=True, help='ylim of GMM Ks distribution')
-@click.option('--family', '-f', default=None, show_default=True, help='family to filter Ks upon')
 @click.option('--manualset', is_flag=True,help="Manually set Ks range of anchor pairs or multiplicons as CI")
-@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
 @click.option('--hdr', default=95, show_default=True,type=int, help='highest density region (HDR) in a given distribution to date')
 @click.option('--heuristic', is_flag=True,help="heuristic CI for dating")
 @click.option('--kscutoff', '-kc', default=5, show_default=True, type=float, help='Ks Saturation cutoff for genes in Dating')
 @click.option('--showci', is_flag=True,help="show CI for original anchor Ks gmm analysis")
-@click.option('--keeptmpfig', is_flag=True,help="keep temporary figure in peak finding process")
+@click.option('--keeptmpfig', is_flag=True,help="keep temporary figures in peak finding process")
 def peak(**kwargs):
     """
     Infer peak and CI of Ks distribution.
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, family, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff,gamma,showci,xlim,ylim,keeptmpfig):
+def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff,gamma,showci,xlim,ylim,keeptmpfig,family = None):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI
     from wgd.core import _mkdir
     from wgd.utils import formatv2
@@ -432,7 +430,7 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
     help="run codeml on all gene pairs separately")
 @click.option('--strip_gaps', is_flag=True,
     help="remove all gap-containing columns in the alignment")
-@click.option('--aligner', type=click.Choice(['mafft', 'muscle', 'prank']), default='mafft', show_default=True, help="aligner method for MSA")
+@click.option('--aligner', '-a', type=click.Choice(['mafft', 'muscle', 'prank']), default='mafft', show_default=True, help="aligner method for MSA")
 @click.option('--aln_options', default='--auto', show_default=True, help="options in aligning, as a comma separated string")
 @click.option('--tree_method', '-tree', 
     type=click.Choice(['cluster', 'fasttree', 'iqtree']), 
@@ -452,13 +450,13 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--components', '-c', nargs=2, default=(1, 4), show_default=True, help="range of the number of components to fit in anchor Ks mixture modeling")
 @click.option('--xlim', '-xl', nargs=2, type=float, default=(None, None), show_default=True, help='xlim of Ks distribution')
 @click.option('--ylim', '-yl', nargs=2, type=float, default=(None, None), show_default=True, help='ylim of Ks distribution')
-@click.option('--adjustortho', '-ado', is_flag=True, help='adjust the histogram height of ortholog Ks')
-@click.option('--adjustfactor', '-adf', type=float, default=0.5, show_default=True, help='adjust factor of ortholog Ks')
+@click.option('--adjustortho', '-ado', is_flag=True, help='adjust the histogram height of orthologous Ks')
+@click.option('--adjustfactor', '-adf', type=float, default=0.5, show_default=True, help='adjustment factor of orthologous Ks')
 @click.option('--okalpha', '-oa', type=float, default=0.5, show_default=True, help='opacity of ortholog Ks distribution in mixed plot')
-@click.option('--focus2all', '-fa', default=None, show_default=True, help='species pair to be between focus and all the remaining')
+@click.option('--focus2all', '-fa', default=None, show_default=True, help='set focal species and let species pair to be between focal and all the remaining species')
 @click.option('--kstree', '-ks', is_flag=True, help='infer Ks tree')
-@click.option('--onlyconcatkstree', '-ock', is_flag=True, help='only infer Ks tree under concatenated aln')
-@click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner')
+@click.option('--onlyconcatkstree', '-ock', is_flag=True, help='only infer Ks tree under concatenated alignment')
+@click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner where the full orthologous Ks distribution is drawed')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -540,12 +538,12 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     logging.info("Total run time: {}s".format(int(end-start)))
     logging.info("Done")
     
-# Ks distribution construction
+# Ks distribution and synteny visualization
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.option('--datafile', '-d', default=None, show_default=True, help='Ks data file')
 @click.option('--outdir', '-o', default="wgd_viz", show_default=True, help='output directory')
 @click.option('--spair', '-sr', multiple=True, default=None, show_default=True,help='species pair to be plotted')
-@click.option('--focus2all', '-fa', default=None, show_default=True, help='species pair to be between focus and all the remaining')
+@click.option('--focus2all', '-fa', default=None, show_default=True, help='set focal species and let species pair to be between focal and all the remaining species')
 @click.option('--gsmap', '-gs', default=None, show_default=True, help='gene name-species name map')
 @click.option('--speciestree', '-sp', default=None, show_default=True,help='species tree to perform rate correction')
 @click.option('--plotkde', '-pk', is_flag=True, help='plot kde curve over histogram')
@@ -554,20 +552,20 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
 @click.option('--em_initializations', '-init', type=int, default=200, show_default=True, help='maximum EM initializations')
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
+@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
 @click.option('--minlen', '-ml', default=-1, show_default=True, help="minimum length of a genomic element to be included in dotplot")
 @click.option('--maxsize', '-ms', default=200, show_default=True, help="maximum family size to include in analysis")
 @click.option('--anchorpoints', '-ap', default=None, show_default=True, help='anchorpoints.txt file')
 @click.option('--multiplicon', '-mt', default=None, show_default=True, help='multiplicons.txt file')
 @click.option('--genetable', '-gt', default=None, show_default=True, help='gene-table.csv file')
-@click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
-@click.option('--minseglen', '-mg', default=30, show_default=True, help="minimum length (ratio if <=1) of segments to show in marco-synteny")
+@click.option('--minseglen', '-mg', default=10000, show_default=True, help="minimum length (ratio if <=1) of segments to show in marco-synteny")
+@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--extraparanomeks', '-epk', default=None, help='extra paranome ks data')
 @click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
 @click.option('--plotelmm', '-pem', is_flag=True, help='plot elmm mixture modeling')
 @click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
-@click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
 @click.option('--dotsize', '-ds', type=float, default=0.3, show_default=True, help='size of dots')
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
@@ -656,11 +654,10 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--maxsize', '-ms', default=200, show_default=True,
     help="maximum family size to include in analysis.")
 @click.option('--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
-    type=float, help='Ks range to use for colored dotplot')
+    type=float, help='Ks range in the colored dotplot')
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
-@click.option('--ancestor', '-ac', default=None,show_default=True,help='assumed ancestor species')
 @click.option('--minseglen', '-mg', default=10000, show_default=True, help="min length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
@@ -676,7 +673,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize):
+        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, ancestor=None):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -764,63 +761,23 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
 
 # MIXTURE MODELING
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
-@click.argument(
-        'ks_distribution', type=click.Path(exists=True), default=None
-)
-@click.option(
-        '--filters', '-f', type=int, default=300,
-        help="Alignment length",
-        show_default=True
-)
-@click.option(
-        '--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
-        type=float,
-        help='Ks range to use for modeling'
-)
-@click.option(
-        '--bins', '-b', default=50, show_default=True, type=int,
-        help="Number of histogram bins."
-)
-@click.option(
-        '--output_dir', '-o', default="wgd_mix", show_default=True,
-        help='output directory'
-)
-@click.option(
-        '--method', type=click.Choice(['gmm', 'bgmm']), default='gmm',
-        show_default=True, help="mixture modeling method"
-)
-@click.option(
-        '--components', '-n', nargs=2, default=(1, 4), show_default=True,
-        help='range of number of components to fit'
-)
-@click.option(
-        '--gamma', '-g', default=1e-3, show_default=True,
-        help='gamma parameter for bgmm models'
-)
-@click.option(
-        '--n_init', '-ni', default=200, show_default=True,
-        help='number of k-means initializations'
-)
-@click.option(
-        '--max_iter', '-mi', default=1000, show_default=True,
-        help='maximum number of iterations'
-)
-def mix(
-        ks_distribution, filters, ks_range, bins, output_dir, method,
-        components, gamma, n_init, max_iter
-):
+@click.argument('ks_distribution', type=click.Path(exists=True), default=None)
+@click.option('--filters', '-f', type=int, default=300, help="Alignment length", show_default=True)
+@click.option('--ks_range', '-r', nargs=2, default=(0, 5), show_default=True, type=float, help='Ks range to use for modeling')
+@click.option('--bins', '-b', default=50, show_default=True, type=int, help="Number of histogram bins")
+@click.option('--outdir', '-o', default="wgd_mix", show_default=True, help='output directory')
+@click.option('--method', type=click.Choice(['gmm', 'bgmm']), default='gmm', show_default=True, help="mixture modeling method")
+@click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help='range of number of components to fit')
+@click.option('--gamma', '-g', default=1e-3, show_default=True, help='gamma parameter for bgmm models')
+@click.option('--n_init', '-ni', default=200, show_default=True, help='number of k-means initializations')
+@click.option('--max_iter', '-mi', default=200, show_default=True, help='maximum number of iterations')
+def mix(**kwargs):
     """
     Mixture modeling of Ks distributions.
     Basic function
     """
-    mix_(
-            ks_distribution, filters, ks_range, method, components, bins,
-            output_dir, gamma, n_init, max_iter
-    )
-def mix_(
-        ks_distribution, filters, ks_range, method, components, bins,
-        output_dir, gamma, n_init, max_iter
-):
+    _mix(**kwargs)
+def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, gamma, n_init, max_iter):
     """
     Mixture modeling tools.
 
@@ -834,7 +791,7 @@ def mix_(
     :param method: mixture modeling method, Bayesian/ordinary Gaussian mixtures
     :param components: number of components to use (tuple: (min, max))
     :param bins: number histogram bins for visualization
-    :param output_dir: output directory
+    :param outdir: output directory
     :param gamma: gamma parameter for BGMM
     :param n_init: number of k-means initializations (best is kept)
     :param max_iter: number of iterations
@@ -846,9 +803,9 @@ def mix_(
     from wgd.mix import fit_bgmm,plot_all_models_bgmm 
 
     # make output dir if needed
-    if not os.path.exists(output_dir):
-        logging.info("Making directory {}".format(output_dir))
-        os.mkdir(output_dir)
+    if not os.path.exists(outdir):
+        logging.info("Making directory {}".format(outdir))
+        os.mkdir(outdir)
     # prepare data frame
     logging.info("Preparing data frame")
     df = pd.read_csv(ks_distribution, index_col=0, sep='\t')
@@ -870,10 +827,10 @@ def mix_(
         inspect_bic(bic)
         logging.info("Plotting AIC & BIC")
         plot_aic_bic(aic, bic, components[0], components[1],
-                     os.path.join(output_dir, "aic_bic.svg"))
+                     os.path.join(outdir, "aic_bic.svg"))
         logging.info("Plotting mixtures")
         plot_all_models_gmm(models, X, ks_range[0], ks_range[1], bins=bins,
-                            out_file=os.path.join(output_dir, "gmms.svg"))
+                            out_file=os.path.join(outdir, "gmms.svg"))
 
     # BGMM method
     else:
@@ -885,7 +842,7 @@ def mix_(
         )
         logging.info("Plotting mixtures")
         plot_all_models_bgmm(models, X, ks_range[0], ks_range[1], bins=bins,
-                             out_file=os.path.join(output_dir, "bgmms.svg"))
+                             out_file=os.path.join(outdir, "bgmms.svg"))
         logging.warning("Method is BGMM, unable to choose best model!")
         logging.info("Taking model with most components for the component-wise"
                      "probability output file.")
@@ -898,7 +855,7 @@ def mix_(
     logging.info("Writing component-wise probabilities to file")
     new_df = get_component_probabilities(df, best)
     new_df.round(5).to_csv(os.path.join(
-            output_dir, "ks_{}.tsv".format(method)), sep="\t")
+            outdir, "ks_{}.tsv".format(method)), sep="\t")
 
 #@cli.command(context_settings={'help_option_names': ['-h', '--help']})
 #@click.argument('config', type=click.Path(exists=True))
