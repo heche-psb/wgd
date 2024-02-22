@@ -1536,7 +1536,7 @@ def eggnog(cds_fastaf,eggnogdata,outdir,pfam,dmnb,evalue,nthreads):
         famid = "GF{:0>8}".format(i+1)
         famid = os.path.join(annotdir,famid)
         cmd = ['emapper.py', '-m', 'diamond', '--itype', 'CDS', '--evalue', '{}'.format(evalue), '-i', os.path.basename(cds_fasta), '-o', famid, '--data_dir', data_fir]
-        cmd = pfam_annot(cmd,pfam)
+        if pfam != 'none': cmd = pfam_annot(cmd,pfam)
         cmd = dmnb_annot(cmd,dmnb)
         cmds.append(cmd)
     #Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=100)(delayed(sp.run)(cmd, stdout=sp.PIPE,stderr=sp.PIPE) for cmd in cmds)
