@@ -451,12 +451,13 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--xlim', '-xl', nargs=2, type=float, default=(None, None), show_default=True, help='xlim of Ks distribution')
 @click.option('--ylim', '-yl', nargs=2, type=float, default=(None, None), show_default=True, help='ylim of Ks distribution')
 @click.option('--adjustortho', '-ado', is_flag=True, help='adjust the histogram height of orthologous Ks')
-@click.option('--adjustfactor', '-adf', type=float, default=0.5, show_default=True, help='adjustment factor of orthologous Ks')
+@click.option('--adjustfactor', '-adf', type=float, default=1, show_default=True, help='adjustment factor of orthologous Ks')
 @click.option('--okalpha', '-oa', type=float, default=0.5, show_default=True, help='opacity of ortholog Ks distribution in mixed plot')
 @click.option('--focus2all', '-fa', default=None, show_default=True, help='set focal species and let species pair to be between focal and all the remaining species')
 @click.option('--kstree', '-ks', is_flag=True, help='infer Ks tree')
 @click.option('--onlyconcatkstree', '-ock', is_flag=True, help='only infer Ks tree under concatenated alignment')
 @click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner where the full orthologous Ks distribution is drawed')
+@click.option('--toparrow', '-ta', is_flag=True, help='rate correction arrow set at top instead of at the maximum of kde')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -475,7 +476,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree,classic):
+        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree,classic,toparrow):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs, get_MultipRBH_gene_families, getconcataln
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -526,7 +527,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
     if len(spair)!= 0 or (not focus2all is None):
-        multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,na=node_average,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic)
+        multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,na=node_average,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow)
         #multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel, nodeaverage=node_average)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
@@ -578,6 +579,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--adjustfactor', '-adf', type=float, default=0.5, show_default=True, help='adjust factor of ortholog Ks')
 @click.option('--okalpha', '-oa', type=float, default=0.5, show_default=True, help='opacity of ortholog Ks distribution in mixed plot')
 @click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner')
+@click.option('--toparrow', '-ta', is_flag=True, help='rate correction arrow set at top instead of at the maximum of kde')
 @click.option('--nodeaveraged', '-na', is_flag=True, help='node averaged way of de-redundancy')
 def viz(**kwargs):
     """
@@ -585,7 +587,7 @@ def viz(**kwargs):
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -624,7 +626,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ylabel = "Duplications" if spair == () else "Homologous pairs"
     if adjustortho: ylabel = "Homologous pairs (adjusted)"
     if len(spair)!= 0 or not (focus2all is None):
-        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic)
+        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow)
         #multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=plot2)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel,user_xlim=xlim,user_ylim=ylim)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
@@ -673,7 +675,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, ancestor, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, ancestor=None):
+        minlen, maxsize, ks_range, iadhore_options, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, ancestor=None):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """

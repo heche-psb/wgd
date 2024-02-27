@@ -417,7 +417,7 @@ def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,
     ax.set_title(focusp)
     ax.set_xlabel(_labels["dS"])
     ax.set_ylabel('Number of retained duplicates')
-    ax.legend(loc=0,frameon=False)
+    if elmm or AP is not None: ax.legend(loc=0,frameon=False)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.set_ylim(0,safemax)
@@ -778,7 +778,7 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     os.chdir("../")
 
 def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False):
-    df['sp1'] = df['g1'].apply(lambda x:"_".join(x.split('_')[:2]))
-    df['sp2'] = df['g2'].apply(lambda x:"_".join(x.split('_')[:2]))
+    df['sp1'] = df['g1'].apply(lambda x:"_".join(x.split('_')[:-1]))
+    df['sp2'] = df['g2'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['spair'] = ["__".join(sorted([sp1,sp2])) for sp1,sp2 in zip(df['sp1'],df['sp2'])]
     getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm)

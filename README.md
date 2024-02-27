@@ -184,6 +184,7 @@ wgd ksd families sequences (option)
 -ks, --kstree, flag option, whether to infer Ks tree, if the flag was set, the Ks tree inference analysis would be initiated
 -ock, --onlyconcatkstree, flag option, whether to only infer Ks tree under concatenated alignment, if the flag was set, only the Ks tree under concatenated alignment would be calculated
 -cs, --classic, flag option, whether to draw mixed Ks plot in a classic manner where the full orthologous Ks distribution is drawed, if the flag was set, the classic mixed Ks plot would be drawn
+-ta, --toparrow, flag option, whether to adjust the arrow to be at the top of the plot, instead of being coordinated as the KDE of the orthologous Ks distribution, if the flag was set, the arrow would be set at the top
 ```
 
 The program `wgd mix` can realize the mixture model clustering analysis of *K*<sub>S</sub> age distribution.
@@ -308,6 +309,7 @@ wgd viz (option)
 -adf, --adjustfactor, the adjustment factor of orthologous Ks, default 0.5
 -oa, --okalpha, the opacity of orthologous Ks distribution in mixed plot, default 0.5
 -cs, --classic, flag option, whether to draw mixed Ks plot in a classic manner where the full orthologous Ks distribution is drawed, if the flag was set, the classic mixed Ks plot would be drawn
+-ta, --toparrow, flag option, whether to adjust the arrow to be at the top of the plot, instead of being coordinated as the KDE of the orthologous Ks distribution, if the flag was set, the arrow would be set at the top
 -na, --nodeaveraged, flag option, whether to use node-averaged method for de-redundancy, if the flag was set, the node-averaged method would be initiated
 ```
 
@@ -476,7 +478,7 @@ wgd ksd families sequence1 sequence2
 wgd ksd families sequence1 sequence2 sequence3 --focus2all sequence1 -sp spdata
 ```
 
-Inspired by the rate correction algorithm in [ksrates](https://github.com/VIB-PSB/ksrates), we implemented the rate correction analysis also in `wgd v2`, which is mostly the same as [ksrates](https://github.com/VIB-PSB/ksrates) but differs in the calculation of the standard deviation of rescaled *K*<sub>S</sub> ages. To perform the rate correction analysis, users can use both the `wgd ksd` and `wgd viz` program. For the `wgd ksd` program, users need to provide a species tree via the option `--speciestree` on which rate correction can be conducted. The set of species pairs to be shown is flexible that the most convenient option is `--focus2all` which simply shows all the possible focal-sister species pairs, or users can manually set the species pairs via the option `--spair`. The option `onlyrootout` can be set to only consider outgroup at the root, instead of all the possible outgroups per focal-sister species pair, which has impact on the final corrected *K*<sub>S</sub> ages. Some other options which have no impact on the rate correction but add more layers or change the appearance on the mixed *K*<sub>S</sub> age distribution, include `plotapgmm` and `plotelmm` etc. The option `plotapgmm` can be set to call the GMM analysis upon the anchor pair *K*<sub>S</sub> age distribution and plot the clustering result upon the mixed *K*<sub>S</sub> age distribution, which has to be co-set with the option `--anchorpoints` providing the anchor pairs information. The option `--plotelmm` can be set to call the ELMM analysis upon the paralogous *K*<sub>S</sub> age distribution.
+Inspired by the rate correction algorithm in [ksrates](https://github.com/VIB-PSB/ksrates), we implemented the rate correction analysis also in `wgd v2`, which is mostly the same as [ksrates](https://github.com/VIB-PSB/ksrates) but differs in the calculation of the standard deviation of rescaled *K*<sub>S</sub> ages. To perform the rate correction analysis, users can use both the `wgd ksd` and `wgd viz` program. For the `wgd ksd` program, users need to provide a species tree via the option `--speciestree` on which rate correction can be conducted. The set of species pairs to be shown is flexible that the most convenient option is `--focus2all` which simply shows all the possible focal-sister species pairs, or users can manually set the species pairs via the option `--spair`. Note that if the species pairs were manually set, it would be needed to set the option `--classic`. The option `onlyrootout` can be set to only consider outgroup at the root, instead of all the possible outgroups per focal-sister species pair, which has impact on the final corrected *K*<sub>S</sub> ages. Some other options which have no impact on the rate correction but add more layers or change the appearance on the mixed *K*<sub>S</sub> age distribution, include `plotapgmm` and `plotelmm` etc. The option `plotapgmm` can be set to call the GMM analysis upon the anchor pair *K*<sub>S</sub> age distribution and plot the clustering result upon the mixed *K*<sub>S</sub> age distribution, which has to be co-set with the option `--anchorpoints` providing the anchor pairs information. The option `--plotelmm` can be set to call the ELMM analysis upon the paralogous *K*<sub>S</sub> age distribution.
 
 There are 21 columns in the result `*ks.tsv` file besides the index columns `pair` as the unique identifier for each gene pair. The `N`, `S`, `dN`, `dN/dS`, `dS`, `l` and `t` are from the codeml results, representing the N estimate, the S estimate, the dN estimate, the dN/dS (omega) estimate, the dS estimate, the log-likelihood and the t estimate, respectively. The `alignmentcoverage`, `alignmentidentity` and `alignmentlength` are the information pertaining to the alignment for each family, representing the ratio of the stripped alignment length compared to the full alignment length, the ratio of columns with identical nucleotides compared to the overall columns of the stripped alignment, and the length of the full alignment, respectively.
 ### wgd mix
@@ -485,6 +487,8 @@ There are 21 columns in the result `*ks.tsv` file besides the index columns `pai
 ```
 wgd mix ksdata
 ```
+
+This part of mixture modeling analysis is inherited from the original `wgd` program, but add some more minor visualizations options.
 
 ### wgd peak
 

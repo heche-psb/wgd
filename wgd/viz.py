@@ -75,7 +75,7 @@ def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=Non
         df['spair'] = ['__'.join(sorted([sp1,sp2])) for sp1,sp2 in zip(Sp1,Sp2)]
     #If users provide no paralogous pair, we don't do the correction
     if sptree != None and len(paralog_pair) !=0 : corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = correctks(df,sptree,paralog_pair[0],reweight,onlyrootout,na=na)
-    else: corrected_ks_spair,Outgroup_spnames = None,None
+    else: corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = None,None,None
     for p in allspair: df_perspair[p] = df[df['spair']==p]
     return df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered
 
@@ -620,7 +620,7 @@ def addrectangle(ax,mode,orig_mode,order,outspname,cr):
     ax.text(0.5*(left+right), 0.5*(bottom+top), str(order), horizontalalignment='center', verticalalignment='center', fontsize=2, color='k', transform=ax.transAxes)
     return ax
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False, toparrow=False):
     if not clean:
         ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm)
         return
@@ -655,11 +655,11 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 fnamep = os.path.join(outdir,'{}.ksd.weighted.pdf'.format(paralog_pair[0].split('__')[0]))
         else:
             if na:
-                fnames = os.path.join(outdir,'{}_Corrected.ksd.averaged.svg'.format(paralog_pair[0].split('__')[0]))
-                fnamep = os.path.join(outdir,'{}_Corrected.ksd.averaged.pdf'.format(paralog_pair[0].split('__')[0]))
+                fnames = os.path.join(outdir,'{}_Corrected.ksd.averaged.svg'.format(paralog_pair[0].split('__')[0])) if not clean else os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.averaged.svg')
+                fnamep = os.path.join(outdir,'{}_Corrected.ksd.averaged.pdf'.format(paralog_pair[0].split('__')[0])) if not clean else os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.averaged.pdf')
             else:
-                fnames = os.path.join(outdir,'{}_Corrected.ksd.weighted.svg'.format(paralog_pair[0].split('__')[0]))
-                fnamep = os.path.join(outdir,'{}_Corrected.ksd.weighted.pdf'.format(paralog_pair[0].split('__')[0]))
+                fnames = os.path.join(outdir,'{}_Corrected.ksd.weighted.svg'.format(paralog_pair[0].split('__')[0])) if not clean else os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.weighted.svg')
+                fnamep = os.path.join(outdir,'{}_Corrected.ksd.weighted.pdf'.format(paralog_pair[0].split('__')[0])) if not clean else os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.weighted.pdf')
     elif len(paralog_pair) > 1:
         if na:
             fnames = os.path.join(outdir,'Mixed_Paralogues_Orthologues.ksd.averaged.svg')
@@ -703,6 +703,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     Hs_maxs,y_lim_beforekdes = [],[]
     if adjustortho: Sca = getSca(ax,df_perspair,paralog_pair,na,reweight)
     paralog_pair_tmp = paralog_pair if len(paralog_pair) != 0 else list(df_perspair.keys())[0]
+    quiver_to_plots = []
     for i,item in enumerate(sorted(df_perspair.items(),key=lambda x:x[0]==paralog_pair_tmp[0],reverse=False)):
         pair,df_per = item[0],item[1]
         df_per = df_per.copy()
@@ -779,13 +780,21 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 CHF = get_totalH(Hs)
                 scaling = CHF*0.1
                 if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
-                ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
+                #ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
+                #ax.plot([mode,mode], [0,y_lim_beforekde], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
+                if toparrow: ax.axvline(x = mode, ymin=0, ymax=ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
+                else: ax.plot([mode,mode], [0,maxim*scaling], color=cs[i], ls=':', lw=1, label='Original mode {:.2f} of {}'.format(mode,pair))
                 #ax.axvline(x = mode, ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = ':', lw = 1,label = 'Original mode {:.2f} of {}'.format(mode,pair))
                 if corrected_ks_spair != None:
                     if pair in corrected_ks_spair.keys():
-                        ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        #ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        #ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,y_lim_beforekde], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        if toparrow: ax.axvline(x = corrected_ks_spair[pair], ymin=0, ymax=ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
+                        else: ax.plot([corrected_ks_spair[pair],corrected_ks_spair[pair]], [0,maxim*scaling], color=cs[i], ls='-.', lw=1, label='Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
                         #ax.axvline(x = corrected_ks_spair[pair], ymin=0, ymax=maxim*scaling/ax.get_ylim()[1], color = cs[i], alpha = 0.8, ls = '-.', lw = 1,label = 'Corrected mode {:.2f} of {}'.format(corrected_ks_spair[pair],pair))
-                        ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                        #if toparrow: ax.quiver(mode,plt.ylim()[1], corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                        #else: ax.quiver(mode,maxim*scaling, corrected_ks_spair[pair]-mode, 0, angles='xy', scale_units='xy', scale=1,color=cs[i],width=0.005,headwidth=2,headlength=2,headaxislength=2)
+                        quiver_to_plots.append((mode,maxim,scaling,corrected_ks_spair[pair]-mode,cs[i]))
                         logging.info('The corrected mode of species pair {} is {:.2f}'.format(pair,corrected_ks_spair[pair]))
     if ap != None:
         df_ap = pd.read_csv(ap,header=0,index_col=0,sep='\t')
@@ -816,21 +825,27 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     #ax.legend(loc=1,fontsize=5,bbox_to_anchor=(0.95, 0.95),frameon=False)
     if len(df_perspair) == 1 and len(paralog_pair) == 1:
         ax.legend(loc=1,fontsize=7,frameon=False)
-    else:
-        ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
-    if len(df_perspair) == 1 and len(paralog_pair) == 1:
         ax.set_ylabel('Number of retained duplicates')
     else:
+        ax.legend(loc='center left',bbox_to_anchor=(1.0, 0.5),frameon=False)
         ax.set_ylabel(ylabel)
     ax.set_xticks([0,1,2,3,4,5])
     if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
     if len(df_perspair) == 1:
-        title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
-    elif len(paralog_pair) !=0: title = 'Corrected $K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
+        title = '$K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0]) if len(paralog_pair) !=0 else '$K_\mathrm{S}$ ' + 'distribution of {}'.format(list(df_perspair.keys())[0])
+    elif len(paralog_pair) !=0:
+        if not clean:
+            title = 'Corrected $K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
+        else:
+            title = 'Mixed $K_\mathrm{S}$ ' + 'distribution of {}'.format(paralog_pair[0].split('__')[0])
     else: title = 'Orthologous $K_\mathrm{S}$ distribution'
     ax.set_title(title)
+    ax.set_xlabel(_labels["dS"])
+    for p1,p2,p3,p4,p5 in quiver_to_plots:
+        if toparrow: ax.quiver(p1, plt.ylim()[1]/1.1, p4, 0, angles='xy', scale_units='xy', scale=1,color=p5,width=0.005,headwidth=2,headlength=2,headaxislength=2)
+        else: ax.quiver(p1, p2*p3, p4, 0, angles='xy', scale_units='xy', scale=1,color=p5,width=0.005,headwidth=2,headlength=2,headaxislength=2)
     #fig.tight_layout()
     #plt.subplots_adjust(top=0.85)
     fig.savefig(fnames,bbox_inches='tight')
