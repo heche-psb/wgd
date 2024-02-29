@@ -486,42 +486,81 @@ There are 21 columns in the result `*ks.tsv` file besides the index columns `pai
 
 **The mixture model clustering analysis of *K*<sub>S</sub> age distribution**
 ```
-wgd mix ksdata
+wgd mix ksdata (--n_init 200 --max_iter 200 --ks_range 0 5 --filters 300 --bins 50 --components 1 4 --gamma 0.001)
 ```
 
-This part of mixture modeling analysis is inherited from the original `wgd` program, but add some more minor visualizations options.
+This part of Gaussian mixture modeling (GMM) analysis is inherited from the original `wgd` program, but writes additionally the probability of each *K*<sub>S</sub> value into the final dataframe. Basically, users need to provide with a (normally from whole-paranome or anchor-pairs) *K*<sub>S</sub> datafile and the GMM analysis will be conducted upon the datafile. Some parameters can affect the results, including `--n_init`, which sets the number of k-means initializations (default 200), `--max_iter`, which sets the maximum number of iterations (default 200), `--method`, which determines which clustering method to use (default gmm), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), and the data filtering parameters `--filters` which filters data based on alignment length, `--ks_range` which filters data based on *K*<sub>S</sub> values and the parameter `--bins` which sets the number of bins in *K*<sub>S</sub> distribution (default 50).
+
+**A suggested starting run can use command simply as below**
+
+```
+wgd mix ksdata
+```
 
 ### wgd peak
 
 **The search of crediable *K*<sub>S</sub> range used in WGD dating**
 ```
-wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata
+wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic (--alignfilter 0.0 0 0.0 --ksrange 0 5 --bin_width 0.1 --guide segment --prominence_cutoff 0.1 --rel_height 0.4 --ci 95 --hdr 95 --kscutoff 5)
 ```
-Note that users can add the flag `--heuristic` to implement the heuristic search analysis
+
+As mentioned previously, a heuristic method and a collinear segments-guided anchor pair clustering for the search of crediable *K*<sub>S</sub> range used in WGD dating are implemented in `wgd v2`. Users need to provide the anchor points, segments, listsegments, multipliconpairs datafile from `i-adhore` to achieve the clustering function. Some parameters that can impact the results include `--alignfilter`, which filters the data based on alignment identity, length and coverage, `--ksrange`, which sets the range of Ks to be analyzed, `--bin_width`, which sets the bandwidth of *K*<sub>S</sub> distribution, `--weights_outliers_included` which determines whether to include *K*<sub>S</sub> outliers (whose value is over 5) in analysis, `--method` which determines which clustering method to use (default gmm), `--seed` which sets the random seed given to initialization (default 2352890), `--n_init`, which sets the number of k-means initializations (default 200), `--em_iter`, which sets the maximum number of iterations (default 200), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), `--weighted` which determines whether to use node-weighted method for de-redundancy, `--guide` which determines which regime residing anchors to be used (default segment), `--prominence_cutoff` which sets the prominence cutoff of acceptable peaks in peak finding process, `--rel_height` which sets the relative height at which the peak width is measured, `--kstodate` which manually sets the range of *K*<sub>S</sub> to be dated in heuristic search and needs to be co-set with option `--manualset`, `--xlim` and `--ylim` determining the x and y axis limit of GMM *K*<sub>S</sub> distribution, `--ci` setting the confidence level of log-normal distribution to date (default 95), `--hdr` setting the highest density region (HDR) applied in the segment-guided anchor pair *K*<sub>S</sub> distribution, `--heuristic` determining whether to initiate heuristic method of defining CI for dating, `--kscutoff` setting the *K*<sub>S</sub> saturation cutoff in dating (default 5) and `--showci` determining whether to show CI for the original anchor Ks GMM analysis.
+
+**A suggested starting run can use command simply as below**
+
+```
+wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic
+```
 
 ### wgd syn
 
 **The intra-specific synteny inference**
+```
+wgd syn families gff (--ks_distribution ksdata -f gene -a ID --minlen -1 --minseglen 10000 --mingenenum 30)
+```
+
+The program `wgd syn` is mainly dealing with collinearity or synteny (both referred to as synteny hereafter) analysis. Two input files are essential, the gene family file and the gff3 file. The gene family file is in the format as `OrthoFinder`. The software `i-adhore` is a prerequisite. With default parameters, the program basically conducts 1) filtering gene families based on maximum family size 2) retrieving gene position and scaffold information from gff3 file 3) producing the configuration file and associated datafiles for `i-adhore` 4) calling `i-adhore` given the parameters set to infer synteny 5) visualizing the synteny in "dotplot" in the unit of genes and bases, in "Syndepth" plot showing the distribution of different categories of collinearity ratios within and between species, in "dupStack" plot showing multiplicons with different multiplication levels. 6) if with *K*<sub>S</sub> data, a "*K*<sub>S</sub> dotplot" with dots annotated in *K*<sub>S</sub> values and a *K*<sub>S</sub> distribution with anchor pairs denoted will be produced. The gene information in the gene family file and gff3 file should be matched which requires users to set proper `--feature` and `--attribute`. The maximum family size to be included can be set via the option `--maxsize`, noted that this filtering is mainly to drop those huge tandem duplicates family and transposable elements (TEs) family, and not mandatory. Users can filter those fragmentary scaffolds via the option `--minlen`. The minimum length and number of genes for a segment to be considered can be set via the option `--minseglen` and `--mingenenum`. Redundant multiplicons can be kept by set the flag option `--keepredun`.
+
+**A suggested starting run can use command simply as below**
+
 ```
 wgd syn families gff
 ```
 
 **The inter-specific synteny inference**
 ```
+wgd syn families gff1 gff2 (--additionalgffinfo "mRNA;Name" --additionalgffinfo "gene;ID")
+```
+
+For multi-species synteny inference, if users have gff3 files which have different features or attributes for gene position information retrieval, the option `--additionalgffinfo` can be set to provide the additional information. The remaining parameter setting is the same as the intra-specific synteny inference.
+
+**A suggested starting run can use command simply as below**
+
+```
 wgd syn families gff1 gff2
 ```
 
 ### wgd viz
 
-**The visualization of *K*<sub>S</sub> age distribution**
+**The visualization of *K*<sub>S</sub> age distribution and ELMM analysis**
+```
+wgd viz -d ksdata
+```
+
+The program `wgd viz` is mainly for the purpose of *K*<sub>S</sub> distribution and synteny visualization, with some optional mixture modeling analysis. The basic function is just to plot the *K*<sub>S</sub> distribution and conduct an ELMM analysis in search of potential WGD components. Some key parameters affecting the ELMM result include `--prominence_cutoff`, `--rel_height`, `--em_iterations` and `--em_initializations`, all of which have been explained ahead.
+
+**A suggested starting run can use command simply as below**
+
 ```
 wgd viz -d ksdata
 ```
 
 **The visualization of *K*<sub>S</sub> age distribution with rate correction**
 ```
-wgd viz -d ksdata -sr srdata -sp spdata -gs gsdata
+wgd viz -d ksdata -sp spdata --focus2all focal_species --extraparanomeks ksdata
 ```
+
+Besides the basic *K*<sub>S</sub> plot, substitution rate correction can also be achieved given at least a species tree (via the option `--speciestree`) and a focal species (either via the option `--focus2all` or via the option `--spair` in the form of "$focal_species;$focal_species"). It's suggested that the orthologous *K*<sub>S</sub> data is provided by the `--datafile` option and the paralogous *K*<sub>S</sub> data is provided by the `--extraparanomeks` option, although it's allowed to only provide *K*<sub>S</sub> data via the `--datafile` option and deposit both orthologous&paralogous *K*<sub>S</sub> data thereon.
 
 **The visualization of synteny**
 ```
