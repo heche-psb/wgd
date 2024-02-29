@@ -726,9 +726,10 @@ def writecortable(corrected_ks_spair,corrected_ks_spair_std,spairs_means_stds_sa
     df = pd.DataFrame.from_dict(dic)
     df.to_csv(fname,header=True,index=False,sep='\t')
 
-def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True):
+def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True,BT=200):
     odir = _mkdir(outdir)
     tree = Phylo.read(speciestree, "newick")
+    logging.info("Reading species tree and categorizing sister&outgroup species")
     for i,clade in enumerate(tree.get_nonterminals()): clade.name = "internal_node_{}".format(i)
     tree.root.name = 'assumed_root'
     Outgroup_spair_ordered = getoutorder(tree,focusp)
@@ -741,13 +742,18 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     Ingroup_clade = first_children_of_root[0] if first_children_of_root[0].name.endswith('_Ingroup') else first_children_of_root[1]
     Outgroup_spnames = [i.name.replace('_Outgroup','').replace('_Ingroup','') for i in Outgroup_clade.get_terminals()]
     Ingroup_spnames = [i.name.replace('_Outgroup','').replace('_Ingroup','') for i in Ingroup_clade.get_terminals()]
+    logging.info("Composing trios (outgroup,(focal,sister))")
     if onlyrootout: all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
     else: all_spairs,spairs,Trios,Trios_dict = gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade)
-    fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs = plotspair_cov(df,all_spairs,spairs,focusp,reweight,na=na)
+    logging.info("Sampling, calculating and plotting {} bootstrap replicates for each orthologous Ks distribution under consideration (which might take a while..)".format(BT))
+    logging.info("Note that the number of bootstrap replicates can be adjusted via the option --bootstrap")
+    fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs = plotspair_cov(df,all_spairs,spairs,focusp,reweight,na=na,bt=BT)
     corrected_ks_spair, corrected_ks_spair_std = ksadjustment(Trios_dict,spairs_means_stds_samples)
     addcorrectline(ax_spair,corrected_ks_spair,corrected_ks_spair_std,maxim_spair,ks_spair)
     fig.tight_layout()
     os.chdir(odir)
+    logging.info("Synonymous substitution rate correction done")
+    logging.info("Writing Ks and correction info per species pair to output")
     writetable(spairs_means_stds_samples,"spair.original.ks.info.tsv")
     writecortable(corrected_ks_spair,corrected_ks_spair_std,spairs_means_stds_samples,"spair.corrected.ks.info.tsv")
     if na: fig.savefig("All_pairs.ks.node.averaged.pdf",bbox_inches='tight')
@@ -768,6 +774,7 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
         else: value.savefig("{}.ks.node.weighted.pdf".format(key),bbox_inches='tight')
         plt.close()
     os.chdir("../../")
+    logging.info("Plotting the final mixed Ks distribution")
     fig,ax = plotmixed(focusp,df,reweight,extraPara=extraparanomeks,AP=anchorpoints,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm)
     addcorrectline_mixed(ax,corrected_ks_spair,corrected_ks_spair_std,ks_spair,Outgroup_spair_ordered,focusp)
     #fig.tight_layout()
@@ -777,8 +784,8 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     plt.close()
     os.chdir("../")
 
-def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False):
+def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False,BT=200):
     df['sp1'] = df['g1'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['sp2'] = df['g2'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['spair'] = ["__".join(sorted([sp1,sp2])) for sp1,sp2 in zip(df['sp1'],df['sp2'])]
-    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm)
+    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,BT=BT)

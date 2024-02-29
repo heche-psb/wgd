@@ -581,13 +581,14 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner')
 @click.option('--toparrow', '-ta', is_flag=True, help='rate correction arrow set at top instead of at the maximum of kde')
 @click.option('--nodeaveraged', '-na', is_flag=True, help='node averaged way of de-redundancy')
+@click.option('--bootstrap', '-bs', type=int, default=200, show_default=True, help='Number of bootstrap replicates of ortholog Ks distribution in mixed plot')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -626,7 +627,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ylabel = "Duplications" if spair == () else "Homologous pairs"
     if adjustortho: ylabel = "Homologous pairs (adjusted)"
     if len(spair)!= 0 or not (focus2all is None):
-        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow)
+        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap)
         #multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=plot2)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel,user_xlim=xlim,user_ylim=ylim)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))

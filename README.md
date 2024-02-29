@@ -311,6 +311,7 @@ wgd viz (option)
 -cs, --classic, flag option, whether to draw mixed Ks plot in a classic manner where the full orthologous Ks distribution is drawed, if the flag was set, the classic mixed Ks plot would be drawn
 -ta, --toparrow, flag option, whether to adjust the arrow to be at the top of the plot, instead of being coordinated as the KDE of the orthologous Ks distribution, if the flag was set, the arrow would be set at the top
 -na, --nodeaveraged, flag option, whether to use node-averaged method for de-redundancy, if the flag was set, the node-averaged method would be initiated
+-bs, --bootstrap, the number of bootstrap replicates of ortholog Ks distribution in mixed plot
 ```
 
 ## Usage

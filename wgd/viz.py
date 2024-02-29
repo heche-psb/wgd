@@ -620,9 +620,9 @@ def addrectangle(ax,mode,orig_mode,order,outspname,cr):
     ax.text(0.5*(left+right), 0.5*(bottom+top), str(order), horizontalalignment='center', verticalalignment='center', fontsize=2, color='k', transform=ax.transAxes)
     return ax
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False, toparrow=False):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False, toparrow=False, BT = 200):
     if not clean:
-        ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm)
+        ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm,BT=BT)
         return
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
