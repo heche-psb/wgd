@@ -83,7 +83,7 @@ wgd dmd sequences (option)
 --cds, flag option, whether to only translate the complete CDS that starts with a valid start codon and only contains a single in-frame stop codon at the end and must be dividable by three, if the flag was set, only the complete CDS would be translated
 -f, --focus, the species to be merged on local MRBHs, default None, if None was given, the local MRBHs wouldn't be inferred
 -ap, --anchorpoints, the anchor points data file from i-adhore for constructing the orthogroups with anchor pairs, default None
--sm, --segments, the segments data file used in collinear coalescence analysis if initiated, default None
+-sm, --segments, the segments datafile used in collinear coalescence analysis if initiated, default None
 -le, --listelements, the listsegments data file used in collinear coalescence analysis if initiated, default None
 -gt, --genetable, the gene table datafile used in collinear coalescence analysis if initiated, default None
 -coc, --collinearcoalescence, flag option, whether to initiate the collinear coalescence analysis, if the flag was set, the analysis would be initiated
@@ -284,7 +284,7 @@ wgd viz (option)
 -init, --em_initializations, the maximum EM initializations, default 200
 -prct, --prominence_cutoff, the prominence cutoff of acceptable peaks, default 0.1
 -rh, --rel_height, the relative height at which the peak width is measured, default 0.4
--sm, --segments, the segments data file, default None
+-sm, --segments, the segments datafile, default None
 -ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffolds will be set
 -ms, --maxsize, the maximum family size to be included, default 200
 -ap, --anchorpoints, the anchor points datafile, default None
@@ -557,12 +557,26 @@ wgd viz -d ksdata
 
 **The visualization of *K*<sub>S</sub> age distribution with rate correction**
 ```
+wgd viz -d ksdata -sp spdata --focus2all focal_species --extraparanomeks ksdata (--anchorpoints apdata --plotapgmm --plotelmm)
+```
+
+Besides the basic *K*<sub>S</sub> plot, substitution rate correction can also be achieved given at least a species tree (via the option `--speciestree`) and a focal species (either via the option `--focus2all` or via the option `--spair` in the form of "$focal_species;$focal_species"). It's suggested that the orthologous *K*<sub>S</sub> data is provided by the `--datafile` option and the paralogous *K*<sub>S</sub> data is provided by the `--extraparanomeks` option, although it's allowed to only provide *K*<sub>S</sub> data via the `--datafile` option and deposit both orthologous&paralogous *K*<sub>S</sub> data thereon. There are two types of mixed plots (the "mixed" here refers to mixed orthologous and paralogous *K*<sub>S</sub> distributions), one of which is similar to what `ksrates` plots, while the other of which is like the conventional *K*<sub>S</sub> plot that both the original orthologous and paralogous *K*<sub>S</sub> distributions are truthfully plotted instead of just being represented by some vertical lines. We suggest users to adopt the `ksrates`-like plots, which is the default. Otherwise the option `--classic` will be needed to set. Extra mixture modeling analysis can be initiated via the option `--plotelmm` and `--plotapgmm` with the anchor points datafile provided by the `--anchorpoints` option.
+
+**A suggested starting run can use command simply as below**
+
+```
 wgd viz -d ksdata -sp spdata --focus2all focal_species --extraparanomeks ksdata
 ```
 
-Besides the basic *K*<sub>S</sub> plot, substitution rate correction can also be achieved given at least a species tree (via the option `--speciestree`) and a focal species (either via the option `--focus2all` or via the option `--spair` in the form of "$focal_species;$focal_species"). It's suggested that the orthologous *K*<sub>S</sub> data is provided by the `--datafile` option and the paralogous *K*<sub>S</sub> data is provided by the `--extraparanomeks` option, although it's allowed to only provide *K*<sub>S</sub> data via the `--datafile` option and deposit both orthologous&paralogous *K*<sub>S</sub> data thereon.
-
 **The visualization of synteny**
+```
+wgd viz -ap apdata -sm smdata -mt mtdata -gt gtdata --plotsyn (--minlen -1 --minseglen 10000 --mingenenum 30)
+```
+
+Compared to the original `wgd`, the `wgd viz` program added synteny visualization pipeline. Users need to provide the flag option `--plotsyn` to initiate this part of pipeline. This step assumes that users have obtained already the syntenic results from `i-adhore` and uses those result files to realize the synteny visualization. Simliar to `wgd syn`, the extra *K*<sub>S</sub> data file can be transmitted via the option `--datafile` (instead of `--extraparanomeks` option). Basically, the syntenic result files required are the anchor points datafile, multiplicons datafile, gene table datafile (automately produced by `wgd syn`), and segments datafile.
+
+**A suggested starting run can use command simply as below**
+
 ```
 wgd viz -ap apdata -sm smdata -mt mtdata -gt gtdata --plotsyn
 ```
