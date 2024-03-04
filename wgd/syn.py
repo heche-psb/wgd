@@ -131,7 +131,7 @@ def write_config_adhore(
         cluster_gap=35, q_value=0.75, prob_cutoff=0.01, anchor_points=3,
         alignment_method='gg2', level_2_only='false', table_type='family',
         multiple_hypothesis_correction='FDR', visualizeGHM='false',
-        visualizeAlignment='false'):
+        visualizeAlignment='false', number_of_threads=4):
     """
     Write out the config file for I-ADHoRe. See I-ADHoRe manual for information
     on parameter settings.
@@ -151,6 +151,7 @@ def write_config_adhore(
     :param multiple_hypothesis_correction: see I-ADHoRe 3.0 documentation
     :param visualizeGHM: see I-ADHoRe 3.0 documentation
     :param visualizeAlignment: see I-ADHoRe 3.0 documentation
+    :param number_of_threads: see I-ADHoRe 3.0 documentation
     :return: configuration file see I-ADHoRe 3.0 documentation
     """
     with open(config_file, 'w') as o:
@@ -174,6 +175,7 @@ def write_config_adhore(
                 multiple_hypothesis_correction))
         o.write('visualizeGHM= {}\n'.format(visualizeGHM))
         o.write('visualizeAlignment= {}\n'.format(visualizeAlignment))
+        o.write('number_of_threads= {}\n'.format(number_of_threads))
     return os.path.abspath(output_path)
 
 def run_adhore(config_file):

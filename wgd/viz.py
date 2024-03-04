@@ -1375,7 +1375,7 @@ def syntenic_depth_plot(segprofile):
                 ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs],fontdict={'fontsize':6})
                 ax.tick_params(axis='y', labelsize=6)
             else: ax.set_yticklabels(["{}:{}".format(int(x[0]), int(x[1])) for x in pairs])
-            if n!=1: ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
+            if n==1: ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':9})
             else: ax.set_title("{} : {}".format(cols[i], cols[j]),fontdict={'fontsize':4})
             #ax.set_title("{} : {}".format(cols[i], cols[j]))
             #ax.set_title("${}$:${}$".format(cols[i], cols[j]), fontsize=9)
@@ -2119,7 +2119,7 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
-def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
+def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
     dfs = {sp:ordered_genes_perchrom_allsp[sp].copy().drop(removed_scfa[sp],axis=1).set_index('Coordinates') for sp in sp_list}
     leng_info = {sp:{} for sp in sp_list}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2170,7 +2170,7 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
     if showks:
         if not (ksdf is None):
             norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
-            c_m = matplotlib.cm.rainbow
+            c_m = matplotlib.cm.gist_rainbow if gistrb else matplotlib.cm.rainbow
             s_m = ScalarMappable(cmap=c_m, norm=norm)
             s_m.set_array([])
     if not showks:
@@ -2215,7 +2215,7 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
     ax.tick_params(axis='both', which='major', labelsize=las)
     return ax
 
-def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2269,7 +2269,8 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     if showks:
         if len(Ks_ages) !=0 and not (ksdf is None):
             norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
-            c_m = matplotlib.cm.rainbow
+            if not gistrb: c_m = matplotlib.cm.rainbow
+            else: c_m = matplotlib.cm.gist_rainbow
             s_m = ScalarMappable(cmap=c_m, norm=norm)
             s_m.set_array([])
     if not showks:
@@ -2306,7 +2307,7 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
     ax.tick_params(axis='both', which='major', labelsize=las)
     return ax
 
-def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
+def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None,gistrb=False):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
@@ -2425,7 +2426,8 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
     #sm = ScalarMappable(cmap='seismic', norm=plt.Normalize(vmin=min(Ks_ages), vmax=max(Ks_ages)))
     if type(ksdf) == pd.core.frame.DataFrame:
         norm = matplotlib.colors.Normalize(vmin=np.min(Ks_ages), vmax=np.max(Ks_ages))
-        c_m = matplotlib.cm.rainbow
+        if not gistrb: c_m = matplotlib.cm.rainbow
+        else: c_m = matplotlib.cm.gist_rainbow
         s_m = ScalarMappable(cmap=c_m, norm=norm)
         s_m.set_array([])
     #for infox,infoy,orien,color in working_nooverlapped:
@@ -2478,15 +2480,15 @@ def plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,mp,gene_genome,ksdf=None):
     ax.set_yticklabels(sorted_labels_y,rotation=45)
     return ax
 
-def plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=None):
+def plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=None,gistrb=False):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=ksdf)
+    ax = plotbb_dpug(ax,dfx,dfy,spx,spy,segs,mingenenum,MP,gene_genome,ksdf=ksdf,gistrb=gistrb)
     fig.tight_layout()
     return fig, ax
 
-def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingenenum,table,MP,ksdf=None):
+def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingenenum,table,MP,ksdf=None,gistrb=False):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
@@ -2496,27 +2498,27 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
     for i in range(len(sp_list)):
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
-            fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=ksdf)
+            fig, ax = plotbackbone_dpug(spx,spy,ordered_genes_perchrom_allsp,removed_scfa,segs,mingenenum,MP,gene_genome,ksdf=ksdf,gistrb=gistrb)
             figs[spx + "-vs-" + spy] = fig
     for prefix, fig in figs.items():
         fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
-def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False, las=5):
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False, las=5, gistrb=False):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las, gistrb=gistrb)
     fig.tight_layout()
     return fig, ax
 
-def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
+def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
-    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
+    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
     fig.tight_layout()
     return fig, ax
 
-def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5):
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
@@ -2526,11 +2528,11 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
             logging.info("{0} vs. {1}".format(spx,spy))
-            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
             figs[spx + "-vs-" + spy] = fig
             plt.close()
             if not (ksdf is None):
-                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las)
+                figks, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las, gistrb = gistrb)
                 figs[spx + "-vs-" + spy + "_Ks"] = figks
                 plt.close()
     for prefix, fig in figs.items():
@@ -2542,17 +2544,17 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         fig.savefig(fname)
     plt.close()
 
-def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False, las = 5):
+def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False, las = 5, gistrb = False):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
     logging.info("Making overall dotplot (in unit of genes)")
-    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
+    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
     figs["Overallspecies"] = fig
     plt.close()
     if not (ksdf is None):
-        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las)
+        figks, axks = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,showks=True,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
         figs["Overallspecies_Ks"] = figks
         plt.close()
     for prefix, fig in figs.items():
@@ -2565,7 +2567,7 @@ def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,
     plt.close()
 
 # dot plot stuff
-def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, **kwargs):
+def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=None, dotsize = 0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False, **kwargs):
     """
     Generate dot plots for all pairs of species in `df`, coloring anchor pairs.
     """
@@ -2666,7 +2668,7 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
                     axks2 = axks.twinx()
                     axks3 = axks.twiny()
                 norm = matplotlib.colors.Normalize(vmin=np.min(Ksages), vmax=np.max(Ksages))
-                c_m = matplotlib.cm.rainbow
+                c_m = matplotlib.cm.gist_rainbow if gistrb else matplotlib.cm.rainbow
                 s_m = ScalarMappable(cmap=c_m, norm=norm)
                 s_m.set_array([])
                 axks.scatter(xxs, yys, s=dotsize, color=[c_m(norm(c)) for c in ksages], alpha=hoalpha)

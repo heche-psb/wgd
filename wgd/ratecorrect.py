@@ -15,6 +15,8 @@ from sklearn import mixture
 import math
 import matplotlib.patches as patches
 from scipy import interpolate,signal
+from joblib import Parallel, delayed
+from tqdm import trange
 
 _labels = {"dS" : "$K_\mathrm{S}$","dN" : "$K_\mathrm{A}$", "dN/dS": "$\omega$"}
 
@@ -544,6 +546,86 @@ def find_closest_divisors(number):
                 closest_divisors = (i, number//i)
     return closest_divisors[::-1]
 
+#def plotspair_one(i,spair,spairs,closest_divisors,fig,df,reweight,fig_fp,ax_spair_fp,fig_sigs,ax_sigs,ax_spair,maxim_spair,ks_spair,bt,spairs_means_stds_samples,order_fs_pair,fs_pairs,na,kde_x,fontsize_factor,closest_divisors_fp,fontsize_factor_fp):
+    # 3 plots are made here, all species pair (together), focal-sister pair, all species pair (single plot)
+    #if len(spairs) > 1:
+    #    if closest_divisors[0]>1:
+    #        ax = fig.add_subplot(closest_divisors[0], closest_divisors[1], i+1)
+    #    else:
+    #        ax = fig.add_subplot(1, closest_divisors[1], i+1)
+    #else:
+    #    ax = axes
+    #df_spair = df[df['spair']==spair].copy()
+    #if na:
+    #    df_spair = df_spair.drop_duplicates(subset=['family','node'])
+    #    df_spair = df_spair.drop(['dS'], axis=1).rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+    #    df_spair['weightoutlierexcluded'] = 1
+    #    w = df_spair['weightoutlierexcluded']
+    #else:
+    #    if reweight:
+    #        w = reweighted(df_spair)
+    #        df_spair['weightoutlierexcluded'] = w
+    #    else:
+    #        w = df_spair['weightoutlierexcluded']
+    #x = df_spair['dS']
+    #y = x[np.isfinite(x)]
+    #w = w[np.isfinite(x)]
+    #Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8)
+    #CHF = get_totalH(Hs)
+    #scaling = CHF*0.1
+    #kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
+    #kde_y = kde(kde_x)
+    #mode, maxim = kde_mode(kde_x, kde_y)
+    #ax,lower,upper,mean,std,modes,kde_ys,kde_xs = addbt(ax,y,w,scaling,num=bt)
+    #ax.plot(kde_x, kde_y*scaling, color='k',alpha=1, ls = '-')
+    #spairs_means_stds_samples[spair] = (mean,std,modes)
+    #ax = addvvline(ax,lower,'k','-.','90% BTCI')
+    #ax = addvvline(ax,upper,'k','-.','90% BTCI')
+    #ax = addvvline(ax,mode,'k','-','Raw mode')
+    #ax = addvvline(ax,mean,'k','--','Mean')
+    #ax.set_title(" & ".join(sorted(spair.split('__'))),fontsize=fontsize_factor*1.8)
+    #ax.legend(loc=0,frameon=False,fontsize=fontsize_factor)
+    #ax.spines['top'].set_visible(False)
+    #ax.spines['right'].set_visible(False)
+    #if spair in fs_pairs and len(spairs) > 1:
+    #    ax_fp = fig_fp.add_subplot(closest_divisors_fp[0], closest_divisors_fp[1], order_fs_pair[spair]) #index starts from 1 here
+    #    ax_fp.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8)
+    #    for kde_x,kde_y in zip(kde_xs,kde_ys): ax_fp.plot(kde_x, kde_y*scaling, color='gray',alpha=2/bt, ls = '-')
+    #    ax_fp.plot(kde_x, kde_y*scaling, color='k',alpha=1, ls = '-')
+    #    ax_fp = addvvline(ax_fp,lower,'k','-.','90% BTCI')
+    #    ax_fp = addvvline(ax_fp,upper,'k','-.','90% BTCI')
+    #    ax_fp = addvvline(ax_fp,mode,'k','-','Raw mode')
+    #    ax_fp = addvvline(ax_fp,mean,'k','--','Mean')
+    #    ax_fp.set_title(" & ".join(sorted(spair.split('__'))),fontsize=fontsize_factor_fp*1.8)
+    #    ax_fp.spines['top'].set_visible(False)
+    #    ax_fp.spines['right'].set_visible(False)
+        #ax_spair_fp[spair] = ax_fp
+    #    fig_fp.text(0.5, 0.01, _labels["dS"],va='center',ha='center')
+    #    fig_fp.text(0.01, 0.5, 'Number of retained duplicates',rotation='vertical',va='center',ha='center')
+    #else: ax_fp = None
+    #fig_sig,ax_sig = plt.subplots()
+    #fig_sig,ax_sig = fig_sigs[spair],ax_sigs[spair]
+    #ax_sig.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8)
+    #for kde_x,kde_y in zip(kde_xs,kde_ys): ax_sig.plot(kde_x, kde_y*scaling, color='gray',alpha=2/10, ls = '-')
+    #ax_sig.plot(kde_x, kde_y*scaling, color='k',alpha=1, ls = '-')
+    #ax_sig = addvvline(ax_sig,lower,'k','-.','90% BTCI')
+    #ax_sig = addvvline(ax_sig,upper,'k','-.','90% BTCI')
+    #ax_sig = addvvline(ax_sig,mode,'k','-','Raw mode')
+    #ax_sig = addvvline(ax_sig,mean,'k','--','Mean')
+    #ax_sig.set_title(" & ".join(sorted(spair.split('__'))))
+    #ax_sig.legend(loc=0,frameon=False)
+    #ax_sig.spines['top'].set_visible(False)
+    #ax_sig.spines['right'].set_visible(False)
+    #fig_sig.text(0.5, 0.01, _labels["dS"],va='center',ha='center')
+    #fig_sig.text(0.01, 0.5, 'Number of retained duplicates',rotation='vertical',va='center',ha='center')
+    #maxim_scaling = maxim*scaling
+    #fig_sigs[spair] = fig_sig
+    #ax_sigs[spair] = ax_sig
+    #ax_spair[spair] = ax
+    #maxim_spair[spair] = maxim*scaling
+    #ks_spair[spair] = mode
+    #return ax,maxim_scaling,mean,std,mode,modes,ax_fp
+
 def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True):
     order_spair = {spair:(i+1) for i,spair in enumerate(spairs) if spair in fs_pairs}
     for i in spairs:
@@ -561,7 +643,24 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True):
     fontsize_factor = 25 / len(spairs)
     fontsize_factor_fp = 25 / len(fs_pairs) if closest_divisors_fp[1] !=1 else 15 / len(fs_pairs)
     plotted = 0
-    for i,spair in enumerate(sorted(spairs,key=lambda x: order_spair[x],reverse=True)):
+    #order_fs_pair = [spair for i,spair in enumerate(sorted(spairs,key=lambda x: order_spair[x],reverse=True)) if spair in fs_pairs]
+    #order_fs_pair = {spair:(i+1) for i,spair in enumerate(order_fs_pair)}
+    #for spair in spairs:
+    #    fig_sig,ax_sig = plt.subplots()
+    #    fig_sigs[spair] = fig_sig
+    #    ax_sigs[spair] = ax_sig
+    #results = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(plotspair_one)(i,spair,spairs,closest_divisors,fig,df,reweight,fig_fp,ax_spair_fp,fig_sigs,ax_sigs,ax_spair,maxim_spair,ks_spair,bt,spairs_means_stds_samples,order_fs_pair,fs_pairs,na,kde_x,fontsize_factor,closest_divisors_fp,fontsize_factor_fp) for i,spair in enumerate(sorted(spairs,key=lambda x: order_spair[x],reverse=True)))
+    #for result,spair in zip(results,sorted(spairs,key=lambda x: order_spair[x],reverse=True)):
+    #    ax,maxim_scaling,mean,std,mode,modes,ax_fp = result
+        #fig_sigs[spair] = fig_sig
+        #ax_sigs[spair] = ax_sig
+    #    ax_spair[spair] = ax
+    #    maxim_spair[spair] = maxim_scaling
+    #    ks_spair[spair] = mode
+    #    if ax_fp != None: ax_spair_fp[spair] = ax_fp
+    #    spairs_means_stds_samples[spair] = (mean,std,modes)
+    #for i,spair in tqdm(enumerate(sorted(spairs,key=lambda x: order_spair[x],reverse=True)),desc="Working on all considered species-pairs",unit=" species-pair finished"):
+    for i,spair in zip(trange(len(spairs)),sorted(spairs,key=lambda x: order_spair[x],reverse=True)):
         if len(spairs) > 1:
             if closest_divisors[0]>1:
                 ax = fig.add_subplot(closest_divisors[0], closest_divisors[1], i+1)
@@ -745,7 +844,7 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     logging.info("Composing trios (outgroup,(focal,sister))")
     if onlyrootout: all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
     else: all_spairs,spairs,Trios,Trios_dict = gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade)
-    logging.info("Sampling, calculating and plotting {} bootstrap replicates for each orthologous Ks distribution under consideration (which might take a while..)".format(BT))
+    logging.info("Sampling, calculating and plotting {} bootstrap replicates for {} orthologous Ks distributions (which might take a while..)".format(BT,len(all_spairs)))
     logging.info("Note that the number of bootstrap replicates can be adjusted via the option --bootstrap")
     fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs = plotspair_cov(df,all_spairs,spairs,focusp,reweight,na=na,bt=BT)
     corrected_ks_spair, corrected_ks_spair_std = ksadjustment(Trios_dict,spairs_means_stds_samples)
