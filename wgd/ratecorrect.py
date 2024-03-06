@@ -491,6 +491,43 @@ def addvvline(ax,xvalue,color,lstyle,labell,rawid=False):
     else: ax.axvline(xvalue,color=color, ls=lstyle, lw=1, label='{}: {:.2f}'.format(labell,xvalue))
     return ax
 
+def addbt_noax(spair,df,reweight,na,num=10):
+    df_spair = df[df['spair']==spair].copy()
+    if na:
+        df_spair = df_spair.drop_duplicates(subset=['family','node'])
+        df_spair = df_spair.drop(['dS'], axis=1).rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
+        df_spair['weightoutlierexcluded'] = 1
+        w = df_spair['weightoutlierexcluded']
+    else:
+        if reweight:
+            w = reweighted(df_spair)
+            df_spair['weightoutlierexcluded'] = w
+        else:
+            w = df_spair['weightoutlierexcluded']
+    x = df_spair['dS']
+    y = x[np.isfinite(x)]
+    w = w[np.isfinite(x)]
+    data = [(i,j) for i,j in zip(y,w)]
+    kde_x = np.linspace(0,5,num=5000)
+    modes,mus,kde_xs,kde_ys = [],[],[],[]
+    for i in range(num):
+        random_values = random.choices(data, k=len(y))
+        new_y,new_w = [m for m,n in random_values],[n for m,n in random_values]
+        kde = stats.gaussian_kde(new_y,weights=new_w,bw_method=0.1)
+        kde_y = kde(kde_x)
+        kde_ys.append(kde_y)
+        kde_xs.append(kde_x)
+        mode, maxim = kde_mode(kde_x, kde_y)
+        modes.append(mode)
+    lower, upper = np.percentile(modes,5), np.percentile(modes,95)
+    mean, std = np.mean(modes), np.std(modes)
+    return spair,lower,upper,mean,std,modes,kde_ys,kde_xs
+
+def addbt_precal(ax,scaling,kde_xs,kde_ys,bt):
+    for kde_x, kde_y in zip(kde_xs,kde_ys):
+        ax.plot(kde_x, kde_y*scaling, color='gray',alpha=2/bt, ls = '-')
+    return ax
+
 def addbt(ax,y,w,scaling,num=10):
     data = [(i,j) for i,j in zip(y,w)]
     kde_x = np.linspace(0,5,num=5000)
@@ -626,7 +663,7 @@ def find_closest_divisors(number):
     #ks_spair[spair] = mode
     #return ax,maxim_scaling,mean,std,mode,modes,ax_fp
 
-def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True):
+def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True,nthreads=4):
     order_spair = {spair:(i+1) for i,spair in enumerate(spairs) if spair in fs_pairs}
     for i in spairs:
         if i not in order_spair: order_spair[i] = 0
@@ -660,7 +697,11 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True):
     #    if ax_fp != None: ax_spair_fp[spair] = ax_fp
     #    spairs_means_stds_samples[spair] = (mean,std,modes)
     #for i,spair in tqdm(enumerate(sorted(spairs,key=lambda x: order_spair[x],reverse=True)),desc="Working on all considered species-pairs",unit=" species-pair finished"):
-    for i,spair in zip(trange(len(spairs)),sorted(spairs,key=lambda x: order_spair[x],reverse=True)):
+    results = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(addbt_noax)(spair,df,reweight,na,num=bt) for i,spair in zip(trange(len(spairs)),sorted(spairs,key=lambda x: order_spair[x],reverse=True)))
+    results_list = [(result[0],result[1],result[2],result[3],result[4],result[5],result[6],result[7]) for result in results]
+    results_ordered = sorted(results_list,key=lambda x:order_spair[x[0]],reverse=True)
+    logging.info("Sampling done, now making plots")
+    for i,spair,result in zip(range(len(spairs)),sorted(spairs,key=lambda x: order_spair[x],reverse=True),results_ordered):
         if len(spairs) > 1:
             if closest_divisors[0]>1:
                 ax = fig.add_subplot(closest_divisors[0], closest_divisors[1], i+1)
@@ -689,7 +730,11 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True):
         kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
         kde_y = kde(kde_x)
         mode, maxim = kde_mode(kde_x, kde_y)
-        ax,lower,upper,mean,std,modes,kde_ys,kde_xs = addbt(ax,y,w,scaling,num=bt)
+        # change is here
+        #ax,lower,upper,mean,std,modes,kde_ys,kde_xs = addbt(ax,y,w,scaling,num=bt)
+        spair,lower,upper,mean,std,modes,kde_ys,kde_xs = result
+        ax = addbt_precal(ax,scaling,kde_xs,kde_ys,bt)
+        # change stops here
         ax.plot(kde_x, kde_y*scaling, color='k',alpha=1, ls = '-')
         spairs_means_stds_samples[spair] = (mean,std,modes)
         ax = addvvline(ax,lower,'k','-.','90% BTCI')
@@ -825,7 +870,7 @@ def writecortable(corrected_ks_spair,corrected_ks_spair_std,spairs_means_stds_sa
     df = pd.DataFrame.from_dict(dic)
     df.to_csv(fname,header=True,index=False,sep='\t')
 
-def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True,BT=200):
+def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True,BT=200,nthreads=4):
     odir = _mkdir(outdir)
     tree = Phylo.read(speciestree, "newick")
     logging.info("Reading species tree and categorizing sister&outgroup species")
@@ -844,15 +889,14 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     logging.info("Composing trios (outgroup,(focal,sister))")
     if onlyrootout: all_spairs,spairs,Trios,Trios_dict = gettrios(focusp,Ingroup_spnames,Outgroup_spnames)
     else: all_spairs,spairs,Trios,Trios_dict = gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade)
-    logging.info("Sampling, calculating and plotting {} bootstrap replicates for {} orthologous Ks distributions (which might take a while..)".format(BT,len(all_spairs)))
+    logging.info("Sampling, calculating and plotting {} bootstrap replicates for {} orthologous Ks distributions using {} threads (which might take a while..)".format(BT,len(all_spairs),nthreads))
     logging.info("Note that the number of bootstrap replicates can be adjusted via the option --bootstrap")
-    fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs = plotspair_cov(df,all_spairs,spairs,focusp,reweight,na=na,bt=BT)
+    fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs = plotspair_cov(df,all_spairs,spairs,focusp,reweight,na=na,bt=BT,nthreads=nthreads)
     corrected_ks_spair, corrected_ks_spair_std = ksadjustment(Trios_dict,spairs_means_stds_samples)
+    logging.info("Synonymous substitution rate correction done (info written in output)\nNow adding correction shade onto plots")
     addcorrectline(ax_spair,corrected_ks_spair,corrected_ks_spair_std,maxim_spair,ks_spair)
     fig.tight_layout()
     os.chdir(odir)
-    logging.info("Synonymous substitution rate correction done")
-    logging.info("Writing Ks and correction info per species pair to output")
     writetable(spairs_means_stds_samples,"spair.original.ks.info.tsv")
     writecortable(corrected_ks_spair,corrected_ks_spair_std,spairs_means_stds_samples,"spair.corrected.ks.info.tsv")
     if na: fig.savefig("All_pairs.ks.node.averaged.pdf",bbox_inches='tight')
@@ -883,8 +927,8 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     plt.close()
     os.chdir("../")
 
-def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False,BT=200):
+def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False,BT=200,nthreads=4):
     df['sp1'] = df['g1'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['sp2'] = df['g2'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['spair'] = ["__".join(sorted([sp1,sp2])) for sp1,sp2 in zip(df['sp1'],df['sp2'])]
-    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,BT=BT)
+    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,BT=BT,nthreads=nthreads)

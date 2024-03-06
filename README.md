@@ -185,6 +185,7 @@ wgd ksd families sequences (option)
 -ock, --onlyconcatkstree, flag option, whether to only infer Ks tree under concatenated alignment, if the flag was set, only the Ks tree under concatenated alignment would be calculated
 -cs, --classic, flag option, whether to draw mixed Ks plot in a classic manner where the full orthologous Ks distribution is drawed, if the flag was set, the classic mixed Ks plot would be drawn
 -ta, --toparrow, flag option, whether to adjust the arrow to be at the top of the plot, instead of being coordinated as the KDE of the orthologous Ks distribution, if the flag was set, the arrow would be set at the top
+-bs, --bootstrap, the number of bootstrap replicates of ortholog Ks distribution in mixed plot
 ```
 
 The program `wgd mix` can realize the mixture model clustering analysis of *K*<sub>S</sub> age distribution.
@@ -266,7 +267,7 @@ wgd syn families gffs (option)
 -srt, --showrealtick, flag option, whether to show the real tick in genes or bases, if the flag was set, the real tick would be showed
 -tls, --ticklabelsize, the label size of tick, default 5
 -gr, --gistrb, flag option, whether to use gist_rainbow as color map of dotplot
--n, --nthreads, the number of threads to use, default 4
+-n, --nthreads, the number of threads to use in synteny inference, default 4
 ```
 
 The program `wgd viz` can realize the visualization of *K*<sub>S</sub> age distribution and synteny.
@@ -315,6 +316,7 @@ wgd viz (option)
 -na, --nodeaveraged, flag option, whether to use node-averaged method for de-redundancy, if the flag was set, the node-averaged method would be initiated
 -bs, --bootstrap, the number of bootstrap replicates of ortholog Ks distribution in mixed plot
 -gr, --gistrb, flag option, whether to use gist_rainbow as color map of dotplot
+-n, --nthreads, the number of threads to use in bootstrap sampling, default 1
 ```
 
 ## Usage

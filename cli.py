@@ -458,6 +458,7 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
 @click.option('--onlyconcatkstree', '-ock', is_flag=True, help='only infer Ks tree under concatenated alignment')
 @click.option('--classic', '-cs', is_flag=True, help='mixed plot in a classic manner where the full orthologous Ks distribution is drawed')
 @click.option('--toparrow', '-ta', is_flag=True, help='rate correction arrow set at top instead of at the maximum of kde')
+@click.option('--bootstrap', '-bs', type=int, default=200, show_default=True, help='Number of bootstrap replicates of ortholog Ks distribution in mixed plot')
 def ksd(**kwargs):
     """
     Paranome and one-to-one ortholog Ks distribution inference pipeline.
@@ -476,7 +477,7 @@ def ksd(**kwargs):
     _ksd(**kwargs)
 
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
-        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree,classic,toparrow):
+        strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree,classic,toparrow, bootstrap):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
     from wgd.core import read_gene_families, merge_seqs, get_MultipRBH_gene_families, getconcataln
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
@@ -527,7 +528,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     elif len(sequences) > 2:
         ylabel = "Homologous pairs"
     if len(spair)!= 0 or (not focus2all is None):
-        multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,na=node_average,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow)
+        multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,na=node_average,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap,nthreads=nthreads)
         #multi_sp_plot(df,spair,spgenemap,outdir,onlyrootout,title=prefix,ylabel=ylabel,ksd=True,reweight=reweight,sptree=speciestree,extraparanomeks=extraparanomeks, ap = anchorpoints,plotkde=plotkde,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel, nodeaverage=node_average)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
@@ -583,13 +584,14 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--nodeaveraged', '-na', is_flag=True, help='node averaged way of de-redundancy')
 @click.option('--bootstrap', '-bs', type=int, default=200, show_default=True, help='Number of bootstrap replicates of ortholog Ks distribution in mixed plot')
 @click.option('--gistrb', '-gr', is_flag=True, help='whether to use gist_rainbow as color map of dotplot')
+@click.option('--nthreads', '-n', default=1, show_default=True,help="number of threads to use")
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -628,7 +630,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ylabel = "Duplications" if spair == () else "Homologous pairs"
     if adjustortho: ylabel = "Homologous pairs (adjusted)"
     if len(spair)!= 0 or not (focus2all is None):
-        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap)
+        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap,nthreads=nthreads)
         #multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=plot2)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel,user_xlim=xlim,user_ylim=ylim)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
