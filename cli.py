@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
     default='info', help="Verbosity level, default = info.")
 def cli(verbosity):
     """
-    wgd v2 - Copyright (C) 2023-2024 Hengchi Chen\n
+    wgd v2 - Copyright (C) 2024-2025 Hengchi Chen\n
     Contact: heche@psb.vib-ugent.be
     """
     logging.basicConfig(
@@ -40,6 +40,7 @@ def cli(verbosity):
     help='output directory')
 @click.option('--tmpdir', '-t', default=None, show_default=True,
     help='tmp directory')
+@click.option('--prot', '-p', is_flag=True, help="protein sequence instead of cds")
 @click.option('--cscore', '-c', default=None, show_default=True,
     help='c-score to delineate homologs')
 @click.option('--inflation', '-I', default=2.0,
@@ -111,11 +112,11 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
+def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
-    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent, nonormalization=nonormalization) for s in sequences]
+    s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent, nonormalization=nonormalization, prot=prot) for s in sequences]
     for i in s: logging.info("tmpdir = {} for {}".format(i.tmp_path,i.prefix))
     if buscosog:
         logging.info("Constructing busco-guided families")
@@ -126,20 +127,24 @@ def _dmd(sequences, outdir, tmpdir, cscore, inflation, eval, to_stop, cds, focus
         segmentsaps(genetable,listelements,anchorpoints,segments,outdir,s,nthreads,tree_method,treeset,msogcut)
         endt(tmpdir,start,s)
     if geneassign:
-        genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer')
+        genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer', prot=prot)
     if orthoinfer:
         logging.info("Infering orthologous gene families")
+        if not getnsog: logging.info("Note that the option --getnsog can be set to further retrieve nested single-copy gene families")
+        if not testsog: logging.info("Note that the option --testsog can be set to verify the inferred single-copy gene families")
         ortho_infer(sequences,s,outdir,tmpdir,to_stop,cds,cscore,inflation,eval,nthreads,getnsog,tree_method,treeset,msogcut,concat,testsog,normalizedpercent,bins=bins,nonormalization=nonormalization)
         if onlyortho: endt(tmpdir,start,s)
     if len(s) == 0:
         logging.error("No sequences provided!")
         return
     if len(s) == 1:
-        logging.info("One CDS file: will compute paranome")
+        if prot: logging.info("One protein file: will compute paranome")
+        else: logging.info("One cds file: will compute paranome")
         s[0].get_paranome(inflation=inflation, eval=eval)
         s[0].write_paranome(False)
     elif focus is None and not globalmrbh:
-        logging.info("Multiple CDS files: will compute RBH orthologs")
+        if prot: logging.info("Multiple protein files: will compute RBH orthologs")
+        else: logging.info("Multiple cds files: will compute RBH orthologs")
         for i in range(len(s)-1):
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))

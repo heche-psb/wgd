@@ -76,6 +76,7 @@ wgd dmd sequences (option)
 --------------------------------------------------------------------------------
 -o, --outdir, the output directory, default wgd_dmd
 -t, --tmpdir, the temporary working directory, default None, if None was given, the tmpdir would be assigned random names in current directory and automately removed at the completion of program, else the tmpdir would be kept
+-p, --prot, flag option, whether using protein or nucleotide sequences
 -c, --cscore, the c-score to restrict the homolog similarity of MRBHs, default None, if None was given, the c-score funcion wouldn't be activated, else expecting a decimal within the range of 0 and 1
 -I, --inflation, the inflation factor for MCL program, default 2.0, with higher value leading to more but smaller clusters
 -e, --eval, the e-value cut-off for similarity in diamond and/or hmmer, default 1e-10

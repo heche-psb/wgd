@@ -27,6 +27,7 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy import stats
 from sklearn.cluster import AgglomerativeClustering
 import matplotlib.pyplot as plt
+from tqdm import trange
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
@@ -163,7 +164,7 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                     data_per_bin.append(genelengthpercentile5(bit_score_bins,hitper = hitper))
                 merged_data = pd.concat(data_per_bin)
                 df.loc[:,13] = fit_linear(merged_data,df)
-                combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()}
+                combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()} # if the idmap and seqmap have the same gene name, errors might occur, for instance two identical protein input files
                 df.loc[:,14] = df[0].apply(lambda x:combinedidmaps[x])
                 df.loc[:,15] = df[1].apply(lambda x:combinedidmaps[x])
                 df.to_csv(outpath+'_withoriglabel',sep="\t", header=False, index=False)
@@ -242,7 +243,7 @@ class SequenceData:
     """
     def __init__(self, cds_fasta,
             tmp_path=None, out_path="wgd_dmd",
-            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5, nonormalization=False):
+            to_stop=True, cds=True, cscore=None,threads = 4, bins = 100, normalizedpercent = 5, nonormalization=False, prot = False):
         if tmp_path == None:
             tmp_path = "wgdtmp_" + str(uuid.uuid4())
         else:
@@ -251,6 +252,7 @@ class SequenceData:
         self.tmp_path  = _mkdir(tmp_path)
         self.out_path  = _mkdir(out_path)
         self.cds_fasta = cds_fasta
+        self.prot_fasta = cds_fasta
         self.prefix    = os.path.basename(self.cds_fasta)
         self.pro_fasta = os.path.join(tmp_path, self.prefix + ".tfa")
         self.pro_db    = os.path.join(tmp_path, self.prefix + ".db")
@@ -263,11 +265,31 @@ class SequenceData:
         self.pro_sequence  = {}
         self.gene_length = {}
         self.idmap     = {}  # map from the new safe id to the input seq id
-        self.read_cds(to_stop=to_stop, cds=cds)
+        self.prot = prot
+        if prot: self.read_prot()
+        else: self.read_cds(to_stop=to_stop, cds=cds)
         self.threads = threads
         self.bins = bins
         self.nonormalization = nonormalization
         _write_fasta(self.pro_fasta, self.pro_seqs)
+
+    def read_prot(self):
+        """
+        Read a Protein file
+        """
+        self.idmapop = {'original_id':[],'safe_id':[]}
+        for i, record in enumerate(SeqIO.parse(self.prot_fasta, 'fasta')):
+            gid = "{0}_{1:0>5}".format(self.prefix, i)
+            aa_sequence = record.seq
+            self.pro_seqs[gid] = record
+            self.pro_sequence[gid] = aa_sequence
+            self.idmap[record.id] = gid
+            self.idmapop['original_id'].append(record.id)
+            self.idmapop['safe_id'].append(gid)
+            self.gene_length[gid] = len(aa_sequence)
+        df_idmap_tooutput = pd.DataFrame.from_dict(self.idmapop)
+        df_idmap_tooutput.to_csv(os.path.join(self.tmp_path, self.prefix+'.original_safe_id'),header=True,index=False,sep='\t')
+        return
 
     def read_cds(self, to_stop=True, cds=True):
         """
@@ -317,9 +339,11 @@ class SequenceData:
         self.idmap.update(other.idmap)
 
     def merge_seq(self,other):
-        self.cds_seqs.update(other.cds_seqs)
-        self.cds_sequence.update(other.cds_sequence)
+        if not self.prot:
+            self.cds_seqs.update(other.cds_seqs)
+            self.cds_sequence.update(other.cds_sequence)
         self.pro_sequence.update(other.pro_sequence)
+        self.pro_seqs.update(other.pro_seqs)
         self.idmap.update(other.idmap)
 
     def merge_seqs(self,other):
@@ -431,13 +455,13 @@ class SequenceData:
             for i, (k, v) in enumerate(sorted(self.mcl.items())):
                 # We report original gene IDs
                 f.write("GF{:0>8}\t".format(i+1))
-                f.write(", ".join([self.cds_seqs[x].id for x in v]))
+                f.write(", ".join([self.pro_seqs[x].id for x in v]))
                 f.write("\n")
         return fname
 
     def add_singletons_paranome(self):
         xs = set(itertools.chain.from_iterable(self.mcl.values()))  # all genes in families
-        gs = set(self.cds_seqs.keys())  # all genes
+        gs = set(self.pro_seqs.keys())  # all genes
         ys = gs - xs 
         i = max(self.mcl.keys()) + 1
         for j, y in enumerate(ys):
@@ -447,8 +471,8 @@ class SequenceData:
         fname = "{}_{}.rbh.tsv".format(self.prefix, seqs.prefix)
         fname = os.path.join(self.out_path, fname)
         df = self.rbh[seqs.prefix]
-        df[seqs.prefix] = df[0].apply(lambda x: seqs.cds_seqs[x].id)
-        df[self.prefix] = df[1].apply(lambda x: self.cds_seqs[x].id)
+        df[seqs.prefix] = df[0].apply(lambda x: seqs.pro_seqs[x].id)
+        df[self.prefix] = df[1].apply(lambda x: self.pro_seqs[x].id)
         if singletons:  # this must be here, cannot be before renaming, not after labeling fams
             df = pd.concat([df, self.add_singletons_rbh(seqs)]) 
         #_label_families(df)
@@ -816,7 +840,8 @@ def getfastaf(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds):
 
 def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads):
     if globalmrbh:
-        logging.info("Multiple CDS files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
+        if not s[0].prot: logging.info("Multiple cds files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
+        else: logging.info("Multiple protein files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
         table = pd.DataFrame()
         gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
         for i in range(len(s)-1):
@@ -836,7 +861,8 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         #    for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         table.to_csv(gmrbhf, sep="\t",index=True)
     elif not focus is None:
-        logging.info("Multiple CDS files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
+        if not s[0].prot: logging.info("Multiple cds files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
+        else: logging.info("Multiple protein files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
         x = 0
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
@@ -1662,7 +1688,7 @@ def reference_hmmscan(df,s,hmmf,outdir,eval):
         for genes in genes_genes:
             for gene in genes.split(', '):
                 if f_g_score[fid].get(gene) == None:
-                    logging.info("{0} in {1} has no hits, please double check this perhaps misassigned gene".format(gene,fid))
+                    logging.info("{0} in {1} has no hits, please double check this possibly misassigned gene".format(gene,fid))
                     continue
                 score_per_f[fid].append(f_g_score[fid][gene])
     for fid,vs in score_per_f.items():
@@ -1794,18 +1820,19 @@ def getassignfasta(df,s,querys,outdir,second=False,third=False):
         p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned_Furtherscorefiltered_Tree-based'))
     else:
         p = _mkdir(os.path.join(outdir,'Orthologues_Sequence_Assigned'))
-    pc = _mkdir(os.path.join(p,'cds'))
+    if not s.prot: pc = _mkdir(os.path.join(p,'cds'))
     pp = _mkdir(os.path.join(p,'pep'))
     pps,glength = [],{}
     for i in df.index:
-        fc = os.path.join(pc,i+'.cds')
+        if not s.prot: fc = os.path.join(pc,i+'.cds')
         fp = os.path.join(pp,i+'.pep')
         pps.append(fp)
-        with open(fc,'w') as f:
-            for gi in yids(i):
-                if gi == '':
-                    continue
-                f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
+        if not s.prot:
+            with open(fc,'w') as f:
+                for gi in yids(i):
+                    if gi == '':
+                        continue
+                    f.write('>{}\n{}\n'.format(gi,s.cds_sequence[s.idmap[gi]]))
         with open(fp,'w') as f:
             for gi in yids(i):
                 if gi == '':
@@ -2044,12 +2071,12 @@ def rmtmp(tmpdir,outdir,querys):
 def dmd4g2f(outdir,s,nthreads,querys,df):
     return None
 
-def genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer'):
+def genes2fams(seq2assign,fam2assign,outdir,s,nthreads,tmpdir,to_stop,cds,cscore,eval,start,normalizedpercent,tree_method,treeset,assign_method='hmmer',prot=False):
     Noldsp = [i.prefix for i in s]
     gsmap = {}
     for seq in s: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})
     logging.info("Assigning sequences into given gene families")
-    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, normalizedpercent=normalizedpercent) for s in seq2assign]
+    seqs_query = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, normalizedpercent=normalizedpercent,prot=prot) for s in seq2assign]
     for seq in seqs_query: gsmap.update({gid:seq.prefix for gid in seq.idmap.keys()})
     Nnewsp = [i.prefix for i in seqs_query]
     df = pd.read_csv(fam2assign,header=0,index_col=0,sep='\t')
@@ -2129,9 +2156,10 @@ def writeogsep(table,seq,fc,fp):
     for v in table.values():
         if type(v) == list: v = v[0]
         if v == '': continue
-        cds = seq.cds_sequence[seq.idmap[v]]
+        if not seq.prot: cds = seq.cds_sequence[seq.idmap[v]]
         pro = seq.pro_sequence[seq.idmap[v]]
-        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(v,cds))
+        if not seq.prot:
+            with open(fc,'a') as f: f.write('>{}\n{}\n'.format(v,cds))
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(v,pro))
 
 def getnestedfasta(fnest,df,ss,nfs_count):
@@ -2140,18 +2168,20 @@ def getnestedfasta(fnest,df,ss,nfs_count):
     ndc = copy.deepcopy(nfs_count)
     for j,rn in enumerate(df.index):
         if nfs_count[rn] == 1:
-            fcname = os.path.join(fc_nest,'{}.cds'.format(rn))
+            if not ss.prot: fcname = os.path.join(fc_nest,'{}.cds'.format(rn))
             fpname = os.path.join(fp_nest,'{}.pep'.format(rn))
-            with open(fcname,'w') as f:
-                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
+            if not ss.prot:
+                with open(fcname,'w') as f:
+                    for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
             with open(fpname,'w') as f:
                 for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.pro_sequence[ss.idmap[i]]))
         else:
             t = ndc[rn]
-            fcname = os.path.join(fc_nest,'{0}_{1}.cds'.format(rn,t))
+            if not ss.prot: fcname = os.path.join(fc_nest,'{0}_{1}.cds'.format(rn,t))
             fpname = os.path.join(fp_nest,'{0}_{1}.pep'.format(rn,t))
-            with open(fcname,'w') as f:
-                for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
+            if not ss.prot:
+                with open(fcname,'w') as f:
+                    for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.cds_sequence[ss.idmap[i]]))
             with open(fpname,'w') as f:
                 for i in df.iloc[j,:][:-1]: f.write('>{}\n{}\n'.format(i,ss.pro_sequence[ss.idmap[i]]))
             ndc[rn] = ndc[rn] - 1
@@ -2197,8 +2227,8 @@ def label2nest(tree,slist,sgmaps,ss,msogcut):
 def getnestedog(fp,fc,slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut):
     x = lambda i : "GF{:0>8}".format(i+1)
     fpaln,fcaln = fp + '.aln',fc + '.aln'
-    if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.fasttree')
-    if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fcaln,tree_famsf,postfix = '.treefile')
+    if tree_method == 'fasttree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.fasttree')
+    if tree_method == 'iqtree': addiqfatree(x(i),tree_fams,fpaln,tree_famsf,postfix = '.treefile')
     if tree_method == 'mrbayes': addmbtree(outd,tree_fams,tree_famsf,i=i,concat=False)
     dics = label2nest(tree_fams[x(i)],slist,sgmaps,ss,msogcut)
     if dics:
@@ -2212,10 +2242,10 @@ def aln2tree_sc(fp,fc,ss,tree_method,treeset,outd,i,Multiplicon=False):
     else: x = lambda i : "GF{:0>8}".format(i+1)
     fpaln,o,fcaln = fp + '.aln','--auto',fc + '.aln'
     mafft_cmd(fp,o,fpaln)
-    pro_aln = backtrans(fpaln,fcaln,ss.idmap,ss.cds_sequence)
-    if tree_method == "iqtree": iqtree_run(treeset,fcaln)
-    if tree_method == "fasttree": fasttree_run(fcaln,treeset)
-    if tree_method == "mrbayes": mrbayes_run(outd,x(i),fpaln,pro_aln,treeset)
+    #if not ss.prot: backtrans(fpaln,fcaln,ss.idmap,ss.cds_sequence)
+    if tree_method == "iqtree": iqtree_run(treeset,fpaln)
+    if tree_method == "fasttree": fasttree_run(fpaln,treeset)
+    if tree_method == "mrbayes": mrbayes_run(outd,x(i),fpaln,AlignIO.read(fpaln, "fasta"),treeset)
 
 def sgratio(l):
     t = [i for i in l if i]
@@ -2256,14 +2286,15 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
     #ct = 'multi-copy'
     #exist_sp = set(gsmap.values())
     #coverage = len(exist_sp)/len(slist)
-    fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>8}.cds".format(i+1))
-    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>8}.pep".format(i+1))
+    if not ss.prot:
+        fc = os.path.join(_mkdir(os.path.join(ftmp,'cds')),"GF{:0>8}.cds".format(i+1))
     fc_rep = os.path.join(_mkdir(os.path.join(frep,'cds')),"GF{:0>8}.cds".format(i+1))
-    fp_rep = os.path.join(_mkdir(os.path.join(frep,'pep')),"GF{:0>8}.pep".format(i+1))
     fc_sog = os.path.join(_mkdir(os.path.join(fsog,'cds')),"GF{:0>8}.cds".format(i+1))
+    fp = os.path.join(_mkdir(os.path.join(ftmp,'pep')),"GF{:0>8}.pep".format(i+1))
+    fp_rep = os.path.join(_mkdir(os.path.join(frep,'pep')),"GF{:0>8}.pep".format(i+1))
     fp_sog = os.path.join(_mkdir(os.path.join(fsog,'pep')),"GF{:0>8}.pep".format(i+1))
     for k,v in gsmap.items():
-        cds = ss.cds_sequence[ss.idmap[k]]
+        if not ss.prot: cds = ss.cds_sequence[ss.idmap[k]]
         pro = ss.pro_sequence[ss.idmap[k]]
         if fam_table.get(v) == None:
             fam_table[v] = k
@@ -2273,7 +2304,8 @@ def sgdict(gsmap,slist,ss,ftmp,frep,fsog,i,msogcut):
             if len(pro) > len(ss.pro_sequence[ss.idmap[represent_seqs[v]]]): represent_seqs[v] = k
         count_table[v] = count_table[v] + 1
         #sumcount = sumcount + 1
-        with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
+        if not ss.prot:
+            with open(fc,'a') as f: f.write('>{}\n{}\n'.format(k,cds))
         with open(fp,'a') as f: f.write('>{}\n{}\n'.format(k,pro))
     writeogsep(represent_seqs,ss,fc_rep,fp_rep)
     for ms in set(slist) - set(gsmap.values()): fam_table[ms],represent_seqs[ms] = '',''
@@ -2426,8 +2458,8 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
     reps_coc.to_csv(fname_rep,header = True,index =True,sep = '\t')
     logging.info("In total {} orthologous families delineated".format(counts_coc.shape[0]))
     mu,mo,sg=(counts_coc[counts_coc['CopyType']==i].shape[0] for i in ['multi-copy','mostly single-copy','single-copy'])
-    logging.info("with {0} multi-copy, {1} mostly single-copy, {2} single-copy".format(mu,mo,sg))
-    Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in range(sh))
+    logging.info("With {0} multi-copy, {1} mostly single-copy, {2} single-copy\nWriting sequences for each gene family (might take a while..)".format(mu,mo,sg))
+    Parallel(n_jobs=nthreads,backend='multiprocessing',batch_size=1000)(delayed(sgdict)(gsmaps[i],slist,ss,ftmp,frep,fsog,i,msogcut) for i in trange(sh))
     #memory_reporter()
     if getsog:
         fnest = _mkdir(os.path.join(outdir,'Orthologues_Nested_Single_Copy'))
@@ -2440,6 +2472,7 @@ def txt2tsv(txtf,outdir,sgmaps,slist,ss,nthreads,getsog,tree_method,treeset,msog
         for i in range(sh):
             li = [yco(i,s) for s in slist]
             if all([j > 0 for j in li]) and sum(li) > len(slist): aln_fam_is.append(i)
+        logging.info("Inferring gene tree on candidate gene families")
         Parallel(n_jobs=nthreads,backend='multiprocessing',verbose=11,batch_size=100)(delayed(aln2tree_sc)(yp(i),yc(i),ss,tree_method,treeset,outd,i) for i in aln_fam_is)
         for i in aln_fam_is: getnestedog(yp(i),yc(i),slist,i,outd,tree_method,tree_famsf,tree_fams,sgmaps,nested_dfs,ss,msogcut)
         if nested_dfs:
@@ -2935,18 +2968,20 @@ def segmentsaps(genetable,listsegments,anchorpoints,segments,outdir,seqs,nthread
     # segs_anchors indexed by segment, only one column as anchors
 
 def bget_seq(s, fid, gene, tmp_pathc, tmp_pathp):
-    fc = os.path.join(tmp_pathc,'{}.cds'.format(fid))
+    if not s.prot: fc = os.path.join(tmp_pathc,'{}.cds'.format(fid))
     fp = os.path.join(tmp_pathp,'{}.pep'.format(fid))
     for ge in gene:
         if ge != '':
-            with open (fc,'a') as f: f.write(">{0}\n{1}\n".format(ge,s.cds_sequence[s.idmap[ge]]))
+            if not s.prot:
+                with open (fc,'a') as f: f.write(">{0}\n{1}\n".format(ge,s.cds_sequence[s.idmap[ge]]))
             with open (fp,'a') as f: f.write(">{0}\n{1}\n".format(ge,s.pro_sequence[s.idmap[ge]]))
 
 def bgetseq(df,outdir,s,nthreads):
     for i,seq in enumerate(s):
         if i != 0: s[0].merge_seqs(seq)
     tmp_path = _mkdir(os.path.join(outdir,'Sequences'))
-    tmp_pathc = _mkdir(os.path.join(tmp_path,'cds'))
+    if not s[0].prot: tmp_pathc = _mkdir(os.path.join(tmp_path,'cds'))
+    else: tmp_pathc = os.path.join(tmp_path,'cds')
     tmp_pathp = _mkdir(os.path.join(tmp_path,'pep'))
     genes = map(lambda x:list(df.loc[x,:]),df.index)
     Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(bget_seq)(s[0], fid, gene, tmp_pathc, tmp_pathp) for fid, gene in zip(df.index,genes))
