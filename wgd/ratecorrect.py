@@ -491,6 +491,13 @@ def addvvline(ax,xvalue,color,lstyle,labell,rawid=False):
     else: ax.axvline(xvalue,color=color, ls=lstyle, lw=1, label='{}: {:.2f}'.format(labell,xvalue))
     return ax
 
+def aviod_singular_matrix(*args):
+    new_args = []
+    for arg in args:
+        arg = [arg[0]+(1e-9)*random.randint(1,1000)] + list(set(arg))
+        new_args.append(arg)
+    return new_args
+
 def addbt_noax(spair,df,reweight,na,num=10):
     df_spair = df[df['spair']==spair].copy()
     if na:
@@ -507,12 +514,16 @@ def addbt_noax(spair,df,reweight,na,num=10):
     x = df_spair['dS']
     y = x[np.isfinite(x)]
     w = w[np.isfinite(x)]
+    if len(y) == 0 or len(w) == 0:
+        logging.error("Species pair {} has no Ks data, please check your data!".format(spair))
+        exit()
     data = [(i,j) for i,j in zip(y,w)]
     kde_x = np.linspace(0,5,num=5000)
     modes,mus,kde_xs,kde_ys = [],[],[],[]
     for i in range(num):
         random_values = random.choices(data, k=len(y))
         new_y,new_w = [m for m,n in random_values],[n for m,n in random_values]
+        if len(set(y)) == 1 and len(set(w)) == 1: new_y,new_w = aviod_singular_matrix(new_y,new_w)
         kde = stats.gaussian_kde(new_y,weights=new_w,bw_method=0.1)
         kde_y = kde(kde_x)
         kde_ys.append(kde_y)
@@ -724,6 +735,9 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True,nthreads=4):
         x = df_spair['dS']
         y = x[np.isfinite(x)]
         w = w[np.isfinite(x)]
+        if len(set(y)) == 1 and len(set(w)) == 1:
+            y,w = aviod_singular_matrix(y,w)
+            logging.info("Species pair {} has only one unique orthologous Ks datapoint,\na random datapoint with negligible difference is thus added".format(spair))
         Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8)
         CHF = get_totalH(Hs)
         scaling = CHF*0.1
