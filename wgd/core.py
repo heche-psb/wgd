@@ -129,6 +129,23 @@ def genelengthpercentile5(df,hitper = 5):
     df = df[df[11]>=cutoff]
     return df
 
+def checkdupnamessp1sp2(dic1,dic2):
+    l_or,l_sa = len(dic1),len(dic2)
+    if len({v:k for k,v in {**dic1,**dic2}.items()}) == l_or + l_sa:
+        return False
+    else:
+        return True
+
+def handledupnamessp1sp2(dic1,dic2):
+    """
+    Deal with identical gene ids occurred in two cds files
+    By creating a new dic for one of the cds file
+    """
+    new_keys_dic1,new_keys_dic2 = {k:k+'_sp1' for k in dic1.keys()}, {k:k+'_sp2' for k in dic2.keys()}
+    new_keys_dic_re = {**{v:k for k,v in new_keys_dic1.items()}, **{v:k for k,v in new_keys_dic2.items()}}
+    new_dic1,new_dic2 = {new_keys_dic1[k]:v for k,v in dic1.items()}, {new_keys_dic2[k]:v for k,v in dic2.items()}
+    return new_keys_dic_re,new_dic1,new_dic2
+
 def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=None,hicluster=False,nonbins = False,allbins = True,bins = 100, hitper = 5):
     y = lambda x : gene_length[x[0]] * gene_length[x[1]]
     df[12] = [y(df.loc[i,0:1]) for i in df.index]
@@ -164,7 +181,10 @@ def normalizebitscore(gene_length,df,outpath,sgidmaps=None,idmap=None,seqmap=Non
                     data_per_bin.append(genelengthpercentile5(bit_score_bins,hitper = hitper))
                 merged_data = pd.concat(data_per_bin)
                 df.loc[:,13] = fit_linear(merged_data,df)
-                combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()} # if the idmap and seqmap have the same gene name, errors might occur, for instance two identical protein input files
+                if checkdupnamessp1sp2(idmap,seqmap):
+                    change_map,new_idmap,new_seqmap = handledupnamessp1sp2(idmap,seqmap)
+                    combinedidmaps = {v:change_map[k] for k,v in {**new_idmap,**new_seqmap}.items()}
+                else: combinedidmaps = {v:k for k,v in {**idmap,**seqmap}.items()} # if the idmap and seqmap have the same gene name, errors might occur, for instance two identical protein input files
                 df.loc[:,14] = df[0].apply(lambda x:combinedidmaps[x])
                 df.loc[:,15] = df[1].apply(lambda x:combinedidmaps[x])
                 df.to_csv(outpath+'_withoriglabel',sep="\t", header=False, index=False)
