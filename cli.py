@@ -676,7 +676,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--apalpha', '-aa', type=float, default=1, show_default=True, help='opacity of anchor dots')
 @click.option('--hoalpha', '-ha', type=float, default=0, show_default=True, help='opacity of homolog dots')
 @click.option('--showrealtick', '-srt', is_flag=True, help='show the real tick in genes or bases')
-@click.option('--ticklabelsize', '-tls', type=float, default=5, show_default=True, help='label size of tick')
+@click.option('--ticklabelsize', '-tls', type=float, default=10, show_default=True, help='label size of tick')
 @click.option('--gistrb', '-gr', is_flag=True, help='whether to use gist_rainbow as color map of dotplot')
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
 def syn(**kwargs):
