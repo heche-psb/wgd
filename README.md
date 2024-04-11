@@ -109,6 +109,7 @@ wgd dmd sequences (option)
 -bsog, --buscosog, flag option, whether to initiate the busco-guided single-copy gene family analysis, if the flag was set, the analysis would be initiated
 -bhmm, --buscohmm, the HMM profile datafile in the busco-guided single-copy gene family analysis, default None
 -bctf, --buscocutoff, the HMM score cutoff datafile in the busco-guided single-copy gene family analysis, default None
+-of ,--ogformat, flag option, whether to add index to the RBH families
 ```
 
 The program `wgd focus` can realize the concatenation-based and coalescence-based phylogenetic inference and phylogenetic dating of WGDs etc.
@@ -341,10 +342,10 @@ wgd dmd Aquilegia_coerulea
 
 **The delineation of RBHs**
 ```
-wgd dmd sequence1 sequence2 -e 1e-10 -bs 100 -np 5 (-nn) (-n 4) (-c 0.9) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
+wgd dmd sequence1 sequence2 -e 1e-10 -bs 100 -np 5 (-nn) (-n 4) (-c 0.9) (--ogformat) (--to_stop) (--cds) (-o wgd_dmd) (-t working_tmp)
 ```
 
-To delineate RBHs between two cds sequence files, the relevant parameter is mostly the same as whole paranome inference, except for the parameter `-c` or `--cscore`, which ranges between 0 and 1 and is used to relax the similarity cutoff from the exclusive reciprocal best hits to a certain ratio as to the best hits. For instance, if the gene b1 from genome B has the best hit gene a1 from genome A with the bit score as 100, which is a scoring matrix independent measure of the (local) similarity of the two aligned sequences, with larger values indicating higher similarities, given the `-c 0.9`, genes from genome A which has the bit score with gene b1 higher than 0.9x100 will also be written in the result file, which in a sense are not RBHs anymore of course, but the highly similar homologue pairs. If more than 2 sequence files were provided, every pair-wise RBHs would be calculated except for querying the same sequence itself. The number of parallel threads to booster the running speed can be set by `-n` or `--nthreads`.
+To delineate RBHs between two cds sequence files, the relevant parameter is mostly the same as whole paranome inference, except for the parameter `-c` or `--cscore`, which ranges between 0 and 1 and is used to relax the similarity cutoff from the exclusive reciprocal best hits to a certain ratio as to the best hits. For instance, if the gene b1 from genome B has the best hit gene a1 from genome A with the bit score as 100, which is a scoring matrix independent measure of the (local) similarity of the two aligned sequences, with larger values indicating higher similarities, given the `-c 0.9`, genes from genome A which has the bit score with gene b1 higher than 0.9x100 will also be written in the result file, which in a sense are not RBHs anymore of course, but the highly similar homologue pairs. If more than 2 sequence files were provided, every pair-wise RBHs would be calculated except for querying the same sequence itself. The number of parallel threads to booster the running speed can be set by `-n` or `--nthreads`. The option `--ogformat` can be set to add index (for instance GF00000001) to the output RBH gene families which can be further used in the *K*<sub>S</sub> calculation by `wgd ksd`.
 
 **The suggested command to start with is also under the default setting with the command shown below**
 

@@ -85,6 +85,7 @@ def cli(verbosity):
 @click.option('--buscosog','-bsog', is_flag=True,help="get busco-guided single-copy gene family")
 @click.option('--buscohmm', '-bhmm',default= None, show_default=True, help='HMM profile of given busco dataset')
 @click.option('--buscocutoff', '-bctf', default= None, show_default=True, help='HMM score cutoffs of BUSCO')
+@click.option('--ogformat','-of', is_flag=True,help="get RBH gene families with index")
 def dmd(**kwargs):
     """
     All-vs-all diamond blastp + MCL clustering.
@@ -112,7 +113,7 @@ def dmd(**kwargs):
     """
     _dmd(**kwargs)
 
-def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization):
+def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization, ogformat):
     from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
@@ -149,7 +150,7 @@ def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds,
             for j in range(i+1, len(s)):
                 logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
                 s[i].get_rbh_orthologs(s[j], cscore, False, eval=eval)
-                s[i].write_rbh_orthologs(s[j],singletons=False)
+                s[i].write_rbh_orthologs(s[j],singletons=False,ogformat=ogformat)
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
     endt(tmpdir,start,s)
 

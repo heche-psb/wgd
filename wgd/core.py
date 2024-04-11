@@ -487,7 +487,7 @@ class SequenceData:
         for j, y in enumerate(ys):
             self.mcl[i + j] = [y]
 
-    def write_rbh_orthologs(self, seqs, singletons=True):
+    def write_rbh_orthologs(self, seqs, singletons=True, ogformat=False):
         fname = "{}_{}.rbh.tsv".format(self.prefix, seqs.prefix)
         fname = os.path.join(self.out_path, fname)
         df = self.rbh[seqs.prefix]
@@ -496,7 +496,10 @@ class SequenceData:
         if singletons:  # this must be here, cannot be before renaming, not after labeling fams
             df = pd.concat([df, self.add_singletons_rbh(seqs)]) 
         #_label_families(df)
-        df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t",index=False)
+        if ogformat:
+            _label_families(df)
+            df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t",index=True)
+        else: df.to_csv(fname, columns=[seqs.prefix, self.prefix], sep="\t",index=False)
         return df.loc[:,[seqs.prefix, self.prefix]]
 
     def add_singletons_rbh(self, seqs):
