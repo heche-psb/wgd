@@ -291,7 +291,7 @@ class mcmctree:
         self.CI = wgd_node.comment.strip('[&95%HPD={').strip('[&95%={').strip('}]').split(', ')
         self.PM = wgd_node.clades[0].branch_length
         if cds:
-            logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))
+            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0]*100,self.CI[1]*100))
         else:
-            logging.info("Posterior mean for the ages of wgd is {0} billion years from {1} peptide alignment and 95% credibility intervals (CI) is {2}-{3} billion years".format(self.PM,self.prefix,self.CI[0],self.CI[1]))
+            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} peptide alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0]*100,self.CI[1]*100))
         return self.CI, self.PM

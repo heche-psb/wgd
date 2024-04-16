@@ -809,10 +809,10 @@ Here we only implemented the concatenation analysis using protein sequence by ad
 ```
 16:04:25 INFO     Running mcmctree using Hessian matrix of LG+Gamma  core.py:967
                   for protein model
-23:49:37 INFO     Posterior mean for the ages of wgd is 1.128945 mcmctree.py:296
-                  billion years from Concatenated peptide
+23:49:37 INFO     Posterior mean for the ages of wgd is 112.8945 mcmctree.py:296
+                  million years from Concatenated peptide
                   alignment and 95% credibility intervals (CI)
-                  is 1.01224-1.23121 billion years
+                  is 101.224-123.121 million years
          INFO     Total run time: 29175s                              cli.py:241
          INFO     Done                                                cli.py:242
 ```
