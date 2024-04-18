@@ -23,7 +23,7 @@
 
 </div>
 
-`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first gave an introduction over the scope and mechanism of `wgd v2` and then the practical information pertaining to the installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested in more theoretical details, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. If you use `wgd v2` in your research, please cite us as suggested in [Citation](#citation) section.
+`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first gave an introduction over the scope and mechanism of `wgd v2` and then the practical information pertaining to the installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested in more theoretical details, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. The key improved features of `wgd v2` are demonstrated in our latest manuscript on [Bioinformatics](https://doi.org/10.1093/bioinformatics/btae272). If you use `wgd v2` in your research, please cite us as suggested in [Citation](#citation) section.
 
 ## Introduction
 
@@ -841,10 +841,11 @@ Above we used three alternative topologies to infer the *K*<sub>S</sub> tree whi
 
 ## Citation
  
-Please cite us at https://doi.org/10.1007/978-1-0716-2561-3_1.
+Please cite us at https://doi.org/10.1007/978-1-0716-2561-3_1 and https://doi.org/10.1093/bioinformatics/btae272.
 
 ```
 Hengchi Chen, Arthur Zwaenepoel (2023). Inference of Ancient Polyploidy from Genomic Data. In: Van de Peer, Y. (eds) Polyploidy. Methods in Molecular Biology, vol 2545. Humana, New York, NY. https://doi.org/10.1007/978-1-0716-2561-3_1
+Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer (2024). wgd v2: a suite of tools to uncover and date ancient polyploidy and whole-genome duplication. Bioinformatics, https://doi.org/10.1093/bioinformatics/btae272
 ```
 
 For citation of the tools used in wgd, please consult the documentation at

@@ -230,7 +230,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     if na: deconvoluted_data = ks_or.copy()
     else: deconvoluted_data = get_deconvoluted_data(ks_or,w)
     hist_property = np.histogram(ks_or, weights=w, bins=50, density=True)
-    init_lambd = hist_property[0][0]
+    init_lambd = hist_property[0][0] # as the rate parameter, higher lambd (i.e., higher bar height at Ks 0-0.1) denote faster decline of the number of gene duplicates. Besides, when x(i.e.,Ks) = 0, the y = lamda
     ks = np.log(ks_or)
     max_ks,min_ks = ks.max(),ks.min()
     ks_refed,cutoff,w_refed = reflect_logks(ks,w)
