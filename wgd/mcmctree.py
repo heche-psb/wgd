@@ -289,9 +289,10 @@ class mcmctree:
         Figtree = Phylo.read('FigTree.tre','nexus')
         wgd_node = Figtree.common_ancestor({"name": wgd_mrca[0]}, {"name": wgd_mrca[1]})
         self.CI = wgd_node.comment.strip('[&95%HPD={').strip('[&95%={').strip('}]').split(', ')
+        self.CI = [float(i)*100 for i in self.CI]
         self.PM = wgd_node.clades[0].branch_length
         if cds:
-            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0]*100,self.CI[1]*100))
+            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} codon alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0],self.CI[1]))
         else:
-            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} peptide alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0]*100,self.CI[1]*100))
+            logging.info("Posterior mean for the ages of wgd is {0} million years from {1} peptide alignment and 95% credibility intervals (CI) is {2}-{3} million years".format(self.PM*100,self.prefix,self.CI[0],self.CI[1]))
         return self.CI, self.PM
