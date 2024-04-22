@@ -323,7 +323,7 @@ wgd viz (option)
 
 ## Usage
 
-Here we provided the basic usage for each program and the relevant parameters and suggestions on parameterization.
+Here we provided the basic usage for each program and the relevant parameters and suggestions on parameterization. A reminder that the given cores and threads can significantly impact the run time and thus we added some report information pertaining to the system of users to facilitate the efficient setting of threads and memory. The logical CPUs reported represents the number of physical cores multiplied by the number of threads that can run on each core, also known as Hyper Threading. The number of logical CPUs may not necessarily be equivalent to the actual number of CPUs the current process can use. The available memory refers to the memory that can be given instantly to processes without the system going into swap and reflects the actual memory available. The free memory refers to the memory not being used at all (zeroed) that is readily available. The description above refers to the documentation of `psutil`.
 
 ### wgd dmd
 

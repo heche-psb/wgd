@@ -10,6 +10,8 @@ import subprocess as sp
 from timeit import default_timer as timer
 import pkg_resources  # part of setuptools
 from rich.logging import RichHandler
+from wgd.core import memory_reporter_initial
+import tracemalloc
 __version__ = pkg_resources.require("wgd")[0].version
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
@@ -27,9 +29,10 @@ def cli(verbosity):
     logging.basicConfig(
         format='%(message)s',
         handlers=[RichHandler()],
-        datefmt='%H:%M:%S',
+        datefmt='%Y-%m-%d %H:%M:%S',
         level=verbosity.upper())
     logging.info("This is wgd v{}".format(__version__))
+    memory_reporter_initial()
     pass
 
 
@@ -221,7 +224,7 @@ def focus(**kwargs):
 
 def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_gaps, aligner, tree_method, treeset, concatenation, coalescence, speciestree, dating, datingset, nsites, outgroup, partition, aamodel, ks, annotation, pairwise, eggnogdata, pfam, dmnb, hmm, evalue, exepath, fossil, rootheight, chainset, beastlgjar, beagle, protdating, protcocdating):
     from wgd.core import SequenceData, read_gene_families, get_gene_families, KsDistributionBuilder
-    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST, get_only_protaln, Run_MCMCTREE_concprot, Concat_prot, Parallel_MCMCTREE_Prot
+    from wgd.core import mergeMultiRBH_seqs, read_MultiRBH_gene_families, get_MultipRBH_gene_families, Concat, _Codon2partition_, Coale, Run_MCMCTREE, Run_r8s, Reroot, eggnog, hmmer_pfam, interproscan, Run_BEAST, get_only_protaln, Run_MCMCTREE_concprot, Concat_prot, Parallel_MCMCTREE_Prot, endt
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     if dating=='r8s' and not speciestree is None and nsites is None:
@@ -242,21 +245,13 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         pro_alns,pro_alnfs = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
         Concat_palnf,Concat_paln,slist = Concat_prot(pro_alns,families,outdir)
         Run_MCMCTREE_concprot(Concat_paln,Concat_palnf,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads)
-        end = timer()
-        logging.info("Total run time: {}s".format(int(end-start)))
-        logging.info("Done")
-        if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
-        exit()
+        endt(tmpdir,start,seqs)
     if protdating:
         logging.info("Only implement protein dating via mcmctree")
         pro_alns,pro_alnfs = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
         Concat_palnf,Concat_paln,slist = Concat_prot(pro_alns,families,outdir)
         Parallel_MCMCTREE_Prot(Concat_palnf,Concat_paln,pro_alns,pro_alnfs,tmpdir,outdir,speciestree,datingset,aamodel,slist,nthreads)
-        end = timer()
-        logging.info("Total run time: {}s".format(int(end-start)))
-        logging.info("Done")
-        if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
-        exit()
+        endt(tmpdir,start,seqs)
     if coalescence: cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=True)
     else: cds_alns, pro_alns, tree_famsf, calnfs, palnfs, calnfs_length, cds_fastaf, tree_fams = get_MultipRBH_gene_families(seqs,fams,tree_method,treeset,outdir,nthreads,option="--auto",runtree=False)
     if concatenation or dating != 'none':
@@ -305,10 +300,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
         outfile = os.path.join(outdir, "{}.ks.tsv".format(prefix))
         logging.info("Ks result saved to {}".format(outfile))
         ksdb.df.fillna("NaN").to_csv(outfile,sep="\t")
-    if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
-    end = timer()
-    logging.info("Total run time: {}s".format(int(end-start)))
-    logging.info("Done")
+    endt(tmpdir,start,seqs)
 
 # Get peak and confidence interval of Ks distribution
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -362,20 +354,20 @@ def peak(**kwargs):
 
 def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff,gamma,showci,xlim,ylim,keeptmpfig,family = None):
     from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI
-    from wgd.core import _mkdir
+    from wgd.core import _mkdir,endtime
     from wgd.utils import formatv2
+    start = timer()
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
     ksdf = formatv2(ksdf)
     if len(ksdf.columns) <4:
         logging.info("Begin to analyze peak of WGD dates")
         draw_kde_CI(kdemethod, outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
-        exit()
+        endtime(start)
     ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
     if family != None:
         retreive95CI(family,ksdf_filtered,outdir,kstodate[0],kstodate[1])
-        logging.info('Done')
-        exit()
+        endtime(start)
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     if anchorpoints!= None:
@@ -388,8 +380,7 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
             find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff,keeptmp=keeptmpfig)
             find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff,keeptmp=keeptmpfig)
             find_mpeak(df_ap_mp,anchorpoints,os.path.basename(ks_distribution),outdir,guide,peak_threshold=prominence_cutoff,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset,kscutoff=kscutoff,keeptmp=keeptmpfig)
-        logging.info('Done')
-        exit()
+        endtime(start)
     get_kde(kdemethod,outdir,fn_ksdf,ksdf_filtered,weighted,ksrange[0],ksrange[1])
     if method == 'gmm':
         out_file = os.path.join(outdir, "AIC_BIC.pdf")
@@ -416,7 +407,7 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
         #ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
         #draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
     #mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
-    logging.info("Done")
+    endtime(start)
 
 # Ks distribution construction
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -485,7 +476,7 @@ def ksd(**kwargs):
 def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
         strip_gaps, aligner, aln_options, tree_method, tree_options, node_average, spair, speciestree, reweight, onlyrootout, extraparanomeks, anchorpoints, plotkde, plotapgmm, plotelmm, components,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,kstree,onlyconcatkstree,classic,toparrow, bootstrap):
     from wgd.core import get_gene_families, SequenceData, KsDistributionBuilder
-    from wgd.core import read_gene_families, merge_seqs, get_MultipRBH_gene_families, getconcataln
+    from wgd.core import read_gene_families, merge_seqs, get_MultipRBH_gene_families, getconcataln, endt
     from wgd.viz import default_plot, apply_filters,multi_sp_plot
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
@@ -540,11 +531,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
     fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)))
     plt.close()
-    if tmpdir is None:
-        [x.remove_tmp(prompt=False) for x in seqs]
-    end = timer()
-    logging.info("Total run time: {}s".format(int(end-start)))
-    logging.info("Done")
+    endt(tmpdir,start,seqs)
     
 # Ks distribution and synteny visualization
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -599,9 +586,10 @@ def viz(**kwargs):
 
 def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
-    from wgd.core import _mkdir
+    from wgd.core import _mkdir,endtime
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
     from wgd.utils import formatv2
+    start = timer()
     if datafile!=None: prefix = os.path.basename(datafile)
     _mkdir(outdir)
     if plotsyn:
@@ -628,8 +616,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.png".format(k)),dpi=500)
-        logging.info('Done')
-        exit()
+        endtime(start)
     ksdb_df = pd.read_csv(datafile,header=0,index_col=0,sep='\t')
     ksdb_df = formatv2(ksdb_df)
     df = apply_filters(ksdb_df, [("dS", 0., 5.)])
@@ -647,7 +634,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
         logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
         elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
-    logging.info('Done')
+    endtime(start)
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.argument('families', type=click.Path(exists=True))
@@ -695,6 +682,8 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     from wgd.syn import get_anchors, get_anchor_ksd, get_segments_profile, get_multi, get_chrom_gene, transformunit, get_mp_geneorder
     from wgd.viz import default_plot, apply_filters, all_dotplots, filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.utils import formatv2
+    from wgd.core import endtime
+    start = timer()
     # non-default options for I-ADHoRe
     iadhore_opts = {x.split("=")[0].strip(): x.split("=")[1].strip()
                for x in iadhore_options.split(",") if x != ""}
@@ -772,7 +761,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
         fig = default_plot(a, b, title=prefix, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)),dpi=300, bbox_inches='tight')
         fig.savefig(os.path.join(outdir, "{}.ksd.pdf".format(prefix)),dpi=300, bbox_inches='tight')
-    logging.info("Done")    
+    endtime(start)
 
 # MIXTURE MODELING
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -816,7 +805,8 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
     from wgd.mix import inspect_aic, inspect_bic, plot_aic_bic
     from wgd.mix import plot_all_models_gmm, get_component_probabilities
     from wgd.mix import fit_bgmm,plot_all_models_bgmm 
-
+    from wgd.core import endtime
+    start = timer()
     # make output dir if needed
     if not os.path.exists(outdir):
         logging.info("Making directory {}".format(outdir))
@@ -871,7 +861,7 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
     new_df = get_component_probabilities(df, best)
     new_df.round(5).to_csv(os.path.join(
             outdir, "ks_{}.tsv".format(method)), sep="\t")
-
+    endtime(start)
 #@cli.command(context_settings={'help_option_names': ['-h', '--help']})
 #@click.argument('config', type=click.Path(exists=True))
 #def tree(**kwargs):
@@ -890,3 +880,4 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
 
 if __name__ == '__main__':
     cli()
+

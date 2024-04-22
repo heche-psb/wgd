@@ -22,7 +22,7 @@ from wgd.mcmctree import mcmctree
 from wgd.beast import beast
 from timeit import default_timer as timer
 import copy
-#import psutil
+import psutil
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy import stats
 from sklearn.cluster import AgglomerativeClustering
@@ -31,12 +31,16 @@ from tqdm import trange
 # Reconsider the renaming, more a pain than helpful?
 
 # helper functions
-#def memory_reporter():
-#    d = psutil.virtual_memory()
-#    logging.info("Available memory for processes : {}GB ".format(d[1]/1e9))
-#    logging.info("Memory usage in percent : {}% ".format(d[2]))
-#    logging.info("The memory used : {}GB ".format(d[3]/1e9))
-#    logging.info("The memory not used but readily available : {}GB ".format(d[4]/1e9))
+def memory_reporter_initial():
+    logging.info("Checking cores and threads...")
+    logging.info("The number of logical CPUs/Hyper Threading in the system: {}".format(int(psutil.cpu_count())))
+    logging.info("The number of physical cores in the system: {}".format(int(psutil.cpu_count(logical=False))))
+    logging.info("The number of actually usable CPUs in the system: {}".format(len(psutil.Process().cpu_affinity())))
+    d = psutil.virtual_memory()
+    logging.info("Checking memory...")
+    logging.info("Total physical memory: {:.4f} GB".format(d.total/(1024 ** 3)))
+    logging.info("Available memory: {:.4f} GB".format(d.available/(1024 ** 3)))
+    logging.info("Free memory: {:.4f} GB".format(d.free/(1024 ** 3)))
 
 def _write_fasta(fname, seq_dict):
     with open(fname, "w") as f:
@@ -1630,7 +1634,13 @@ def interproscan(cds_fastaf,exepath,outdir,nthreads):
 def endt(tmpdir,start,s):
     if tmpdir is None: [x.remove_tmp(prompt=False) for x in s]
     end = timer()
-    logging.info("Total run time: {}s".format(int(end-start)))
+    logging.info("Total run time: {:.2f} minutes".format((end-start)/60))
+    logging.info("Done")
+    exit()
+
+def endtime(start):
+    end = timer()
+    logging.info("Total run time: {:.2f} minutes".format((end-start)/60))
     logging.info("Done")
     exit()
 
