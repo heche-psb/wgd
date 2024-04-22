@@ -66,7 +66,7 @@ def cli(verbosity):
 @click.option('--keepduplicates','-kd', is_flag=True,
     help="Keep ID duplicates in MRBHs")
 @click.option('--globalmrbh','-gm', is_flag=True,
-    help="global MRBH regardless of focus species")
+    help="global MRBH regardless of focal species")
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
 @click.option('--orthoinfer','-oi', is_flag=True,help="orthogroups inference")
 @click.option('--onlyortho','-oo', is_flag=True,help="only run orthogroups inference")
@@ -106,7 +106,7 @@ def dmd(**kwargs):
 
         wgd dmd ath.fasta vvi.fasta egr.fasta
 
-    Example 4 - one vs. one ortholog delineation for multiple pairs with focus species:
+    Example 4 - one vs. one ortholog delineation for multiple pairs with focal species:
 
         wgd dmd ath.fasta vvi.fasta egr.fasta --focus ath.fasta (--anchorpoints anchorpoints.txt --cscore 0.7)
 
@@ -114,7 +114,8 @@ def dmd(**kwargs):
     _dmd(**kwargs)
 
 def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds, focus, anchorpoints, keepfasta, keepduplicates, globalmrbh, nthreads, orthoinfer, onlyortho, getnsog, tree_method, treeset, msogcut, geneassign, seq2assign, fam2assign, concat, segments, listelements, collinearcoalescence, testsog, bins, buscosog, buscohmm, buscocutoff, genetable, normalizedpercent, nonormalization, ogformat):
-    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog
+    from wgd.core import SequenceData, read_MultiRBH_gene_families,mrbh,ortho_infer,genes2fams,endt,segmentsaps,bsog,parallelrbh
+    from joblib import Parallel, delayed
     start = timer()
     if tmpdir != None and not os.path.isdir(tmpdir): os.mkdir(tmpdir)
     s = [SequenceData(s, out_path=outdir, tmp_path=tmpdir, to_stop=to_stop, cds=cds, cscore=cscore, threads=nthreads, bins=bins, normalizedpercent=normalizedpercent, nonormalization=nonormalization, prot=prot) for s in sequences]
@@ -146,11 +147,9 @@ def _dmd(sequences, outdir, tmpdir, prot, cscore, inflation, eval, to_stop, cds,
     elif focus is None and not globalmrbh:
         if prot: logging.info("Multiple protein files: will compute RBH orthologs")
         else: logging.info("Multiple cds files: will compute RBH orthologs")
-        for i in range(len(s)-1):
-            for j in range(i+1, len(s)):
-                logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
-                s[i].get_rbh_orthologs(s[j], cscore, False, eval=eval)
-                s[i].write_rbh_orthologs(s[j],singletons=False,ogformat=ogformat)
+        if nthreads!=(len(s)-1)*len(s)/2: logging.info("Note that setting the number of threads as {} is the most efficient".format(int((len(s)-1)*len(s)/2)))
+        pairs = sum(map(lambda i:[(i,j) for j in range(i+1,len(s))],range(len(s)-1)),[])
+        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(parallelrbh)(s,i,j,ogformat,cscore,eval) for i,j in pairs)
     mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads)
     endt(tmpdir,start,s)
 
@@ -237,6 +236,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
     seqs = [SequenceData(s, tmp_path=tmpdir, out_path=outdir,to_stop=to_stop, cds=cds, threads=nthreads) for s in sequences]
     for s in seqs: logging.info("tmpdir = {} for {}".format(s.tmp_path,s.prefix))
     fams = read_MultiRBH_gene_families(families)
+    if nthreads < len(fams): logging.info("{} threads are used for {} gene families\nNote that adding threads can significantly accelerate the analysis".format(int(nthreads),int(len(fams))))
     if protcocdating:
         logging.info("Only implement protein concatenation dating via mcmctree")
         pro_alns,pro_alnfs = get_only_protaln(seqs,fams,outdir,nthreads,option="--auto")
@@ -662,7 +662,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="keyword for parsing the gene IDs from the GFF file (column 9)")
 @click.option('--additionalgffinfo', '-atg', default=None,multiple=True, show_default=True, help='the feature and attribute info of additional gff3 if different in the format of (feature;attribute)')
 @click.option('--minlen', '-ml', default=-1, show_default=True,
-    help="minimum length of a genomic element to be included in dotplot.")
+    help="minimum length of a genomic element (scaffold) to be included in dotplot")
 @click.option('--maxsize', '-ms', default=200, show_default=True,
     help="maximum family size to include in analysis.")
 @click.option('--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
@@ -670,7 +670,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
-@click.option('--minseglen', '-mg', default=10000, show_default=True, help="min length of segments in ratio if <= 1")
+@click.option('--minseglen', '-mg', default=10000, show_default=True, help="minimum length of segments in ratio if <= 1")
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--mingenenum', '-mgn', default=30, type=int, show_default=True, help="minimum number of genes on segments to be considered")
 @click.option('--dotsize', '-ds', type=float, default=0.3, show_default=True, help='size of dots')

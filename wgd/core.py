@@ -861,15 +861,22 @@ def getfastaf(i,fam,rbhgfdirname,seq_pro,idmap,seq_cds):
             Record = seq_cds.get(idmap.get(seqs))
             f.write(">{}\n{}\n".format(seqs, Record))
 
+def parallelrbh(s,i,j,ogformat,cscore,eval):
+    logging.info("{} vs. {}".format(s[i].prefix, s[j].prefix))
+    s[i].get_rbh_orthologs(s[j], cscore, False, eval=eval)
+    s[i].write_rbh_orthologs(s[j],singletons=False,ogformat=ogformat)
+
 def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepfasta,nthreads):
     if globalmrbh:
-        if not s[0].prot: logging.info("Multiple cds files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
-        else: logging.info("Multiple protein files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focus species")
+        if not s[0].prot: logging.info("Multiple cds files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focal species")
+        else: logging.info("Multiple protein files: will compute globalMRBH orthologs or cscore-defined homologs regardless of focal species")
         table = pd.DataFrame()
         gmrbhf = os.path.join(outdir, 'global_MRBH.tsv')
+        if nthreads!=(len(s)-1)*len(s)/2: logging.info("Note that setting the number of threads as {} is the most efficient".format(int((len(s)-1)*len(s)/2)))
+        pairs = sum(map(lambda i:[(i,j) for j in range(i+1,len(s))],range(len(s)-1)),[])
+        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[i],s[j],cscore,eval) for i,j in pairs)
         for i in range(len(s)-1):
             tables = []
-            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[i],s[k],cscore,eval) for k in range(i+1,len(s)))
             for j in range(i+1,len(s)):
                 df = getrbhf(s[i],s[j],outdir)
                 if table.empty: table = df
@@ -884,39 +891,23 @@ def mrbh(globalmrbh,outdir,s,cscore,eval,keepduplicates,anchorpoints,focus,keepf
         #    for i in table.columns: table.drop_duplicates(subset=[i],inplace=True)
         table.to_csv(gmrbhf, sep="\t",index=True)
     elif not focus is None:
-        if not s[0].prot: logging.info("Multiple cds files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
-        else: logging.info("Multiple protein files: will compute RBH orthologs or cscore-defined homologs between focus species and remaining species")
+        if not s[0].prot: logging.info("Multiple cds files: will compute RBH orthologs or cscore-defined homologs between focal species and remaining species")
+        else: logging.info("Multiple protein files: will compute RBH orthologs or cscore-defined homologs between focal species and remaining species")
         x = 0
         table = pd.DataFrame()
         focusname = os.path.join(outdir, 'merge_focus.tsv')
         for i in range(len(s)):
-            if s[i].prefix == focus: x = x+i
-        if x == 0:
-            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[0],s[j],cscore,eval) for j in range(1,len(s)))
-            for j in range(1, len(s)):
-                df = getrbhf(s[0],s[j],outdir)
-                if table.empty: table = df
-                else:
-                    table = table.merge(df)
-                    if not keepduplicates: table.drop_duplicates([focus])
-            #if not keepduplicates: table = table.drop_duplicates([focus])
-            table.insert(0, focus, table.pop(focus))
-        else:
-            Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in range(0,x))
-            for k in range(0,x):
-                df = getrbhf(s[x],s[k],outdir)
-                if table.empty: table = df
-                else:
-                    table = table.merge(df)
-                    if not keepduplicates: table.drop_duplicates([focus])
-            if not len(s) == 2 and not x+1 == len(s):
-                Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[x],s[l],cscore,eval) for l in range(x+1,len(s)))
-                for l in range(x+1,len(s)):
-                    df = getrbhf(s[x],s[l],outdir)
-                    table = table.merge(df)
-                    if not keepduplicates: table = table.drop_duplicates([focus])
-            #if not keepduplicates: table = table.drop_duplicates([focus])
-            table.insert(0, focus, table.pop(focus))
+            if s[i].prefix == focus: x = i
+        nonfocal_index = [k for k in range(len(s)) if k!= x]
+        if nthreads!=len(s)-1: logging.info("Note that setting the number of threads as {} is the most efficient".format(int(len(s)-1)))
+        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(get_mrbh)(s[x],s[k],cscore,eval) for k in nonfocal_index)
+        for k in nonfocal_index:
+            df = getrbhf(s[x],s[k],outdir)
+            if table.empty: table = df
+            else:
+                table = table.merge(df)
+                if not keepduplicates: table.drop_duplicates([focus])
+        table.insert(0, focus, table.pop(focus))
         #gfid = ['GF{:0>8}'.format(str(i+1)) for i in range(table.shape[0])]
         #table.insert(0,'GF', gfid)
         _label_families(table)
@@ -2119,8 +2110,11 @@ def back_dmdhits(i,j,s,eval):
     s[i].dmd_hits[s[j].prefix] = df = df.loc[df[10] <= eval]
 
 def ortho_infer_mul(s,nthreads,eval,inflation,orthoinfer):
+    pairs = sum(map(lambda i:[(i,j) for j in range(i,len(s))],range(len(s))),[])
+    if nthreads!=(len(s)+1)*len(s)/2: logging.info("Note that setting the number of threads as {} is the most efficient".format(int((len(s)+1)*len(s)/2)))
+    Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_or)(i,j,s,eval,orthoinfer) for i,j in pairs)
     for i in range(len(s)):
-        Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
+        #Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(run_or)(i,j,s,eval,orthoinfer) for j in range(i, len(s)))
         #res = zip(*r)
         #for e in res: print(e.shape)
         #for j,e in zip(range(i, len(s)),res):
@@ -3234,6 +3228,7 @@ class KsDistributionBuilder:
         self.n_threads = n_threads
 
     def get_distribution(self):
+        if self.n_threads < len(self.families): logging.info("{} threads are used for {} gene families\nNote that adding threads can significantly accelerate the Ks estimation process".format(int(self.n_threads),int(len(self.families))))
         Parallel(n_jobs=self.n_threads,backend='multiprocessing')(
             delayed(_get_ks)(family) for family in self.families)
         df = pd.concat([pd.read_csv(x.out, index_col=None) 
