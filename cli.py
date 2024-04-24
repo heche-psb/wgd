@@ -332,8 +332,7 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--n_medoids', type=int, default=2, show_default=True, help="number of medoids to generate")
 @click.option('--kdemethod', '-km', type=click.Choice(['scipy', 'naivekde', 'treekde', 'fftkde']), default='scipy', show_default=True, help="kde method")
 @click.option('--n_clusters',type=int, default=5, show_default=True, help="number of clusters to plot Elbow loss function")
-@click.option('--kmedoids', is_flag=True,help="K-Medoids clustering method")
-@click.option('--guide', '-gd', type=click.Choice(['multiplicon', 'basecluster', 'segment']), default='segment', show_default=True, help="regime residing anchors")
+@click.option('--guide', '-gd', type=click.Choice(['Multiplicon','Segment']), default='Segment', show_default=True, help="regime residing anchors")
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--kstodate', '-kd', nargs=2, type=float, default=(0.5, 1.5), show_default=True, help='range of Ks to be dated')
@@ -341,10 +340,9 @@ def _focus(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, strip_ga
 @click.option('--ylim', '-yl', nargs=2, type=float, default=(None, None), show_default=True, help='ylim of GMM Ks distribution')
 @click.option('--manualset', is_flag=True,help="Manually set Ks range of anchor pairs or multiplicons as CI")
 @click.option('--ci', default=95, show_default=True,type=int, help='confidence level of log-normal distribution to date')
-@click.option('--hdr', default=95, show_default=True,type=int, help='highest density region (HDR) in a given distribution to date')
+@click.option('--hdr', default=95, show_default=True,type=int, help='highest density region (HDR)')
 @click.option('--heuristic', is_flag=True,help="heuristic CI for dating")
 @click.option('--kscutoff', '-kc', default=5, show_default=True, type=float, help='Ks Saturation cutoff for genes in Dating')
-@click.option('--showci', is_flag=True,help="show CI for original anchor Ks gmm analysis")
 @click.option('--keeptmpfig', is_flag=True,help="keep temporary figures in peak finding process")
 def peak(**kwargs):
     """
@@ -352,8 +350,8 @@ def peak(**kwargs):
     """
     _peak(**kwargs)
 
-def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, kmedoids, guide, prominence_cutoff, kstodate, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff,gamma,showci,xlim,ylim,keeptmpfig,family = None):
-    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, fit_kmedoids, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI
+def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width, weights_outliers_included, method, seed, em_iter, n_init, components, boots, weighted, plot, bw_method, n_medoids, kdemethod, n_clusters, guide, prominence_cutoff, kstodate, rel_height, ci,manualset,segments,hdr,heuristic,listelements,multipliconpairs,kscutoff,gamma,xlim,ylim,keeptmpfig,family = None):
+    from wgd.peak import alnfilter, group_dS, log_trans, fit_gmm, fit_bgmm, add_prediction, bootstrap_kde, default_plot, get_kde, draw_kde_CI, draw_components_kde_bootstrap, default_plot_kde, fit_apgmm_guide, fit_apgmm_ap, find_apeak, find_mpeak, retreive95CI
     from wgd.core import _mkdir,endtime
     from wgd.utils import formatv2
     start = timer()
@@ -371,11 +369,8 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
     fn_ksdf, weight_col = group_dS(ksdf_filtered)
     train_in = log_trans(fn_ksdf)
     if anchorpoints!= None:
-        if kmedoids:
-            df_ap = fit_kmedoids(guide, anchorpoints, boots, kdemethod, bin_width, weighted, ksdf, ksdf_filtered, outdir, seed, n_medoids, em_iter=em_iter, plot=plot, n_kmedoids = n_clusters, segment = segments, multipliconpairs=multipliconpairs,listelement=listelements,user_xlim=xlim,user_ylim=ylim)
-        else:
-            df_ap_mp = fit_apgmm_guide(hdr,guide,anchorpoints,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=segments,multipliconpairs=multipliconpairs,listelement=listelements,cutoff = kscutoff,user_xlim=xlim,user_ylim=ylim)
-            df_ap = fit_apgmm_ap(hdr,anchorpoints,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,heuristic,showCI=showci,cutoff = kscutoff,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
+        df_ap_mp = fit_apgmm_guide(hdr,guide,anchorpoints,ksdf,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,segment=segments,multipliconpairs=multipliconpairs,listelement=listelements,cutoff = kscutoff,user_xlim=xlim,user_ylim=ylim,peak_threshold=prominence_cutoff,rel_height=rel_height,keeptmp=keeptmpfig)
+        df_ap = fit_apgmm_ap(hdr,anchorpoints,ksdf_filtered,seed,components,em_iter,n_init,outdir,method,gamma,weighted,plot,cutoff = kscutoff,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
         if heuristic:
             find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=False,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff,keeptmp=keeptmpfig)
             find_apeak(df_ap,anchorpoints,os.path.basename(ks_distribution),outdir,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,ci=ci,user_low=kstodate[0],user_upp=kstodate[1],user=manualset, kscutoff=kscutoff,keeptmp=keeptmpfig)
@@ -396,11 +391,11 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
         #fig.savefig(fname + "_Ks.svg")
         #fig.savefig(fname + "_Ks.pdf")
         #plt.close()
-        fig,ylim,yticks = default_plot_kde(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = 'identical',user_xlim=xlim,user_ylim=ylim)
+        fig,safe_ylim,yticks = default_plot_kde(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = 'identical',user_xlim=xlim,user_ylim=ylim)
         fig.savefig(fname + "_Ks_kde.svg")
         fig.savefig(fname + "_Ks_kde.pdf")
         plt.close()
-        fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot, ylim=ylim,yticks=yticks,user_xlim=xlim,user_ylim=ylim)
+        fig = default_plot(ksdf_predict, title=os.path.basename(fname), bins=50, ylabel="Duplication events", nums = int(n),plot = plot, ylim=safe_ylim,yticks=yticks,user_xlim=xlim,user_ylim=ylim)
         fig.savefig(fname + "_Ks.svg")
         fig.savefig(fname + "_Ks.pdf")
         plt.close()
