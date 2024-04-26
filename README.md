@@ -35,16 +35,16 @@ In the premise of phylogenetically located WGDs, the absolute age (in geological
 
 ## Installation
 
-The easiest way to install `wgd v2` is using PYPI. Note that if you want to get the latest update, we suggest installing from the source, since the update on PYPI will be delayed compared to here of source.
+The easiest way to install `wgd v2` is using `PYPI`. Note that if you want to get the latest update, we suggest installing from the source, since the update on `PYPI` will be delayed compared to here of source.
 
 ```
 pip install wgd
 ```
 
-To install `wgd v2` in a virtual environment, the following command lines could be used.
+To install `wgd v2` in a virtual environment (which we strongly recommend, no matter you install from source, `PYPI` or `bioconda`), the following command lines could be used.
 
 ```
-git clone <wgd repo>
+git clone https://github.com/heche-psb/wgd
 cd wgd
 virtualenv -p=python3 ENV (or python3 -m venv ENV)
 source ENV/bin/activate
