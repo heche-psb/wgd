@@ -229,8 +229,8 @@ def plot_mp_component_lognormal(X,hdr,means,stds,weights,labels,n,bins=50,ylabel
     if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
-    if regime== 'Multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'Segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
+    if regime== 'Multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM')
+    elif regime== 'Segment': plt.title('Segment $K_\mathrm{S}$ GMM')
     #else: plt.title('Basecluster $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig, kdexs, kdeys, modes
@@ -261,8 +261,8 @@ def plot_mp_component(X,labels,n,bins=50,plot = 'identical',ylabel="Counts",regi
     if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
-    if regime== 'Multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'Segment': plt.title('Segment $K_\mathrm{S}$ GMM modeling')
+    if regime== 'Multiplicon': plt.title('Multiplicon $K_\mathrm{S}$ GMM')
+    elif regime== 'Segment': plt.title('Segment $K_\mathrm{S}$ GMM')
     #else: plt.title('Basecluster $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig
@@ -309,9 +309,9 @@ def plot_ak_component(df,nums,bins=50,plot = 'identical',ylabel="Duplication eve
     if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
-    if regime== 'Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
+    if regime== 'Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM')
+    elif regime== 'Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM')
     #else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig
@@ -478,9 +478,9 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
     if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
     if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
-    if regime=='Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime=='Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
+    if regime=='Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM')
+    elif regime=='Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM')
     #else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     fig.tight_layout()
     return fig, {'showci':CI_dict,'heuristic':CI_dict_heri},ax,scalings
@@ -598,9 +598,9 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
         if not (user_ylim[0]) is None: ax.set_ylim(user_ylim[0],user_ylim[1])
         if not (user_xlim[0]) is None: ax.set_xlim(user_xlim[0],user_xlim[1])
     sns.despine(offset=1)
-    if regime=='Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM modeling')
-    elif regime=='Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM modeling')
-    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM modeling')
+    if regime=='Multiplicon': plt.title('Multilplicon-guided Anchor $K_\mathrm{S}$ GMM')
+    elif regime=='Segment': plt.title('Segment-guided Anchor Pairs $K_\mathrm{S}$ GMM')
+    elif regime== 'original': plt.title('Original Anchor $K_\mathrm{S}$ GMM')
     #else: plt.title('Basecluster-guided Anchor $K_\mathrm{S}$ GMM modeling')
     if not notscale: fig.tight_layout()
     if not hidehdr: return fig,HDRs
@@ -1321,7 +1321,8 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
         if user: get95CIap(user_low,user_upp,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
         else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
     else:
-        lower95CI,upper95CI = noplot_95CI_lognorm_hist(init_means, init_stdevs, ci=ci)
+        if len(init_means)==0 or len(init_stdevs) ==0: lower95CI,upper95CI = None,None
+        else: lower95CI,upper95CI = noplot_95CI_lognorm_hist(init_means, init_stdevs, ci=ci)
         return lower95CI,upper95CI
 
 def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False,kscutoff=5):
@@ -1863,6 +1864,9 @@ def get_peak_SegGuidedGMM(regime,kdes,scalings,fig,ax,df_c,n,outdir,peak_thresho
     for cp,color,scaling,kde in zip(range(n),colors,scalings,kdes):
         df = df_c[df_c['AnchorKs_GMM_Component']==cp]
         lower_CI, upper_CI = find_apeak(df,None,None,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height,withfig=False,loglabel="{}-Components Model Peak {}".format(n,cp),keeptmp=keeptmp)
+        if lower_CI is None:
+            logging.warning("No qualified peak detected")
+            continue
         if upper_CI> 5: upper_CI=5
         #ax.axvline(lower_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8,label='Peak of c{} {}%CI {:.2f}-{:.2f}'.format(cp,95,lower_CI,upper_CI))
         #ax.axvline(upper_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8)
@@ -1972,7 +1976,6 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
         Losses.append(loss)
     if n_kmedoids > 0:
         plot_silhouette_score(X_log,2,n_kmedoids+1,labels_plot[1:],outdir,guide+'_Ks','KMedoids')
-        #print((len(range(2,n_kmedoids+1)),len(labels_plot[1:])))
         significance_test_cluster(X_log,2,n_kmedoids+1,labels_plot[1:])
     plot_Elbow_loss(Losses,outdir,regime=guide)
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
