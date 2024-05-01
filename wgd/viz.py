@@ -51,17 +51,22 @@ _labels = {
         "dN" : "$K_\mathrm{A}$",
         "dN/dS": "$\omega$"}
 
-def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=None,focus2all=None):
+def getspair_ks(spair,df,reweight,onlyrootout,sptree=None,na=False,spgenemap=None,focus2all=None, classic=False):
     df_perspair = {}
     allspair = []
     paralog_pair = []
-    if not (focus2all is None):
+    if not (focus2all is None) and not classic:
         tree = Phylo.read(sptree,'newick')
         spair = [";".join([focus2all,clade.name]) for clade in tree.get_terminals()]
     for i in spair:
         pair = '__'.join(sorted([j.strip() for j in i.split(';')]))
         if i.split(';')[0].strip() == i.split(';')[1].strip(): paralog_pair.append(pair)
         if pair not in allspair: allspair.append(pair)
+    if len(paralog_pair) == 0:
+        if not (focus2all is None):
+            pair = '__'.join([focus2all,focus2all])
+            paralog_pair.append(pair)
+            if pair not in allspair: allspair.append(pair)
     #If users provide various paralogous pair, we still only consider the first one in correction
     if not (spgenemap is None):
         df['spair'] = ['__'.join(sorted([spgenemap[g1],spgenemap[g2]])) for g1,g2 in zip(df['gene1'],df['gene2'])]
@@ -644,7 +649,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
     if not ksd and not (gsmap is None): spgenemap = getgsmap(gsmap)
     else: spgenemap = gsmap
     if not viz: writespgenemap(spgenemap,outdir)
-    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap,focus2all=focus2all)
+    df_perspair,allspair,paralog_pair,corrected_ks_spair,Outgroup_spnames,Outgroup_spair_ordered = getspair_ks(spair,df,reweight,onlyrootout,sptree=sptree,na=na,spgenemap=spgenemap,focus2all=focus2all,classic=clean)
     if len(paralog_pair) == 1:
         if len(df_perspair) == 1:
             if na:
@@ -776,7 +781,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 kde = stats.gaussian_kde(y,weights=w,bw_method=0.1)
                 kde_y = kde(kde_x)
                 mode, maxim = kde_mode(kde_x, kde_y)
-                logging.info('The mode of species pair {} is {:.3f}'.format(pair,mode))
+                logging.info('The mode of species pair {} is {:.2f}'.format(pair,mode))
                 CHF = get_totalH(Hs)
                 scaling = CHF*0.1
                 if plotkde: ax.plot(kde_x, kde_y*scaling, color=cs[i],alpha=0.4, ls = '--')
@@ -1146,15 +1151,10 @@ def get_deconvoluted_data(ks,w):
 
 def e_step(num_comp, ks, means, stdevs, weights, lambd):
     products = []
-    #print(ks.shape)
     for k in range(num_comp):
         # at the very beginning, the weight are randomly given as equal
-        #print((k,lambd,np.exp(means[k-1]),stdevs[k-1],weights[k]))
         if k == 0: prod = weights[k] * stats.expon.pdf(ks, scale=1/lambd)
         else:
-            #print(len(ks))
-            #print(type(ks))
-            #print(stats.lognorm.pdf(ks, scale=np.exp(means[k-1]), s=stdevs[k-1]))
             prod = weights[k] * stats.lognorm.pdf(ks, scale=np.exp(means[k-1]), s=stdevs[k-1])
         # The addition of all pdf with weight
         products.append(prod)
@@ -1452,7 +1452,7 @@ def AK_plot(spx,dfx,ancestor,backbone=False,colortable=None,seg=None,maxsize=0,m
         else:
             seg_good = seg.merge(profile_good.reset_index(),on='multiplicon')
             gl_tocolor = seg_good.loc[seg_good['genome']==spx,'list']
-            for gl in gl_tocolor: print(gl)
+            #for gl in gl_tocolor: print(gl)
         plot_descendant(spx,df1x.len,df1x.index,outdir,colortable,gl_tocolor,seg_good.loc[:,['genome','list','first','last']])
 
 def plot_descendant(sp,scafflength,scafflabel,outdir,colortable,gl_tocolor,segs_tocolor):
@@ -2606,13 +2606,9 @@ def all_dotplots(df, segs, multi, minseglen, anchors=None, ancestor=None, Ks=Non
             logging.info("{} vs. {}".format(spx, spy))
             #get_marco(dfx, dfy, segs, multi, minseglen, **kwargs)
             df, xs, ys, scaffxlabels, scaffylabels, scaffxtick, scaffytick = get_dots(dfx, dfy, segs, multi, minseglen, dupStack = False, **kwargs)
-            #print(xs)
-            #print(ys)
-            #for i,j in zip(df.x,df.y): print((i,j))
             if df is None:  # HACK, in case we're dealing with RBH orthologs...
                 continue
             #for x,y in zip(df.x,df.y): ax.scatter(x, y, s=1, color="k", alpha=0.1)
-            #print((len(list(itertools.chain(df.x))),len(list(itertools.chain(df.y)))))
             ax.scatter(list(itertools.chain(df.x)), list(itertools.chain(df.y)), s=dotsize, color="k", alpha=hoalpha)
             if not (Ks is None):
                 for i,x,y in zip(df.index,df['x'],df['y']):
@@ -2838,7 +2834,6 @@ def filter_data_dotplot(df, minlen):
     scafftick = list(np.cumsum(lens.len))
     lens["scaffstart"] = scaffstart
     df = df.join(lens, on="scaffold").sort_values("len", ascending=False).dropna()
-    #print(set(df['scaffold']))
     # df now contains scaffold lengths
     #if minlen < 0:  # find a reasonable threshold, 5% of longest scaffold?
     #    minlen = df.len.max() * 0.1

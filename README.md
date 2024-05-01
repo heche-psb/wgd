@@ -468,7 +468,7 @@ wgd ksd families sequence
 
 **The construction of orthologous *K*<sub>S</sub> age distribution**
 ```
-wgd ksd families sequence1 sequence2 (--reweight)
+wgd ksd families sequence1 sequence2 sequence3 (--reweight)
 ```
 
 From paralogous to orthologous *K*<sub>S</sub> age distribution, users only need to provide more cds files. Note that with orthologous gene families the weighting method can be set to be calculated per species pair instead of considering the whole family because when plotting orthologous *K*<sub>S</sub> age distribution between two species the weight calculated from this specific species pair should be conserved while the one calculated from the whole family will vary with the number of species. To initiate the weighting per species pair, the option `--reweight` can be set.
@@ -476,17 +476,19 @@ From paralogous to orthologous *K*<sub>S</sub> age distribution, users only need
 **A suggested starting run can use command as below**
 
 ```
-wgd ksd families sequence1 sequence2
+wgd ksd families sequence1 sequence2 sequence3
 ```
 
 **The construction of *K*<sub>S</sub> age distribution with rate correction**
 ```
-wgd ksd families sequence1 sequence2 sequence3 --focus2all sequence1 -sp spdata
+wgd ksd families sequence1 sequence2 sequence3 --focus2all sequence1 -sp spdata --extraparanomeks paranomeKsdata (--plotelmm --plotapgmm --anchorpoints apdata --reweight --onlyrootout)
 ```
 
-Inspired by the rate correction algorithm in [ksrates](https://github.com/VIB-PSB/ksrates), we implemented the rate correction analysis also in `wgd v2`, which is mostly the same as [ksrates](https://github.com/VIB-PSB/ksrates) but differs in the calculation of the standard deviation of rescaled *K*<sub>S</sub> ages. To perform the rate correction analysis, users can use both the `wgd ksd` and `wgd viz` program. For the `wgd ksd` program, users need to provide a species tree via the option `--speciestree` on which rate correction can be conducted. Note that unnecessary brackets might lead to unexpected errors, for instance a tree `(A,(B,C));` should not be represented as `(A,((B,C)));`. The set of species pairs to be shown is flexible that the most convenient option is `--focus2all` which simply shows all the possible focal-sister species pairs, or users can manually set the species pairs via the option `--spair`. Note that if the species pairs were manually set, it would be needed to set the option `--classic`. The option `onlyrootout` can be set to only consider outgroup at the root, instead of all the possible outgroups per focal-sister species pair, which has impact on the final corrected *K*<sub>S</sub> ages. Some other options which have no impact on the rate correction but add more layers or change the appearance on the mixed *K*<sub>S</sub> age distribution, include `plotapgmm` and `plotelmm` etc. The option `plotapgmm` can be set to call the GMM analysis upon the anchor pair *K*<sub>S</sub> age distribution and plot the clustering result upon the mixed *K*<sub>S</sub> age distribution, which has to be co-set with the option `--anchorpoints` providing the anchor pairs information. The option `--plotelmm` can be set to call the ELMM analysis upon the paralogous *K*<sub>S</sub> age distribution.
+Inspired by the rate correction algorithm in [ksrates](https://github.com/VIB-PSB/ksrates), we implemented the rate correction analysis also in `wgd v2`, which is mostly the same as [ksrates](https://github.com/VIB-PSB/ksrates) but differs in the calculation of the standard deviation of rescaled *K*<sub>S</sub> ages. To perform the rate correction analysis, users can use both the `wgd ksd` and `wgd viz` program. For the `wgd ksd` program, users need to provide a species tree via the option `--speciestree` on which rate correction can be conducted. Note that unnecessary brackets might lead to unexpected errors, for instance a tree `(A,(B,C));` should not be represented as `(A,((B,C)));`. The set of species pairs to be shown is flexible that the most convenient option is `--focus2all` which simply shows all the possible focal-sister species pairs, or users can manually set the species pairs via the option `--spair`. Note that if the species pairs were manually set, it would be needed to co-set the option `--classic`. The option `--onlyrootout` can be set to only consider outgroup at the root, instead of all the possible outgroups per focal-sister species pair, which has impact on the final corrected *K*<sub>S</sub> ages. We suggest of using all the possible outgroups per focal-sister species pair as for a less biased result. The paranome *K*<sub>S</sub> data should be provided via the option `--extraparanomeks`. 
 
-There are 21 columns in the result `*ks.tsv` file besides the index columns `pair` as the unique identifier for each gene pair. The `N`, `S`, `dN`, `dN/dS`, `dS`, `l` and `t` are from the codeml results, representing the N estimate, the S estimate, the dN estimate, the dN/dS (omega) estimate, the dS estimate, the log-likelihood and the t estimate, respectively. The `alignmentcoverage`, `alignmentidentity` and `alignmentlength` are the information pertaining to the alignment for each family, representing the ratio of the stripped alignment length compared to the full alignment length, the ratio of columns with identical nucleotides compared to the overall columns of the stripped alignment, and the length of the full alignment, respectively.
+Some other options which have no impact on the rate correction but add more layers or change the appearance on the mixed *K*<sub>S</sub> age distribution, include `--plotapgmm` and `--plotelmm` etc. The option `--plotapgmm` can be set to call the GMM analysis upon the anchor pair *K*<sub>S</sub> age distribution and plot the clustering result upon the mixed *K*<sub>S</sub> age distribution, which has to be co-set with the option `--anchorpoints` providing the anchor pairs information. The option `--plotelmm` can be set to call the ELMM analysis upon the whole paranome *K*<sub>S</sub> age distribution. **Note that the species names present in the species tree file should match the names of the corresponding sequence files** For instance, given the cds file names 'A.cds','B.cds','C.cds', the species tree could be '(A.cds,(B.cds,C.cds));' rather than '(A,(B,C));'. There is no requirement for the name of the paranome *K*<sub>S</sub> datafile which can be named in whatever manner users prefer. The 'GMM' is the abbreviation of Gaussian Mixture Modeling while the 'ELMM' refers to Exponential-Lognormal Mixture Modeling as [ksrates](https://github.com/VIB-PSB/ksrates) interprets.
+
+There are 21 columns in the result `.ks.tsv` file besides the index columns `pair` as the unique identifier for each gene pair. The `N`, `S`, `dN`, `dN/dS`, `dS`, `l` and `t` are from the codeml results, representing the N estimate, the S estimate, the dN estimate, the dN/dS (omega) estimate, the dS estimate, the log-likelihood and the t estimate, respectively. The `alignmentcoverage`, `alignmentidentity` and `alignmentlength` are the information pertaining to the alignment for each family, representing the ratio of the stripped alignment length compared to the full alignment length, the ratio of columns with identical nucleotides compared to the overall columns of the stripped alignment, and the length of the full alignment, respectively.
 ### wgd mix
 
 **The mixture model clustering analysis of *K*<sub>S</sub> age distribution**
@@ -554,7 +556,7 @@ wgd syn families gff1 gff2
 wgd viz -d ksdata
 ```
 
-The program `wgd viz` is mainly for the purpose of *K*<sub>S</sub> distribution and synteny visualization, with some optional mixture modeling analysis. The basic function is just to plot the *K*<sub>S</sub> distribution and conduct an ELMM analysis in search of potential WGD components. Some key parameters affecting the ELMM result include `--prominence_cutoff`, `--rel_height`, `--em_iterations` and `--em_initializations`, all of which have been explained ahead.
+The program `wgd viz` is mainly for the purpose of *K*<sub>S</sub> distribution and synteny visualization, with some optional mixture modeling analysis. The basic function is just to plot the *K*<sub>S</sub> distribution and conduct an ELMM analysis in search of potential WGD components. Some key parameters affecting the ELMM result include `--prominence_cutoff` and `--rel_height`, which have been explained ahead, `--em_iterations` and `--em_initializations` determining the maximum iterations and initializations in the EM algorithm.
 
 **A suggested starting run can use command simply as below**
 
@@ -567,7 +569,7 @@ wgd viz -d ksdata
 wgd viz -d ksdata -sp spdata --focus2all focal_species --extraparanomeks ksdata (--anchorpoints apdata --plotapgmm --plotelmm)
 ```
 
-Besides the basic *K*<sub>S</sub> plot, substitution rate correction can also be achieved given at least a species tree (via the option `--speciestree`) and a focal species (either via the option `--focus2all` or via the option `--spair` in the form of "$focal_species;$focal_species"). It's suggested that the orthologous *K*<sub>S</sub> data is provided by the `--datafile` option and the paralogous *K*<sub>S</sub> data is provided by the `--extraparanomeks` option, although it's allowed to only provide *K*<sub>S</sub> data via the `--datafile` option and deposit both orthologous&paralogous *K*<sub>S</sub> data thereon. There are two types of mixed plots (the "mixed" here refers to mixed orthologous and paralogous *K*<sub>S</sub> distributions), one of which is similar to what `ksrates` plots, while the other of which is like the conventional *K*<sub>S</sub> plot that both the original orthologous and paralogous *K*<sub>S</sub> distributions are truthfully plotted instead of just being represented by some vertical lines. We suggest users to adopt the `ksrates`-like plots, which is the default. Otherwise the option `--classic` will be needed to set. Extra mixture modeling analysis can be initiated via the option `--plotelmm` and `--plotapgmm` with the anchor points datafile provided by the `--anchorpoints` option.
+Besides the basic *K*<sub>S</sub> plot, substitution rate correction can also be achieved given at least a species tree (via the option `--speciestree`) and a focal species (either via the option `--focus2all` or via the option `--spair` in the form of "$focal_species;$focal_species"). It's suggested that the orthologous *K*<sub>S</sub> data is provided by the `--datafile` option and the paralogous *K*<sub>S</sub> data is provided by the `--extraparanomeks` option, although it's allowed to only provide *K*<sub>S</sub> data via the `--datafile` option and deposit both orthologous and paralogous *K*<sub>S</sub> data thereon. There are two types of mixed plots (the "mixed" here refers to mixed orthologous and paralogous *K*<sub>S</sub> distributions), one of which is similar to what `ksrates` plots, while the other of which is like the conventional *K*<sub>S</sub> plot that both the original orthologous and paralogous *K*<sub>S</sub> distributions are truthfully plotted instead of just being represented by some vertical lines. We suggest users to adopt the `ksrates`-like plots, which is the default. Otherwise the option `--classic` will be needed to set. Extra mixture modeling analysis can be initiated via the option `--plotelmm` and `--plotapgmm` with the anchor points datafile provided by the `--anchorpoints` option.
 
 **A suggested starting run can use command simply as below**
 
@@ -633,7 +635,7 @@ The dot plots without *K*<sub>S</sub> annotation will also be automately produce
 
 ![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
 
-Note that the opacity of anchor dots and all homolog dots can be set by the option `apalpha` and `hoalpha` separately. If one just wants to see the anchor dots, setting the `hoalpha` as 0 (or other minuscule values) will do. If one wants to see the distribution of whole dots better, setting the `hoalpha` higher (and `apalpha` lower) will do. The `dotsize` option can be called to adjust the size of dots.
+Note that the opacity of anchor dots and all homolog dots can be set by the option `--apalpha` and `--hoalpha` separately. If one just wants to see the anchor dots, setting the `hoalpha` as 0 (or other minuscule values) will do. If one wants to see the distribution of whole dots better, setting the `hoalpha` higher (and `apalpha` lower) will do. The `dotsize` option can be called to adjust the size of dots.
 
 A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
 
@@ -649,17 +651,17 @@ The result of ELMM mixture model clustering shows that there is a likely WGD com
 
 ![](data/elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_weighted.svg)
 
-Let's do a mixture model clustering for anchor *K*<sub>S</sub> too, using the command line below.
+Let's do a mixture model clustering for anchor *K*<sub>S</sub> too, using the command line below. Note that this step will automately call the segment *K*<sub>S</sub> clustering analysis too.
 
 ```
-wgd peak wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv --anchorpoints wgd_syn/iadhore-out/anchorpoints.txt --segments wgd_syn/iadhore-out/segments.txt --listelements wgd_syn/iadhore-out/list_elements.txt --multipliconpairs wgd_syn/iadhore-out/multiplicon_pairs.txt --weighted
+wgd peak wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv --anchorpoints wgd_syn/iadhore-out/anchorpoints.txt --segments wgd_syn/iadhore-out/segments.txt --listelements wgd_syn/iadhore-out/list_elements.txt --multipliconpairs wgd_syn/iadhore-out/multiplicon_pairs.txt (--weighted)
 ```
 
 The anchor *K*<sub>S</sub> age distribution also has a likely WGD component with mode 1.28.
 
-![](data/Original_AnchorKs_GMM_Component3_node_weighted_Lognormal.svg)
+![](data/Original_AnchorKs_GMM_Component3_node_averaged_Lognormal.svg)
 
-Now that we have seen the evidence of numerous duplicated segments and the aggregation of duplicates age in *K*<sub>S</sub> around 1.2 for anchor pairs and non-anchor pairs throughout the whole genome. We can claim with some confidence that *Aquilegia coerulea* might have experienced a paleo-polyploidization event. Next, Let's have a further look about its phylogenetic location. We know that there are uncertainties about whether this putative paleo-polyploidization event is shared with all eudicots or not. We can choose some other eudicot genomes to see the ordering of speciation and polyploidization events. Here we choose *Vitis vinifera*, *Protea cynaroides* and *Acorus americanus* in the following *K*<sub>S</sub> analysis. First, we built a global MRBH family using the command below.
+Now that we have seen the evidence of numerous duplicated segments and the aggregation of duplicates age at *K*<sub>S</sub> 1.28 or 1.19 for anchor pairs and non-anchor pairs throughout the whole genome. We can claim with some confidence that *Aquilegia coerulea* might have experienced a paleo-polyploidization event. Next, Let's have a further look about its phylogenetic location. We know that there are uncertainties about whether this putative paleo-polyploidization event is shared with all eudicots or not. We can choose some other eudicot genomes to see the ordering of speciation and polyploidization events. Here we choose *Vitis vinifera*, *Protea cynaroides* and *Acorus americanus* in the following *K*<sub>S</sub> analysis. First, we built a global MRBH family using the command below.
 
 ```
 wgd dmd --globalmrbh Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh
@@ -667,53 +669,57 @@ wgd dmd --globalmrbh Aquilegia_coerulea Protea_cynaroides Acorus_americanus Viti
 
 In the global MRBH family, every pair of orthologous genes is the reciprocal best hit, suggesting true orthologous relationships. We would use the *K*<sub>S</sub> values associated with these orthologous pairs to delimit the divergence *K*<sub>S</sub> peak. Together with the whole paranome *K*<sub>S</sub> distribution, we conduct the rate correction using the command below.
 
-!!Since `wgd` version 2.0.24, we rewrote a cleaner and quicker way of doing substitution rate correction. It's not required to type in any speices pair and a series of *K*<sub>S</sub> plots will be produced. The required files are orthologous *K*<sub>S</sub> table, paralogous *K*<sub>S</sub> table, a species tree and a focused species (the one inputted with paralogous *K*<sub>S</sub> data). Users can choose to add one more layer of elmm modeling on paralogous *K*<sub>S</sub> values and/or gmm modeling on anchor *K*<sub>S</sub> values. The orthologous *K*<sub>S</sub> values can be calculated using the command below.
+!!Since `wgd` version 2.0.24, we rewrote a cleaner and quicker way of doing substitution rate correction. It's not required to type in any speices pair and a series of *K*<sub>S</sub> plots will be produced. The required files are orthologous *K*<sub>S</sub> datafile, paralogous *K*<sub>S</sub> datafile, a species tree and a focal species (the one inputted with paralogous *K*<sub>S</sub> data). Users can choose to add one more layer of ELMM analysis on paralogous *K*<sub>S</sub> values and/or GMM analysis on anchor *K*<sub>S</sub> distribution. The orthologous *K*<sub>S</sub> distribution can be calculated using the command below.
 
 ```
-wgd ksd wgd_globalmrbh/global_MRBH.tsv seqs* -o wgd_globalmrbh_ks
+wgd ksd wgd_globalmrbh/global_MRBH.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh_ks
 ```
 
-With the calculated orthologous *K*<sub>S</sub> table, we can use the command below to conduct the rate correction and/or mixture modeling analysis.
+With the calculated orthologous *K*<sub>S</sub> distribution, we can use the command below to conduct the rate correction and/or mixture modeling analysis.
 
 ```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk Aquilegia_coerulea.ks.tsv -ap anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
 ```
 
+or using the command below, which combines the two steps above in one. Note that we suggest of taking two separate steps in which `wgd ksd` undertakes the calculation of orthologous *K*<sub>S</sub> distribution while `wgd viz` carries out the rate correction and GMM analysis such that it's easier to debug.
 ```
-wgd ksd wgd_globalmrbh/global_MRBH.tsv seqs* --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_globalmrbh_ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --plotkde (-ap wgd_syn/iadhore-out/anchorpoints.txt)
+wgd ksd wgd_globalmrbh/global_MRBH.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_globalmrbh_ks_rate_correction -fa Aquilegia_coerulea -ap wgd_syn/iadhore-out/anchorpoints.txt --plotelmm --plotapgmm
 ```
 
-The file `speciestree.nw` is the text file of species tree in newick that rate correction would be conducted on. Its content is as below. Users need to provide the species pairs to be plotted. We suggest adding the option `--reweight` to recalculate the weight per species pair such that the weight of orthologous gene pairs will become 1 as the paralogous gene pairs. The flag `--plotkde` can be added when the kde curve of orthologous *K*<sub>S</sub> is desired. Extra collinear data can be added by the option `-ap`.
+The file `speciestree.nw` is the text file of species tree in newick that rate correction would be conducted on. Its content is as below. Users can optionally provide the species pairs to be plotted but we suggest of just using `-fa Aquilegia_coerulea` to plot all possible focal-sister species pairs. We suggest adding the option `--reweight` to recalculate the weight per species pair such that the weight of orthologous gene pairs will become 1. Extra collinear data can be added by the option `-ap` and additional clustering analysis can be initiated by setting the option `--plotapgmm` and `--plotelmm`.
 
 ```
 (((Vitis_vinifera,Protea_cynaroides),Aquilegia_coerulea),Acorus_americanus);
 ```
 
-![](data/Aquilegia_coerulea_GlobalmrbhKs_Corrected.ksd.svg)
+![](data/Mixed.ks.Aquilegia_coerulea.node.weighted.png)
 
-As shown above, because of the higher substitution rate of *Aquilegia coerulea*, the original orthologous *K*<sub>S</sub> values were actually underestimated in the time-frame of *Aquilegia coerulea*. When we recovered the divergence substitution distance in terms of two times of the branch-specific contribution of *Aquilegia coerulea* since its divergence with the sister species plus the shared substitution distance before divergence (in relative to the outgroup), the corrected *K*<sub>S</sub> mode became larger.
+The mixed *K*<sub>S</sub> distribution shown above is a publication-ready figure that assembles the results of ELMM, GMM and rate correction. The one-vs-one orthologous *K*<sub>S</sub> distributions is also automatically produced with rate correction results superimposed where available as shown below.
 
-If one had the orthologous *K*<sub>S</sub> data already, one could also apply the program `wgd viz` to conduct the rate correction analysis using the command below. Note that the order of given `spair` options decides the color of the *K*<sub>S</sub> distribution of each species pair. The additional option `focus2all` in `wgd ksd` and `wgd viz` can be used to tell the program that the species pairs are between the focus species and all the other species such that users don't need to type in each pair individually.
+![](data/Focus_sister_pairs.ks.node.weighted.png)
+![](data/All_pairs.ks.node.weighted.png)
+
+Besides the above ksrates-like *K*<sub>S</sub> plot, a more classic *K*<sub>S</sub> plot can be made by adding the option `--classic` to tap more detailedly into the variation of synonymous substitution rate.
+
+Using the command below, the direction of rate correction and degree of rate variation can be observed more directly.
 
 ```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -o wgd_viz_mixed_Ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --plotkde (--gsmap gene_species.map)
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight --plotkde --classic
 ```
 
-With the option `focus2all`, the command can be also like this, same with `wgd ksd`.
+![](data/Aquilegia_coerulea_GlobalmrbhKs_Elmm_Apgmm_Corrected.ksd.svg)
 
-```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -o wgd_viz_mixed_Ks --focus2all Aquilegia_coerulea --plotkde
-```
+As shown above, because of the higher substitution rate of *Aquilegia coerulea*, the original orthologous *K*<sub>S</sub> values were actually underestimated in the time-frame of *Aquilegia coerulea*. When we recovered the divergence substitution distance in terms of two times of the branch-specific contribution of *A. coerulea* since its divergence with the sister species plus the shared substitution distance before divergence (in relative to the outgroup), the corrected *K*<sub>S</sub> mode became larger.
 
 Note that we can easily show that *Aquilegia coerulea* has higher substitution rate than *Protea cynaroides* and *Vitis vinifera* by comparing their substitution distance in regard to the same divergence event with outgroup species *Acorus_americanus*, using command below.
 
 ```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_viz_Compare_rate --spair "Acorus_americanus;Protea_cynaroides" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Vitis_vinifera;Acorus_americanus" --gsmap gene_species.map --plotkde
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_viz_Compare_rate --spair "Acorus_americanus;Protea_cynaroides" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Vitis_vinifera;Acorus_americanus" --plotkde --classic
 ```
 
 ![](data/Raw_Orthologues_Compare_rate.ksd.svg)
 
-As displayed above, the orthologous *K*<sub>S</sub> values bewteen *Aquilegia coerulea* and *Acorus americanus* has the highest mode, indicatingthe faster substitution rate of *Aquilegia coerulea* compared to *Protea cynaroides* and *Vitis vinifera*.
+As displayed above, the orthologous *K*<sub>S</sub> values bewteen *Aquilegia coerulea* and *Acorus americanus* has the highest mode, indicating the faster substitution rate of *A. coerulea* compared to *Protea cynaroides* and *Vitis vinifera*.
 
 Before v2.0.21, the gene-species map file is neccessarily needed for its implementation in `wgd viz`, which should be automately produced by the last `wgd ksd` step given the `spair` and `speciestree` parameters. The `gene_species.map` has contents as below in which each line is the joined string of gene name and species name by space. After v2.0.21 (included), the gene-species map file is not neccessarily needed anymore.
 
@@ -724,58 +730,24 @@ Pcy_Procy01g08510 Protea_cynaroides
 Aam_Acora.04G142900.1 Acorus_americanus
 ```
 
-A more complex plot can be made by add the flag `--plotelmm` such that the ELMM mixture modeling of provided paranome *K*<sub>S</sub> can be superimposed, using the command below.
-
-```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -o wgd_viz_mixed_Ks_elmm --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --gsmap gene_species.map --plotkde --plotelmm
-```
-
-![](data/Aquilegia_coerulea_GlobalmrbhKs_Elmm_Corrected.ksd.svg)
-
-From the mixed *K*<sub>S</sub> plot above, we can see that the optimized lognormal component b with mode 1.2 is younger than the corrected orthologous *K*<sub>S</sub> mode with *Protea cynaroides* and *Vitis vinifera* (1.39 and 1.47, respectively).
-
-Besides, we can also add the GMM mixture modeling of anchor *K*<sub>S</sub> values with the flag `--plotapgmm`, using the command below.
-
-```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -o wgd_viz_mixed_Ks_elmm --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --gsmap gene_species.map --plotkde --plotapgmmm
-```
-
-![](data/Aquilegia_coerulea_GlobalmrbhKs_Apgmm_Corrected.ksd.svg)
-
-As manifested above, the anchor *K*<sub>S</sub> component 2 with mode 1.28 is also younger than the corrected orthologous *K*<sub>S</sub> mode with *Protea cynaroides* and *Vitis vinifera*. But we need to be of course cautious that such distinction comes with the uncertainties introduced from the applied mixture modeling methodology in terms of for instance different initialization points and the issue of overfitting and the sister speciess adopted in that there might be species with more disparate substitution rates than the one we chose.
-
-Adding both ELMM result for paranome and GMM result for anchor *K*<sub>S</sub> can be achieved just by add the two flags mentioned above, using the command below.
-
-```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv --extraparanomeks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -o wgd_viz_mixed_Ks_elmm --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --gsmap gene_species.map --plotkde --plotelmm --plotapgmmm
-```
-
-![](data/Aquilegia_coerulea_GlobalmrbhKs_Elmm_Apgmm_Corrected.ksd.svg)
-
 An alternative way to calculate the orthologous *K*<sub>S</sub> is to directly use the orthogroups instead of global MRBH family. That way we don't use the pre-inferred paranome *K*<sub>S</sub> but the paralogous gene pairs inside each orthogroup instead. To achieve that, we first need to infer orthogroups using the command below.
 
 ```
 wgd dmd Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera --orthoinfer -o wgd_ortho (--onlyortho) 
 ```
 
-Users can decide to only conduct the orthogroup analysis while skipping other analysis by adding the flag `--onlyortho`. Next step is the same with global MRBH family except that we don't use the extra pre-inferred paranome *K*<sub>S</sub> anymore. We infer the *K*<sub>S</sub> using the command below. Note that the program `wgd viz` can plot the same just as shown above.
+Users can decide to only conduct the orthogroup analysis while skipping other analysis by adding the flag `--onlyortho`. Next step is the same with global MRBH family.
 
 ```
-wgd ksd wgd_ortho/Orthogroups.sp.tsv -sp speciestree.nw --reweight -o wgd_ortho_ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --spair "Aquilegia_coerulea;Aquilegia_coerulea" --plotkde (-ap wgd_syn/iadhore-out/anchorpoints.txt)
+wgd ksd wgd_ortho/Orthogroups.sp.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho_ks
+wgd viz -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -plotelmm --plotapgmm -o wgd_ortho_ks_rate_correction
 ```
 
-![](data/Aquilegia_coerulea_OrthoKs_Corrected.ksd.svg)
+![](data/Mixed.ks.Aquilegia_coerulea.node.weighted_Ortho_Ks.png)
+![](data/Focus_sister_pairs.ks.node.weighted_Ortho_Ks.png)
+![](data/All_pairs.ks.node.weighted_Ortho_Ks.png)
 
-As shown above, the number of both paralogous gene pairs and orthologous gene pairs is different than the one from global MRBH family in that here we plotted all orthologous gene pairs instead of only global MRBH and potentially new paralogous gene pairs might be produced in the orthogroup inference step, together with different recalculated weights.
-
-If one only wanted to plot the orthologous *K*<sub>S</sub> distribution, as we have already shown above, it can be easily achieved by removing the paralogous species pair `Aquilegia_coerulea;Aquilegia_coerulea`, using the command below.
-
-```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -sp speciestree.nw --reweight -o wgd_globalmrbh_onlyortho_ks --spair "Aquilegia_coerulea;Protea_cynaroides" --spair "Aquilegia_coerulea;Vitis_vinifera" --spair "Aquilegia_coerulea;Acorus_americanus" --gsmap gene_species.map
-```
-
-We can clearly see that *Vitis vinifera* has higher substitution rate than *Protea cynaroides* in that their orthologous *K*<sub>S</sub> peaks with *Aquilegia coerulea*, although representing the same divergence event, differed in substitution distance.
-![](data/Raw_Orthologues.ksd.svg)
+As shown above, the number of orthologous gene pairs is different than the one from global MRBH families in that here we plotted all orthologous gene pairs instead of only global MRBH families, together with different recalculated weights.
 
 After the phylogenetic timing of the Ranunculales WGD, we can further infer its absolute age. First we infer the credible range of anchor pairs by *K*<sub>S</sub> heuristically using the program `wgd peak`.
 
