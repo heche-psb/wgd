@@ -602,7 +602,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs = get_segments_profile(df_multi,keepredun,'',userdf3=segments)
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
-        segs = filter_mingenumber(segs_gene_unit,mingenenum,outdir,len(gene_order_dict_allsp))
+        segs = filter_mingenumber(segs_gene_unit,mingenenum,outdir,len(gene_order_dict_allsp),start)
         dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha,showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb)
         if len(ordered_genes_perchrom_allsp)>1: dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha,showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb)
         #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
@@ -715,6 +715,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     if anchors is None:
         logging.warning("No anchors found, terminating! Please inspect your input files "
                 "and the I-ADHoRe results in `{}`".format(out_path))
+        endtime(start)
         exit(1)
     anchors.to_csv(os.path.join(outdir, "anchors.csv"))
     #ap_order_permlt = getmltorder(orig_anchors,multi,gene_orders)
@@ -722,7 +723,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     #segmentpair_order = get_segmentpair_order(orig_anchors,segs,table,gene_orders)
     segs,table,multi,removed_scfa = filter_by_minlength(table,segs,minlen,multi,keepredun,outdir,minseglen)
     segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
-    segs = filter_mingenumber(segs_gene_unit,mingenenum,outdir,len(gene_order_dict_allsp))
+    segs = filter_mingenumber(segs_gene_unit,mingenenum,outdir,len(gene_order_dict_allsp),start)
     #if ks_distribution: segs_gene_unit_ks = getsegks(segs_gene_unit,ks_distribution,ordered_genes_perchrom_allsp)
     df_ks = None
     if ks_distribution!=None:

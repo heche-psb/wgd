@@ -1349,9 +1349,14 @@ def default_plot(
     plt.subplots_adjust(top=0.85)  # prevent suptitle from overlapping
     return fig
 
-def syntenic_depth_plot(segprofile):
+def syntenic_depth_plot(segprofile,start):
+    from wgd.core import endtime
     cols = segprofile.columns
     n = len(cols)
+    if n == 0:
+        logging.error("No eligible multiplicon discovered in terms of segment length and/or gene number!")
+        endtime(start)
+        exit()
     #fig, axs = plt.subplots(1, int(n + n*(n-1)/2))
     fig, axs = plt.subplots(n, n)
     fig.set_size_inches(n*3.2, n*2.4)
@@ -2734,16 +2739,9 @@ def filter_by_minlength(genetable,segs,minlen,multi,keepredun,outdir,minseglen):
         segs = segs.drop(I3)
         multi = multi[multi['is_redundant']==0]
     segs = Filter_miniseglen(segs,Sf_len_lab_persp,minseglen,genetable)
-    #counted = segs.groupby(["multiplicon", "genome"])["segment"].aggregate(lambda x: len(set(x)))
-    #profile = counted.unstack(level=-1).fillna(0)
-    #if len(gdf) <=5 :
-    #    fig = syntenic_depth_plot(profile)
-    #    fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
-    #    fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
-    #profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
     return segs,genetable,multi,removed_scfa
 
-def filter_mingenumber(segs,mingenenum,outdir,N):
+def filter_mingenumber(segs,mingenenum,outdir,N,start):
     rm_indice = []
     for indice, f, l in zip(segs.index,segs['first_coordinate'],segs['last_coordinate']):
         if (l-f+1) < mingenenum:
@@ -2753,7 +2751,7 @@ def filter_mingenumber(segs,mingenenum,outdir,N):
     profile = counted.unstack(level=-1).fillna(0)
     #if N <=5 :
     logging.info("Making Syndepth plot")
-    fig = syntenic_depth_plot(profile)
+    fig = syntenic_depth_plot(profile,start)
     fig.savefig(os.path.join(outdir, "Syndepth.svg"),bbox_inches='tight')
     fig.savefig(os.path.join(outdir, "Syndepth.pdf"),bbox_inches='tight')
     profile.to_csv(os.path.join(outdir, "Segprofile.csv"))
