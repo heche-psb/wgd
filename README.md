@@ -641,6 +641,26 @@ A further associated Syndepth plot shows that there are more than 50 duplicated 
 
 ![](data/syn_results/Syndepth.svg)
 
+More exquisite plots including both intra-specific and inter-specific comparisons using the orthogroups (composed of *Aquilegia coerulea*, *Protea cynaroides*, *Acorus americanus* and *Vitis vinifera*, see further for the context) inferred hereinafter can be also produced using `wgd syn`. Note that different genome assemblies might have different features and attributes which can be accommodated via the option `--additionalgffinfo` for each genome assembly whose order needs to follow the order of gff3 files, for instance 'mNRA;Name' for `Aquilegia_coerulea.gff3`, 'mNRA;ID' for `Protea_cynaroides.gff3`, 'mNRA;Name' for `Acorus_americanus.gff3` and 'mNRA;Name' for `Vitis_vinifera.gff3`.
+
+```
+wgd syn wgd_ortho/Orthogroups.sp.tsv -ks wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv Aquilegia_coerulea.gff3 --additionalgffinfo 'mNRA;Name' Protea_cynaroides.gff3 --additionalgffinfo 'mNRA;ID' Acorus_americanus.gff3 --additionalgffinfo 'mNRA;Name' Vitis_vinifera.gff3 --additionalgffinfo 'mNRA;Name' -o wgd_ortho_syn
+```
+
+Upon the acquisition of the collinear results using `wgd syn`, the same collinear plots can be also produced by `wgd viz` using the command below.
+```
+wgd viz --plotsyn -sm wgd_ortho_syn/iadhore-out/segments.txt -ap wgd_ortho_syn/iadhore-out/anchorpoints.txt -mt wgd_ortho_syn/iadhore-out/multiplicons.txt -gt wgd_ortho_syn/gene-table.csv -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -o wgd_ortho_viz
+```
+
+![](data/ortho_syn_results/Aquilegia_coerulea_Vitis_vinifera_multiplicons_level.png)
+The above `dupStack` plot shows the distribution of duplicated segments of *Aquilegia coerulea* compared to itself (in green) and compared to *Vitis vinifera* (in blue) over the chromosomes of *A. coerulea*.
+![](data/ortho_syn_results/Overallspecies_Ks.dot_unit_gene.png)
+The above *K*<sub>S</sub> dotplot in unit of gene shows the overall distribution of collinearity acorss the four species involved.
+![](data/ortho_syn_results/Overallspecies.dot_unit_gene.png)
+The above dotplot is without the annotation of *K*<sub>S</sub> ages compared to the last one.
+![](data/ortho_syn_results/Syndepth.svg)
+The above Syndepth plot shows the collinear ratio acorss all species pairs (intra-specific comparison in green while inter-specific comparison in blue).
+
 We can fit an ELMM mixture model upon the whole paranome *K*<sub>S</sub> age distribution to see more accurately the significance and location of potential WGDs, using the command line below.
 
 ```
