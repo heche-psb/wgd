@@ -619,27 +619,27 @@ As shown below, there are some retained anchor pairs with *K*<sub>S</sub> betwee
 
 The associated `dupStack` plot shows that there are numerous duplicated segments across most of the chromosomes.
 
-![](data/Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.svg)
+![](data/syn_results/Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.svg)
 
 We implemented two types of dot plots in oxford grid: one in the unit of bases and the other in the unit of genes, which can be colored by *K*<sub>S</sub> values given *K*<sub>S</sub> data.
 
-![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot_unit_gene.png)
+![](data/syn_results/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot_unit_gene.svg)
 
 As shown above, the dot plot in the unit of genes presents numerous densely aggregated (line-like) anchor points at most of the chromosomes with consistent *K*<sub>S</sub> age between 1 and 2. The dot plot in the unit of bases shows the same pattern, as manifested below.
 
-![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot.png)
+![](data/syn_results/Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot.svg)
 
 The dot plots without *K*<sub>S</sub> annotation will also be automately produced, as shown below.
 
-![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.png)
+![](data/syn_results/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.svg)
 
-![](data/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.png)
+![](data/syn_results/Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.svg)
 
 Note that the opacity of anchor dots and all homolog dots can be set by the option `--apalpha` and `--hoalpha` separately. If one just wants to see the anchor dots, setting the `hoalpha` as 0 (or other minuscule values) will do. If one wants to see the distribution of whole dots better, setting the `hoalpha` higher (and `apalpha` lower) will do. The `dotsize` option can be called to adjust the size of dots.
 
 A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
 
-![](data/Syndepth.svg)
+![](data/syn_results/Syndepth.svg)
 
 We can fit an ELMM mixture model upon the whole paranome *K*<sub>S</sub> age distribution to see more accurately the significance and location of potential WGDs, using the command line below.
 
