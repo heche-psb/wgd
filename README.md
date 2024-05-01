@@ -637,7 +637,7 @@ The dot plots without *K*<sub>S</sub> annotation will also be automately produce
 
 Note that the opacity of anchor dots and all homolog dots can be set by the option `--apalpha` and `--hoalpha` separately. If one just wants to see the anchor dots, setting the `hoalpha` as 0 (or other minuscule values) will do. If one wants to see the distribution of whole dots better, setting the `hoalpha` higher (and `apalpha` lower) will do. The `dotsize` option can be called to adjust the size of dots.
 
-A further associated Syndepth plot shows that there are more than 80 duplicated segments, which dominates the whole collinear ratio category.
+A further associated Syndepth plot shows that there are more than 50 duplicated segments longer than 10000 bp and 30 genes (so as to drop fragmentary segments), which dominates the whole collinear ratio category.
 
 ![](data/syn_results/Syndepth.svg)
 
