@@ -1893,6 +1893,9 @@ def get_peak_AnchGMM(means,stds,scalings,fig,ax,df_c,n,outdir,peak_threshold,wei
         mean,std = means[cp][0],np.sqrt(stds[cp][0][0])
         df = df_c[df_c['AnchorKs_GMM_Component']==cp]
         lower_CI, upper_CI = find_apeak(df,None,None,outdir,peak_threshold=peak_threshold,na=na,rel_height=rel_height,withfig=False,loglabel="{}-Components Model Peak {}".format(n,cp),keeptmp=keeptmp)
+        if lower_CI is None:
+            logging.warning("No qualified peak detected")
+            continue
         if upper_CI > 5: upper_CI=5
         #ax.axvline(lower_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8,label='Peak of c{} {}%CI {:.2f}-{:.2f}'.format(cp,95,lower_CI,upper_CI))
         #ax.axvline(upper_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8)
