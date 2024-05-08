@@ -401,8 +401,8 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             x = np.array(list(df_comp['dS']))
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            if len(y) < 2:
-                logging.info("Detected one component with less than 2 elements, will skip it")
+            if len(set(y)) < 2:
+                logging.info("Detected one component with less than 2 valid elements, will skip it")
                 continue
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, weights=w, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
@@ -424,8 +424,10 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
                 CI_dict[num]=CI_95
                 CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
                 CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
-                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                #plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='c{} {}%CI {:.2f}-{:.2f}'.format(num,95,CI_95[0],CI_95[1]))
+                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1)
+                #plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
     else:
         for num,color in zip(range(nums),colors):
             mean,std,weight = means[num][0],np.sqrt(stds[num][0][0]),weights[num]
@@ -433,8 +435,8 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
             else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
             x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
             y = x[np.isfinite(x)]
-            if len(y) < 2:
-                logging.info("Detected one component with less than 2 elements, will skip it")
+            if len(set(y)) < 2:
+                logging.info("Detected one component with less than 2 valid elements, will skip it")
                 continue
             Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=bins+1,dtype=int)/10, color = color, alpha=0.5, rwidth=0.8, label = "component {}".format(num))
             CHF = get_totalH(Hs)
@@ -465,8 +467,10 @@ def plot_ak_component_lognormal(df,means,stds,weights,nums,bins=50,ylabel="Dupli
                 CI_dict[num]=CI_95
                 CI_95_y0 = scaling*stats.lognorm.pdf(CI_95[0], scale=np.exp(mean),s=std)
                 CI_95_y1 = scaling*stats.lognorm.pdf(CI_95[1], scale=np.exp(mean),s=std)
-                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
-                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                #plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} lower {}%CI {:.2f}'.format(num,95,CI_95[0]))
+                #plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1,label='component {} upper {}%CI {:.2f}'.format(num,95,CI_95[1]))
+                plt.plot([CI_95[0],CI_95[0]],[0,CI_95_y0], color = color, alpha = 0.8, ls = ':', lw = 1,label='c{} {}%CI {:.2f}-{:.2f}'.format(num,95,CI_95[0],CI_95[1]))
+                plt.plot([CI_95[1],CI_95[1]],[0,CI_95_y1],color = color, alpha = 0.8, ls = ':', lw = 1)
     ax.set_xlim(0, 5)
     ax.legend(loc='upper right',frameon=False)
     #if nums<2: ax.legend(loc='upper right',frameon=False)
@@ -497,7 +501,7 @@ def getmediankdexy(kdex,kdey):
             break
     return medianx
 
-def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',user_xlim=None,user_ylim=None,hidehdr=False,notscale=False,safeylim=False):
+def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weighted=True,regime='multiplicon',user_xlim=None,user_ylim=None,hidehdr=False,notscale=False,safeylim=False, cutoff=3):
     colors = cm.viridis(np.linspace(0, 1, nums))
     kdesity = 100
     kde_x = np.linspace(0,5,num=bins*kdesity)
@@ -513,8 +517,8 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             x = np.array(list(df_comp['dS']))
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
-            if len(y) < 2:
-                logging.info("Detected one component with less than 2 elements, will skip it")
+            if len(set(y)) < 2:
+                logging.info("Detected one component with less than 2 valid elements, will skip it")
                 continue
             kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
             kdes.append(kde)
@@ -541,7 +545,8 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             #plt.plot([median,median], [0,scaling*kde(median)], color=color,alpha = 0.8,linestyle='-.')
             if not hidehdr:
                 upper_HPD,lower_HPD = calculateHPD(y,hdr)
-                plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':')
+                if upper_HPD>cutoff: upper_HPD=cutoff
+                plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':',label='{}% HDR of c{} {:.2f}-{:.2f}'.format(hdr,num,lower_HPD,upper_HPD))
                 plt.plot([lower_HPD,lower_HPD], [0,scaling*kde(lower_HPD)], color=color,alpha = 0.8,linestyle=':')
             #ax.axvline(x = upper_HPD, ymin=0, ymax=upper_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
             #ax.axvline(x = lower_HPD, ymin=0, ymax=lower_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1)
@@ -552,8 +557,8 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
             else: df_comp = df[df['AnchorKs_GMM_Component']==num].drop_duplicates(subset=['family','node'])
             x = np.array(list(df_comp['node_averaged_dS_outlierexcluded']))
             y = x[np.isfinite(x)]
-            if len(y) < 2:
-                logging.info("Detected one component with less than 2 elements, will skip it")
+            if len(set(y)) < 2:
+                logging.info("Detected one component with less than 2 valid elements, will skip it")
                 continue
             kde = stats.gaussian_kde(y,bw_method='scott')
             kdes.append(kde)
@@ -583,7 +588,8 @@ def plot_ak_component_kde(df,nums,hdr,bins=50,ylabel="Duplication events",weight
                 upper_HPD,lower_HPD = calculateHPD(y,hdr)
                 #upper_HPD_y = scaling*kde(upper_HPD)/Hs_max
                 #lower_HPD_y = scaling*kde(lower_HPD)/Hs_max
-                plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':')
+                if upper_HPD>cutoff: upper_HPD=cutoff
+                plt.plot([upper_HPD,upper_HPD], [0,scaling*kde(upper_HPD)], color=color,alpha = 0.8,linestyle=':',label='{}% HDR of c{} {:.2f}-{:.2f}'.format(hdr,num,lower_HPD,upper_HPD))
                 plt.plot([lower_HPD,lower_HPD], [0,scaling*kde(lower_HPD)], color=color,alpha = 0.8,linestyle=':')
             #ax.axvline(x = upper_HPD, ymin=0, ymax=upper_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1,label='HDR {:.2f}-{:.2f}'.format(lower_HPD,upper_HPD))
             #ax.axvline(x = lower_HPD, ymin=0, ymax=lower_HPD_y, color = color, alpha = 0.8, ls = '-.', lw = 1)
@@ -1284,6 +1290,10 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
         ax.set_ylabel("Density of retained duplicates")
     max_ks,min_ks = ks.max(),ks.min()
     ks_refed,cutoff,w_refed = reflect_logks(ks,w)
+    if len(set(ks_refed)) < 2:
+        logging.warning("Less than 2 valid elements, will skip it")
+        lower95CI,upper95CI = None,None
+        return lower95CI,upper95CI 
     kde = stats.gaussian_kde(ks_refed, bw_method="scott", weights=w_refed)
     bw_modifier = 0.4
     kde.set_bandwidth(kde.factor * bw_modifier)
@@ -1789,14 +1799,14 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
         else: fname = os.path.join(outdir2, "{}_guided_AnchorKs_GMM_Component{}_node_averaged.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig,HDRs = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim)
+        fig,HDRs = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim,cutoff=cutoff,safeylim=True)
         getGuided_AP_HDR(HDRs,hdr,n,df_c,outdir2,guide,cutoff)
         if weighted: fname = os.path.join(outdir2, "{}_guided_AnchorKs_GMM_Component{}_node_weighted_kde.pdf".format(guide,n))
         else: fname = os.path.join(outdir2, "{}_guided_AnchorKs_GMM_Component{}_node_averaged_kde.pdf".format(guide,n))
         fig.savefig(fname)
         plt.close()
-        fig2,ax2,kdes,scalings = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim,hidehdr=True,notscale=True)
-        get_peak_SegGuidedGMM(guide,kdes,scalings,fig2,ax2,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=keeptmp)
+        fig2,ax2,kdes,scalings = plot_ak_component_kde(df_c.dropna(),n,hdr,bins=50,ylabel="Duplication events",weighted=weighted,regime=guide,user_xlim=user_xlim,user_ylim=user_ylim,hidehdr=True,notscale=True,safeylim=True)
+        get_peak_SegGuidedGMM(guide,kdes,scalings,fig2,ax2,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=keeptmp,cutoff=cutoff)
     plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime=guide)
     return df
 
@@ -1839,24 +1849,24 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged.pdf".format(n))
         fig.savefig(fname)
         plt.close()
-        fig, CI, ax, _ = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim,hideci=True)
+        fig, CI, ax, _ = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim,hideci=True,safeylim=True)
         if weighted: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
         else: fname = os.path.join(outdir, "Original_AnchorKs_GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
         fig.savefig(fname)
         plt.close()
-        fig2, CI, ax2, _ = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim)
+        fig2, CI, ax2, _ = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim,safeylim=True)
         if weighted: fname = os.path.join(_mkdir(os.path.join(outdir,"LogGMM_CI")), "GMM_Component{}_node_weighted_Lognormal.pdf".format(n))
         else: fname = os.path.join(outdir,"LogGMM_CI", "GMM_Component{}_node_averaged_Lognormal.pdf".format(n))
         if showCI: df_c_CI = add_apCI(df_c,outdir,CI,n,cutoff,weighted)
         fig2.savefig(fname)
         plt.close()
-        fig3, CI, ax3, scalings = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim,hideci=True)
-        get_peak_AnchGMM(means,stds,scalings,fig3,ax3,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=keeptmp)
+        fig3, CI, ax3, scalings = plot_ak_component_lognormal(df_c.dropna(),means,stds,weights,n,bins=50,ylabel="Duplication events",weighted=weighted,regime='original',showCI=showCI,peak_threshold=peak_threshold,rel_height=rel_height,user_xlim=user_xlim,user_ylim=user_ylim,hideci=True,safeylim=True)
+        get_peak_AnchGMM(means,stds,scalings,fig3,ax3,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=keeptmp,cutoff=cutoff)
         plt.close()
     plot_Elbow_loss(Losses,outdir,n1=components[0],n2=components[1],method='GMM',regime='original')
     return df
 
-def get_peak_SegGuidedGMM(regime,kdes,scalings,fig,ax,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=False):
+def get_peak_SegGuidedGMM(regime,kdes,scalings,fig,ax,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=False,cutoff=3):
     outdir = _mkdir(os.path.join(outdir,"HighMass_CI"))
     na=False if weighted else True
     #Components = list(set(df_c['AnchorKs_GMM_Component']))
@@ -1868,6 +1878,7 @@ def get_peak_SegGuidedGMM(regime,kdes,scalings,fig,ax,df_c,n,outdir,peak_thresho
             logging.warning("No qualified peak detected")
             continue
         if upper_CI> 5: upper_CI=5
+        if upper_CI > cutoff: upper_CI=cutoff
         #ax.axvline(lower_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8,label='Peak of c{} {}%CI {:.2f}-{:.2f}'.format(cp,95,lower_CI,upper_CI))
         #ax.axvline(upper_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8)
         lower_CI_y0 = scaling*kde(lower_CI)
@@ -1884,7 +1895,7 @@ def get_peak_SegGuidedGMM(regime,kdes,scalings,fig,ax,df_c,n,outdir,peak_thresho
     fig.tight_layout()
     fig.savefig(fname)
 
-def get_peak_AnchGMM(means,stds,scalings,fig,ax,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=False):
+def get_peak_AnchGMM(means,stds,scalings,fig,ax,df_c,n,outdir,peak_threshold,weighted,rel_height,keeptmp=False,cutoff=3):
     outdir = _mkdir(os.path.join(outdir,"HighMass_CI"))
     na=False if weighted else True
     #Components = sorted(list(set(df_c['AnchorKs_GMM_Component'])))
@@ -1897,6 +1908,7 @@ def get_peak_AnchGMM(means,stds,scalings,fig,ax,df_c,n,outdir,peak_threshold,wei
             logging.warning("No qualified peak detected")
             continue
         if upper_CI > 5: upper_CI=5
+        if upper_CI>cutoff: upper_CI=cutoff
         #ax.axvline(lower_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8,label='Peak of c{} {}%CI {:.2f}-{:.2f}'.format(cp,95,lower_CI,upper_CI))
         #ax.axvline(upper_CI, color = color, alpha = 0.8, ls = '--', lw = 0.8)
         lower_CI_y0 = scaling*stats.lognorm.pdf(lower_CI, scale=np.exp(mean),s=std)
