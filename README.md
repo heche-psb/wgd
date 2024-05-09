@@ -837,7 +837,7 @@ Please cite us at https://doi.org/10.1007/978-1-0716-2561-3_1 and https://doi.or
 
 ```
 Hengchi Chen, Arthur Zwaenepoel (2023). Inference of Ancient Polyploidy from Genomic Data. In: Van de Peer, Y. (eds) Polyploidy. Methods in Molecular Biology, vol 2545. Humana, New York, NY. https://doi.org/10.1007/978-1-0716-2561-3_1
-Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer (2024). wgd v2: a suite of tools to uncover and date ancient polyploidy and whole-genome duplication. Bioinformatics, https://doi.org/10.1093/bioinformatics/btae272
+Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer (2024). wgd v2: a suite of tools to uncover and date ancient polyploidy and whole-genome duplication. Bioinformatics, Volume 40, Issue 5, May 2024, btae272, https://doi.org/10.1093/bioinformatics/btae272
 ```
 
 For citation of the tools used in wgd, please consult the documentation at
