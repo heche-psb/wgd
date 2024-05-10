@@ -14,7 +14,8 @@
 [**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.org/)**, VIB-UGent Center for Plant Systems Biology**
 
 [**Introduction**](#introduction) | 
-[**Installation**](#installation) | 
+[**Installation**](#installation) |
+[**Pipelines**](#pipeline) |
 [**Parameters**](#parameters) | 
 [**Usage**](#usage) | 
 [**Illustration**](#illustration) |
@@ -66,6 +67,217 @@ export PATH="$PATH:~/.local/bin/wgd"
 
 Note that the version of `numpy` is important (for many other packages are the same of course), especially for `fastcluster` package. In our test, the `numpy` 1.19.0 works fine on `python3.6/8`. If you met some errors or warnings about `numpy`, maybe considering pre-install `numpy` as 1.19.0 or other close-by versions before you install `wgd`. `wgd` relies on external softwares including `diamond` and `mcl` for `wgd dmd`, `paml v4.9j`, `mafft` (`muscle` and `prank` if set), `fasttree` (or `iqtree` if set) for `wgd ksd` and optionally `mrbayes` for the phylogenetic inference function in `wgd dmd` and `wgd focus` (`mafft`, `muscle` and `prank` as well when the analysis requires sequence alignment). Some other optional softwares including `paml v4.9j`, `r8s`, `beast`, `eggnog`, `diamond`, `interproscan`, `hmmer v3.1b2` and `astral-pro` (`hmmer v3.1b2` is also for the [orthogroup assignment](https://wgdv2.readthedocs.io/en/latest/usage.html#orthogroup-assignment) function in `wgd dmd` and `astral-pro` is also for the function `--collinearcoalescence` in `wgd dmd`) are for the molecular dating, gene family function annotation or phylogenetic inference in `wgd focus`.
 
+## Pipelines
+
+To quickly get familiar with `wgd v2`, we provided some common pipelines for users with a fresh genome assembly in hand.
+
+### Pipeline 1
+**Simple construction of age distribution**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+```
+```
+#what will be in the result directory
+-wgd_dmd
+--Aquilegia_coerulea.tsv
+-wgd_ksd
+--Aquilegia_coerulea.tsv.ks.tsv Aquilegia_coerulea.tsv.ks.svg/pdf
+```
+The resulting `Aquilegia_coerulea.tsv` is the whole paranome family file, `Aquilegia_coerulea.tsv.ks.tsv` file is the *K*<sub>S</sub> distribuiton file, `Aquilegia_coerulea.tsv.ks.svg` and `Aquilegia_coerulea.tsv.ks.pdf` are the *K*<sub>S</sub> plots.
+
+### Pipeline 2
+**Simple construction of age distribution with collinearity**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_syn
+```
+```
+# what will be in the wgd_syn result directory
+-wgd_syn
+--anchors.csv
+--families.tsv
+--gene-table.csv
+--iadhore.conf
+--scaffold_length.tsv
+--segments_coordinates.tsv
+--Segprofile.csv
+--Syndepth.pdf/svg
+--Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.pdf/png/svg
+--Aquilegia_coerulea_gene_order_perchrom.tsv
+--Aquilegia_coerulea.tsv.anchors.ks.tsv
+--Aquilegia_coerulea.tsv.ksd.pdf/svg
+--Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.pdf/png/svg
+--Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.pdf/png/svg
+--Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot.pdf/png/svg
+--Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot_unit_gene.pdf/png/svg
+--iadhore-out
+---alignment.txt
+---anchorpoints.txt
+---baseclusters.txt
+---genes.txt
+---list_elements.txt
+---multiplicon_pairs.txt
+---multiplicons.txt
+---segments.txt
+```
+The `anchors.csv`, `families.tsv`, `gene-table.csv`, `scaffold_length.tsv`, `segments_coordinates.tsv`, `Segprofile.csv`, `Aquilegia_coerulea_gene_order_perchrom.tsv` are the basic files summarizing the gene order, family, anchors and collinear segments.
+The `Aquilegia_coerulea.tsv.anchors.ks.tsv` is the *K*<sub>S</sub> distribution file of anchor pairs.
+The `Syndepth.pdf/svg` shows the collinear ratio of multiplicons.
+The `Aquilegia_coerulea_Aquilegia_coerulea_multiplicons_level.pdf/png/svg` is the "dupStack" plot showing multiplicons with different levels (defined as the number of segments within).
+The `Aquilegia_coerulea.tsv.ksd.pdf/svg` is the *K*<sub>S</sub> plot with anchor pairs annotated.
+The `Aquilegia_coerulea-vs-Aquilegia_coerulea.dot.pdf/png/svg` is the dot plot without *K*<sub>S</sub> annotation and with coordinates in the number of base.
+The `Aquilegia_coerulea-vs-Aquilegia_coerulea.dot_unit_gene.pdf/png/svg` is the dot plot without *K*<sub>S</sub> annotation and with coordinates in the number of gene.
+The `Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot.pdf/png/svg` is the dot plot with *K*<sub>S</sub> annotation and with coordinates in the number of base.
+The `Aquilegia_coerulea-vs-Aquilegia_coerulea_Ks.dot_unit_gene.pdf/png/svg` is the dot plot with *K*<sub>S</sub> annotation and with coordinates in the number of gene.
+The `iadhore.conf` is the configuration file for `i-adhore`.
+The `iadhore-out` subfolder contains the original collinear results from `i-adhore` (please refer to the manual therein for detailed description).
+
+### Pipeline 3
+**Construction of age distribution and ELMM analysis**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+wgd viz -d wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_ELMM
+```
+```
+# what will be in the wgd_ELMM result directory
+-wgd_ELMM
+--Aquilegia_coerulea.tsv.ks.tsv.ksd.pdf/svg
+--Aquilegia_coerulea.tsv.ks.tsv.spline_node_averaged.pdf/svg
+--Aquilegia_coerulea.tsv.ks.tsv.spline_weighted.pdf/svg
+--Aquilegia_coerulea.tsv.ks.tsv_peak_detection_node_averaged.pdf/svg
+--Aquilegia_coerulea.tsv.ks.tsv_peak_detection_weighted.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_node_averaged.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_weighted.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_models_data_driven_node_averaged.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_models_data_driven_weighted.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_models_random_node_averaged.pdf/svg
+--elmm_Aquilegia_coerulea.tsv.ks.tsv_models_random_weighted.pdf/svg
+--elmm_BIC_Aquilegia_coerulea.tsv.ks.tsv_node_averaged.pdf/svg
+--elmm_BIC_Aquilegia_coerulea.tsv.ks.tsv_weighted.pdf/svg
+```
+The `Aquilegia_coerulea.tsv.ks.tsv.ksd.pdf/svg` is the basic *K*<sub>S</sub> plot. The `Aquilegia_coerulea.tsv.ks.tsv.spline_node_averaged.pdf/svg` and `Aquilegia_coerulea.tsv.ks.tsv.spline_weighted.pdf/svg` are the spline plots used for peak detection. The `Aquilegia_coerulea.tsv.ks.tsv_peak_detection_node_averaged.pdf/svg` and `Aquilegia_coerulea.tsv.ks.tsv_peak_detection_weighted.pdf/svg` are the results of peak detection. The `elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_node_averaged.pdf/svg` and `elmm_Aquilegia_coerulea.tsv.ks.tsv_best_models_weighted.pdf/svg` are the results from the best model informed by `BIC`. The `elmm_Aquilegia_coerulea.tsv.ks.tsv_models_data_driven_node_averaged.pdf/svg` and `elmm_Aquilegia_coerulea.tsv.ks.tsv_models_data_driven_weighted.pdf/svg` are the model results from data-driven initiation. The `elmm_Aquilegia_coerulea.tsv.ks.tsv_models_random_node_averaged.pdf/svg` and `elmm_Aquilegia_coerulea.tsv.ks.tsv_models_random_weighted.pdf/svg` are the model results from random initiation. The `elmm_BIC_Aquilegia_coerulea.tsv.ks.tsv_node_averaged.pdf/svg` and `elmm_BIC_Aquilegia_coerulea.tsv.ks.tsv_weighted.pdf/svg` are the BIC plots for each model.
+
+### Pipeline 4
+**Construction of age distribution with collinearity and peak finding analysis**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_syn
+wgd peak --heuristic wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sm wgd_syn/iadhore-out/segments.txt -le wgd_syn/iadhore-out/list_elements.txt -mp wgd_syn/iadhore-out/multiplicon_pairs.txt -n 1 4 -kc 3 -o wgd_peak
+```
+```
+# what will be in the wgd_peak result directory
+-wgd_peak
+--AnchorKs_FindPeak
+---AnchorKs_PeakCI_Aquilegia_coerulea.tsv.ks.tsv_node_averaged/weighted.pdf
+---Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv
+---Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted.tsv
+---Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_node_averaged_format.tsv
+---Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_node_averaged.tsv
+--AnchorKs_GMM
+---GMM_Elbow-Loss_original_Ks.pdf
+---GMM_Original_AnchorKs_Clustering_Silhouette_Coefficient.pdf
+---Original_AnchorKs_GMM_1/2/3/4components_prediction.tsv
+---Original_AnchorKs_GMM_AIC_BIC.pdf
+---Original_AnchorKs_GMM_Component1/2/3/4_node_averaged_Lognormal.pdf
+---Original_AnchorKs_GMM_Component1/2/3/4_node_averaged.pdf
+---LogGMM_CI
+----GMM_1/2/3/4components_C0/1/2/3_95%CI.tsv
+----GMM_Component1/2/3/4_node_averaged_Lognormal.pdf
+---HighMass_CI
+----GMM_1/2/3/4components_C0/1/2/3_HighMass_95%CI.tsv
+----GMM_1/2/3/4components_HighMass_95%CI.pdf
+--SegmentGuideKs_GMM
+---GMM_Elbow-Loss_Segment_Ks.pdf
+---GMM_Segment_Ks_Clustering_Silhouette_Coefficient.pdf
+---Segment-guided_AnchorKs_GMM_1/2/3/4components_prediction.tsv
+---Segment_Ks_Clusters_GMM_Component1/2/3/4.pdf
+---Segment_Ks_Clusters_Lognormal_GMM_Component1/2/3/4.pdf
+---Segment_Ks_GMM_AIC_BIC.pdf
+---Segment_Ks.tsv
+---HighMass_CI
+----Segment_guided_1/2/3/4components_C0/1/2/3_HighMass_95%CI.tsv
+----Segment_guided_1/2/3/4components_HighMass_95%CI.pdf
+---HDR_CI
+----Segment_guided_95%HDR_AP_1/2/3/4components_C0/1/2/3.tsv
+----Segment_guided_AnchorKs_GMM_Component1/2/3/4_node_averaged_kde.pdf
+----Segment_guided_AnchorKs_GMM_Component1/2/3/4_node_averaged.pdf
+--SegmentKs_FindPeak
+---SegmentKs_PeakCI_Aquilegia_coerulea.tsv.ks.tsv.pdf
+---Peak_1/2_Segment_guided_Aquilegia_coerulea.tsv.ks.tsv_95%CI_MP_for_dating_format.tsv
+---Peak_1/2_Segment_guided_Aquilegia_coerulea.tsv.ks.tsv_95%CI_MP_for_dating.tsv
+```
+Four result subfloders will be produced, namely `AnchorKs_FindPeak`, `AnchorKs_GMM`, `SegmentGuideKs_GMM` and `SegmentKs_FindPeak`. The `AnchorKs_FindPeak` subfloder contains results of the detected peaks by the `signal` module of `SciPy` library and the assumed highest mass part (referred to as HighMass hereafter) of each peak, which can be used for further WGD dating. The `AnchorKs_GMM` shows the GMM results upon the original anchor *K*<sub>S</sub> distribution by the `mixture` module of `scikit-learn` library and two subfloders, `LogGMM_CI` containing the results of 95% CI of each component, `HighMass_CI` containing the HighMass of each component, which can be used for further WGD dating. The `SegmentGuideKs_GMM` subfolder presents results of segment *K*<sub>S</sub> GMM which are mapped back to the residing anchor pairs and the associated 95% HDR and HighMass of each segment cluster in subfloders of `HDR_CI` and `HighMass_CI`. The `SegmentKs_FindPeak` subfolder is similar to `AnchorKs_FindPeak` but with segment *K*<sub>S</sub> instead. The *K*<sub>S</sub> in `Multiplicon` can also be calculated in place of `Segment` using the option `--guide` as such the result title, label, file and folder names will be changed accordingly.
+
+### Pipeline 5
+**Construction of age distribution with collinearity and rate correction**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_syn
+wgd dmd --globalmrbh Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh
+wgd ksd wgd_globalmrbh/global_MRBH.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh_ks
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
+```
+```
+# what will be in the wgd_viz_mixed_Ks result directory
+-wgd_viz_mixed_Ks
+--All_pairs.ks.node.weighted.pdf
+--Focus_sister_pairs.ks.node.weighted.pdf
+--global_MRBH.tsv.ks.tsv.ksd.pdf/svg
+--Mixed.ks.Aquilegia_coerulea.node.weighted.pdf
+--spair.corrected.ks.info.tsv
+--spair.original.ks.info.tsv
+--Simple_Ks_Distributions
+---Acorus_americanus/Aquilegia_coerulea/Protea_cynaroides/Vitis_vinifera__Aquilegia_coerulea/Protea_cynaroides/Vitis_vinifera.ks.node.weighted.pdf
+```
+The `All_pairs.ks.node.weighted.pdf` is the *K*<sub>S</sub> plot of all species pairs. The `Focus_sister_pairs.ks.node.weighted.pdf` is the *K*<sub>S</sub> plot of all focal-sister species pairs. The `global_MRBH.tsv.ks.tsv.ksd.pdf/svg` is the *K*<sub>S</sub> plot of the datafile `global_MRBH.tsv.ks.tsv`. The `Mixed.ks.Aquilegia_coerulea.node.weighted.pdf` is the **final result** of rate correction (with mixture modeling results if set). The `spair.corrected.ks.info.tsv` and `spair.original.ks.info.tsv` document the *K*<sub>S</sub> information of all species pairs before and after rate correction. The subfolder `Simple_Ks_Distributions` contains the single *K*<sub>S</sub> plots of all species pairs.
+
+### Pipeline 6
+**Construction of age distribution with collinearity and WGD dating**
+```
+wgd dmd Aquilegia_coerulea -o wgd_dmd
+wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
+wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_syn
+wgd peak --heuristic wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sm wgd_syn/iadhore-out/segments.txt -le wgd_syn/iadhore-out/list_elements.txt -mp wgd_syn/iadhore-out/multiplicon_pairs.txt -n 1 4 -kc 3 -o wgd_peak
+wgd dmd -f Aquilegia_coerulea -ap wgd_peak/AnchorKs_FindPeak/Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv -o wgd_dmd_ortho Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+wgd focus --protcocdating --aamodel lg wgd_dmd_ortho/merge_focus_ap.tsv -sp dating_tree.nw -o wgd_dating -d mcmctree -ds 'burnin = 2000' -ds 'sampfreq = 1000' -ds 'nsample = 20000' Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+```
+```
+# what will be in the wgd_dating result directory
+-wgd_dating
+--Concatenated.paln
+--Concatenated.paln.paml
+--G2S.Map
+--GF00000001.paln
+--..
+--GF00000187.paln
+--mcmctree
+---Concatenated
+----pep
+-----Concatenated.paln.paml
+-----dating_tree.nw
+-----FigTree.tre
+-----in.BV
+-----lg.dat
+-----lnf
+-----mcmctree.ctrl
+-----mcmctree.out
+-----mcmc.txt
+-----rates
+-----rst
+-----rst1
+-----rub
+-----tmp0001.ctl
+-----tmp0001.out
+-----tmp0001.trees
+-----tmp0001.txt
+```
+The `Concatenated.paln` and `Concatenated.paln.paml` are the concatenated protein alignments in fasta and paml format. The `G2S.Map` is the map between gene and species names. The `GF00000001.paln`,.. and `GF00000187.paln` are the protein alignments for each gene family. The `mcmctree` subfolder contains the dating results for the concatenated family (and per gene family if set). The deeper `Concatenated` subfolder contains the dating results of concatenated protein alignment (or nucleotide alignment if set). The deepest `pep` subfolder contains the final dating results (of concatenated protein alignment in this case). Please refer to `mcmctree` manual for detailed description of each file produced by `mcmctree`. The important result files are `FigTree.tre`, `mcmctree.out` and `mcmc.txt` which document the final date estimation, log information and posterior samples for each node respectively.
+ 
 ## Parameters
 
 There are 7 main programs in `wgd v2`: `dmd`,`focus`,`ksd`,`mix`,`peak`,`syn`,`viz`. Hereafter we will provide a detailed elucidation on each of the program and its associated parameters. Please refer to the [Usage](#usage) for the scenarios to which each parameter applies.
@@ -537,8 +749,6 @@ wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic (--align
 
 As mentioned previously, a heuristic method and a collinear segments-guided anchor pair clustering for the search of crediable *K*<sub>S</sub> range used in WGD dating are implemented in `wgd v2`. Users need to provide the anchor points, segments, listsegments, multipliconpairs datafile from `i-adhore` to achieve the clustering function. Some parameters that can impact the results include `--alignfilter`, which filters the data based on alignment identity, length and coverage, `--ksrange`, which sets the range of Ks to be analyzed, `--bin_width`, which sets the bandwidth of *K*<sub>S</sub> distribution, `--weights_outliers_included` which determines whether to include *K*<sub>S</sub> outliers (whose value is over 5) in analysis, `--method` which determines which clustering method to use (default gmm), `--seed` which sets the random seed given to initialization (default 2352890), `--n_init`, which sets the number of k-means initializations (default 200), `--em_iter`, which sets the maximum number of iterations (default 200), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), `--weighted` which determines whether to use node-weighted method for de-redundancy, `--guide` which determines which regime residing anchors to be used (default Segment), `--prominence_cutoff` which sets the prominence cutoff of acceptable peaks in peak finding process, `--rel_height` which sets the relative height at which the peak width is measured, `--kstodate` which manually sets the range of *K*<sub>S</sub> to be dated in heuristic search and needs to be co-set with option `--manualset`, `--xlim` and `--ylim` determining the x and y axis limit of GMM *K*<sub>S</sub> distribution, `--ci` setting the confidence level of log-normal distribution to date (default 95), `--hdr` setting the highest density region (HDR) applied in the segment-guided anchor pair *K*<sub>S</sub> distribution (default 95), `--heuristic` determining whether to initiate heuristic method of defining CI for dating, `--kscutoff` setting the *K*<sub>S</sub> saturation cutoff in dating (default 5).
 
-Four result subfloders will be produced, namely `AnchorKs_FindPeak`, `AnchorKs_GMM`, `SegmentGuideKs_GMM` and `SegmentKs_FindPeak`. The `AnchorKs_FindPeak` subfloder contains results of the detected peaks by the `signal` module of `SciPy` library and the assumed highest mass part (referred to as HighMass hereafter) of each peak, which can be used for further WGD dating. The `AnchorKs_GMM` shows the GMM results upon the original anchor *K*<sub>S</sub> distribution by the `mixture` module of `scikit-learn` library and two subfloders, `LogGMM_CI` containing the results of 95% CI of each component, `HighMass_CI` containing the HighMass of each component, which can be used for further WGD dating. The `SegmentGuideKs_GMM` subfolder presents results of segment *K*<sub>S</sub> GMM which are mapped back to the residing anchor pairs and the associated 95% HDR and HighMass of each segment cluster in subfloders of `HDR_CI` and `HighMass_CI`. The `SegmentKs_FindPeak` subfolder is similar to `AnchorKs_FindPeak` but with segment *K*<sub>S</sub> instead. The *K*<sub>S</sub> in `Multiplicon` can also be calculated in place of `Segment` using the option `--guide` as such the result title, label, file and folder names will be changed accordingly.
-
 **A suggested starting run can use command simply as below**
 
 ```
@@ -768,13 +978,13 @@ As shown above, we assumed a lognormal distribution at the peak location detecte
 As presented above, the focus species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below.
 
 ```
-wgd dmd -f Aquilegia_coerulea -ap wgd_peak/Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv -o wgd_dmd_ortho Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+wgd dmd -f Aquilegia_coerulea -ap wgd_peak/AnchorKs_FindPeak/Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv -o wgd_dmd_ortho Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
 ```
 
 The result file `merge_focus_ap.tsv` is what we need for the final step of molecular dating in program `wgd focus`.
 
 ```
-wgd focus --protdating --aamodel lg wgd_dmd_ortho/merge_focus_ap.tsv -sp dating_tree.nw -o wgd_dating -d mcmctree -ds 'burnin = 2000' -ds 'sampfreq = 1000' -ds 'nsample = 20000' Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
+wgd focus --protcocdating --aamodel lg wgd_dmd_ortho/merge_focus_ap.tsv -sp dating_tree.nw -o wgd_dating -d mcmctree -ds 'burnin = 2000' -ds 'sampfreq = 1000' -ds 'nsample = 20000' Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
 ```
 
 Here we only implemented the concatenation analysis using protein sequence by adding the flag `--protdating` and we set the parameter for `mcmctree` via the option `-ds`. Note that other dating program such as `r8s` and `beast` are also available given some mandatory parameters. The final log of the successful run is as below.
