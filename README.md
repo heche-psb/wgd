@@ -15,7 +15,7 @@
 
 [**Introduction**](#introduction) | 
 [**Installation**](#installation) |
-[**Pipelines**](#pipeline) |
+[**Pipelines**](#pipelines) |
 [**Parameters**](#parameters) | 
 [**Usage**](#usage) | 
 [**Illustration**](#illustration) |
