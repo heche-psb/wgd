@@ -405,52 +405,6 @@ A novel phylogenetic inference method named "collinear coalescence inference" is
 wgd dmd sequence1 sequence2 sequence3 -ap apdata -sm smdata -le ledata -gt gtdata -coc
 ```
 
-### wgd focus
-
-**The concatenation-based/coalescence-based phylogenetic inference**
-```
-wgd focus families sequence1 sequence2 sequence3 (--concatenation) (--coalescence) (-tree 'fasttree') (-ts '-fastest') (-n 4) (--to_stop) (--cds) (-o wgd_focus) (-t working_tmp)
-```
-
-The program `wgd focus` implemented two basic phylogenetic inference methods, i.e., concatenation-based and coalescence-based methods. To initiate these analysis, users need to set the flag option `--concatenation` or `--coalescence`. The concatenation-based method includes a few major steps, i.e., the multiple sequence alignment (MSA) of each gene family, the concatenation of all gene families and then the gene tree (also species tree in this case) inference. The coalescence-based method will instead perform the MSA of each gene family and the gene tree inference based on each MSA, and then infer the species tree based on these individual gene trees. The tree-inference program and the associated parameters can be set just as above by `-tree` or `--tree_method` and `-ts` or `--treeset`. Please also make sure the chosen tree-inference program is installed in the environment path. The program `astral-pro` is required to be installed in the environment path if the coalescence-based method is chosen. The parallel threads here are to accelerate the sequence alignment and gene tree inference for each gene family too and thus suggested to be set as much as the number of gene families.
-
-**A suggested starting run of this analysis is with the simple command below.**
-
-```
-wgd focus families sequence1 sequence2 sequence3 --concatenation
-wgd focus families sequence1 sequence2 sequence3 --coalescence
-```
-
-**The functional annotation of gene families**
-```
-wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed eddata --dmnb dbdata
-```
-
-The program `wgd focus` also added some wrapping functions for functional annotation of gene families on the hood of databases and softwares for instance `EggNOG` and `EggNOG-mapper`. For the annotation using `EggNOG-mapper`, users need to provide the path to the eggNOG annotation database via the option `-ed`, the path to the diamond-compatible database via the option `--dmnd_db` and the option `--annotation` set as "eggnog". The manner how PFAM annotation will be performed can be controlled via the option `pfam`, either "none", "realign" or "denovo", the detailed explanation can be found at the wiki of [EggNOG-mapper](https://github.com/eggnogdb/eggnog-mapper/wiki). Please pre-install the `EggNOG-mapper` python package if using this function. For the annotation using `hmmscan`, what is implemented in `wgd v2` is a simple bundle function to perform `hmmscan` analysis for a given hmm profile and set of gene families such that users need to set the option `--annotation` as "hmmpfam" and provide the hmmprofile via the option `--hmm`. For the annotation using `interproscan`, users need to provide the path to the interproscan installation folder where there is a `interproscan.sh` file via the option `--exepath` and set the the option `--annotation` as "interproscan". The parallel threads here are to parallelize the analysis for each gene family and thus suggested to be set as much as the number of gene families.
-
-**A suggested starting run of this analysis can be with the command below.**
-
-```
-wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed eddata --dmnb dbdata
-wgd focus families sequence1 sequence2 sequence3 --annotation hmmpfam --hmm hmmdata
-wgd focus families sequence1 sequence2 sequence3 --annotation interproscan --exepath $PATH
-```
-
-**The phylogenetic dating of WGDs**
-```
-wgd focus families sequence1 sequence2 sequence3 -d mcmctree -sp spdata (--protcocdating) (--partition) (--aamodel lg) (-ds 'burnin = 2000') (-ds 'sampfreq = 1000') (-ds 'nsample = 20000')  (-n 4) (--to_stop) (--cds) (-o wgd_focus) (-t working_tmp)
-```
-
-The absolute dating of WGDs is a specific pipeline implemented in `wgd v2` using the method of phylogenetic dating. The families used in this step can be produced from `wgd dmd` and `wgd peak`. Note that here we only discuss how to date WGDs with genome assembly, instead of transcriptome assembly (which will be discussed in a separate section hereunder). The assumption we made here is that not all anchor pairs (collinear duplicates) are suitable for phylogenetic dating, for instance those fastly or slowly evolving gene duplicates, because they're prone to give biased dating estimation. So as to retrieve the "reliable" anchor pairs, we implemented some methods of identifying crediable anchor pairs based on their Ks values and/or residing collinear segments. For a genome with clear signals of putative WGDs, such as the *Aquilegia coerulea* in the example, a heuristic method that applies the principle of how [ksrates](https://github.com/VIB-PSB/ksrates) find the initial peaks and their parameters was implemented to find the 95% confidence level of the assumed lognormal distribution of the anchor pair *K*<sub>S</sub> age distribution to filter anchor pairs with too high or low *K*<sub>S</sub> ages, the examplar command of which is showed in the `wgd peak` section of [Illustration](https://github.com/heche-psb/wgd?tab=readme-ov-file#illustration). If this heuristic method failed to give reasonable results, which is usually due to the effect of multiple adjacent WGDs that blurs the peak-finding process, users can turn to the collinear segments-guided anchor pair clustering implemented in `wgd v2`, in which a collinear segment-wise GMM clustering will be first conducted based on the "so-called" segment *K*<sub>S</sub> age represented by the median *K*<sub>S</sub> age of all the residing syntelogs (note that the gene duplicate pairs adopted in this step is from the file `multiplicon_pairs.txt` which contains the full set of syntelogs), instead of the smaller gene set of anchor pairs. The distinction between anchor pairs and syntelogs is that the latter refers to multiple sets of genes derived from the same ancestral genomic region while the former implies the latter but requires additionally the conserved gene order, both of which are, within a genome, assumed to be originated from the duplication of a common ancestral genomic region and as such deemed evidence for WGD. Then the syntelogs will be mapped back according to the clustering results of their affiliated segments. Since the Gaussian shape of the segment cluster doesn't necessarily imitate the shape of the residing syntelogs, so as to retrieve the "reliable" gene sets for phylogenetic dating, we adpoted the (95%) highest density region (HDR) of the syntelog *K*<sub>S</sub> age distribution for the phylogenetic dating, the calculation of the (95%) HDR in the function [calculateHPD](https://github.com/heche-psb/wgd/blob/phylodating/wgd/peak.py#L1757) seeks the shortest *K*<sub>S</sub> range (a,b) which satisfies the requirement of spanning more than (95%) of all the *K*<sub>S</sub> values. On the premise of identified anchor pairs (note that the syntelogs are also referred as anchor pairs hereafter), we implemented in the program `wgd dmd` the so-called anchor-aware local MRBHs or orthogroups, in which the original local MRBHs are further merged with anchor pairs such that each orthogroup contains the anchor pair and the orthologues. With this orthogroup, users then need one starting tree file (as shown in the [Illustration](https://github.com/heche-psb/wgd/tree/phylodating?tab=readme-ov-file#illustration) part) indicating the tree topology and fossil calibration information for the final phylogenetic dating using the program `wgd focus`. Users can set the flag option `--protcocdating` to only conduct the dating of the concatenation protein MSA or the flag option `--protdating` to only conduct the dating of the protein MSAs, noted that these two options only work for the `mcmctree` option so far. The flag option `--partition` can be set to perform `mcmctree` analysis using the partitioned data (i.e., 1st, 2nd and 3rd position of codon) instead of using the codon as a whole. The option `--aamodel` can be set to determine the amino acid model applied in `mcmctree` analysis. The option `-ds` can be used to set parameters for the molecular dating program. The parallel threads here are to parallelize the analysis for each gene family and thus suggested to be set as much as the number of gene families.
-
-**A suggested starting run can be with the command below.**
-
-```
-wgd focus families sequence1 sequence2 sequence3 -d mcmctree -sp spdata
-wgd focus families sequence1 sequence2 sequence3 -d r8s -sp spdata --nsites nsiteinfo
-wgd focus families sequence1 sequence2 sequence3 -d beast --fossil fossilinfo --rootheight rootheightinfo --chainset chainsetinfo --beastlgjar $PATH
-```
-
 ### wgd ksd
 
 **The construction of whole paranome *K*<sub>S</sub> age distribution**
@@ -489,37 +443,6 @@ Inspired by the rate correction algorithm in [ksrates](https://github.com/VIB-PS
 Some other options which have no impact on the rate correction but add more layers or change the appearance on the mixed *K*<sub>S</sub> age distribution, include `--plotapgmm` and `--plotelmm` etc. The option `--plotapgmm` can be set to call the GMM analysis upon the anchor pair *K*<sub>S</sub> age distribution and plot the clustering result upon the mixed *K*<sub>S</sub> age distribution, which has to be co-set with the option `--anchorpoints` providing the anchor pairs information. The option `--plotelmm` can be set to call the ELMM analysis upon the whole paranome *K*<sub>S</sub> age distribution. **Note that the species names present in the species tree file should match the names of the corresponding sequence files** For instance, given the cds file names 'A.cds','B.cds','C.cds', the species tree could be '(A.cds,(B.cds,C.cds));' rather than '(A,(B,C));'. There is no requirement for the name of the paranome *K*<sub>S</sub> datafile which can be named in whatever manner users prefer. The 'GMM' is the abbreviation of Gaussian Mixture Modeling while the 'ELMM' refers to Exponential-Lognormal Mixture Modeling as [ksrates](https://github.com/VIB-PSB/ksrates) interprets.
 
 There are 21 columns in the result `.ks.tsv` file besides the index columns `pair` as the unique identifier for each gene pair. The `N`, `S`, `dN`, `dN/dS`, `dS`, `l` and `t` are from the codeml results, representing the N estimate, the S estimate, the dN estimate, the dN/dS (omega) estimate, the dS estimate, the log-likelihood and the t estimate, respectively. The `alignmentcoverage`, `alignmentidentity` and `alignmentlength` are the information pertaining to the alignment for each family, representing the ratio of the stripped alignment length compared to the full alignment length, the ratio of columns with identical nucleotides compared to the overall columns of the stripped alignment, and the length of the full alignment, respectively.
-### wgd mix
-
-**The mixture model clustering analysis of *K*<sub>S</sub> age distribution**
-```
-wgd mix ksdata (--n_init 200 --max_iter 200 --ks_range 0 5 --filters 300 --bins 50 --components 1 4 --gamma 0.001)
-```
-
-This part of Gaussian mixture modeling (GMM) analysis is inherited from the original `wgd` program, but writes additionally the probability of each *K*<sub>S</sub> value into the final dataframe. Basically, users need to provide with a (normally from whole-paranome or anchor-pairs) *K*<sub>S</sub> datafile and the GMM analysis will be conducted upon the datafile. Some parameters can affect the results, including `--n_init`, which sets the number of k-means initializations (default 200), `--max_iter`, which sets the maximum number of iterations (default 200), `--method`, which determines which clustering method to use (default gmm), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), and the data filtering parameters `--filters` which filters data based on alignment length, `--ks_range` which filters data based on *K*<sub>S</sub> values and the parameter `--bins` which sets the number of bins in *K*<sub>S</sub> distribution (default 50).
-
-**A suggested starting run can use command simply as below**
-
-```
-wgd mix ksdata
-```
-
-### wgd peak
-
-**The search of crediable *K*<sub>S</sub> range used in WGD dating**
-```
-wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic (--alignfilter 0.0 0 0.0 --ksrange 0 5 --bin_width 0.1 --guide segment --prominence_cutoff 0.1 --rel_height 0.4 --ci 95 --hdr 95 --kscutoff 5)
-```
-
-As mentioned previously, a heuristic method and a collinear segments-guided anchor pair clustering for the search of crediable *K*<sub>S</sub> range used in WGD dating are implemented in `wgd v2`. Users need to provide the anchor points, segments, listsegments, multipliconpairs datafile from `i-adhore` to achieve the clustering function. Some parameters that can impact the results include `--alignfilter`, which filters the data based on alignment identity, length and coverage, `--ksrange`, which sets the range of Ks to be analyzed, `--bin_width`, which sets the bandwidth of *K*<sub>S</sub> distribution, `--weights_outliers_included` which determines whether to include *K*<sub>S</sub> outliers (whose value is over 5) in analysis, `--method` which determines which clustering method to use (default gmm), `--seed` which sets the random seed given to initialization (default 2352890), `--n_init`, which sets the number of k-means initializations (default 200), `--em_iter`, which sets the maximum number of iterations (default 200), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), `--weighted` which determines whether to use node-weighted method for de-redundancy, `--guide` which determines which regime residing anchors to be used (default Segment), `--prominence_cutoff` which sets the prominence cutoff of acceptable peaks in peak finding process, `--rel_height` which sets the relative height at which the peak width is measured, `--kstodate` which manually sets the range of *K*<sub>S</sub> to be dated in heuristic search and needs to be co-set with option `--manualset`, `--xlim` and `--ylim` determining the x and y axis limit of GMM *K*<sub>S</sub> distribution, `--ci` setting the confidence level of log-normal distribution to date (default 95), `--hdr` setting the highest density region (HDR) applied in the segment-guided anchor pair *K*<sub>S</sub> distribution (default 95), `--heuristic` determining whether to initiate heuristic method of defining CI for dating, `--kscutoff` setting the *K*<sub>S</sub> saturation cutoff in dating (default 5).
-
-Four result subfloders will be produced, namely `AnchorKs_FindPeak`, `AnchorKs_GMM`, `SegmentGuideKs_GMM` and `SegmentKs_FindPeak`. The `AnchorKs_FindPeak` subfloder contains results of the detected peaks by the `signal` module of `SciPy` library and the assumed highest mass part (referred to as HighMass hereafter) of each peak, which can be used for further WGD dating. The `AnchorKs_GMM` shows the GMM results upon the original anchor *K*<sub>S</sub> distribution by the `mixture` module of `scikit-learn` library and two subfloders, `LogGMM_CI` containing the results of 95% CI of each component, `HighMass_CI` containing the HighMass of each component, which can be used for further WGD dating. The `SegmentGuideKs_GMM` subfolder presents results of segment *K*<sub>S</sub> GMM which are mapped back to the residing anchor pairs and the associated 95% HDR and HighMass of each segment cluster in subfloders of `HDR_CI` and `HighMass_CI`. The `SegmentKs_FindPeak` subfolder is similar to `AnchorKs_FindPeak` but with segment *K*<sub>S</sub> instead. The *K*<sub>S</sub> in `Multiplicon` can also be calculated in place of `Segment` using the option `--guide` as such the result title, label, file and folder names will be changed accordingly.
-
-**A suggested starting run can use command simply as below**
-
-```
-wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic
-```
 
 ### wgd syn
 
@@ -590,6 +513,84 @@ Compared to the original `wgd`, the `wgd viz` program added synteny visualizatio
 wgd viz -ap apdata -sm smdata -mt mtdata -gt gtdata --plotsyn
 ```
 
+### wgd mix
+
+**The mixture model clustering analysis of *K*<sub>S</sub> age distribution**
+```
+wgd mix ksdata (--n_init 200 --max_iter 200 --ks_range 0 5 --filters 300 --bins 50 --components 1 4 --gamma 0.001)
+```
+
+This part of Gaussian mixture modeling (GMM) analysis is inherited from the original `wgd` program, but writes additionally the probability of each *K*<sub>S</sub> value into the final dataframe. Basically, users need to provide with a (normally from whole-paranome or anchor-pairs) *K*<sub>S</sub> datafile and the GMM analysis will be conducted upon the datafile. Some parameters can affect the results, including `--n_init`, which sets the number of k-means initializations (default 200), `--max_iter`, which sets the maximum number of iterations (default 200), `--method`, which determines which clustering method to use (default gmm), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), and the data filtering parameters `--filters` which filters data based on alignment length, `--ks_range` which filters data based on *K*<sub>S</sub> values and the parameter `--bins` which sets the number of bins in *K*<sub>S</sub> distribution (default 50).
+
+**A suggested starting run can use command simply as below**
+
+```
+wgd mix ksdata
+```
+
+### wgd peak
+
+**The search of crediable *K*<sub>S</sub> range used in WGD dating**
+```
+wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic (--alignfilter 0.0 0 0.0 --ksrange 0 5 --bin_width 0.1 --guide segment --prominence_cutoff 0.1 --rel_height 0.4 --ci 95 --hdr 95 --kscutoff 5)
+```
+
+As mentioned previously, a heuristic method and a collinear segments-guided anchor pair clustering for the search of crediable *K*<sub>S</sub> range used in WGD dating are implemented in `wgd v2`. Users need to provide the anchor points, segments, listsegments, multipliconpairs datafile from `i-adhore` to achieve the clustering function. Some parameters that can impact the results include `--alignfilter`, which filters the data based on alignment identity, length and coverage, `--ksrange`, which sets the range of Ks to be analyzed, `--bin_width`, which sets the bandwidth of *K*<sub>S</sub> distribution, `--weights_outliers_included` which determines whether to include *K*<sub>S</sub> outliers (whose value is over 5) in analysis, `--method` which determines which clustering method to use (default gmm), `--seed` which sets the random seed given to initialization (default 2352890), `--n_init`, which sets the number of k-means initializations (default 200), `--em_iter`, which sets the maximum number of iterations (default 200), `--gamma`, which sets the gamma parameter for the bgmm model (default 0.001), `--components`, which sets the range of the number of components to fit (default 1 4), `--weighted` which determines whether to use node-weighted method for de-redundancy, `--guide` which determines which regime residing anchors to be used (default Segment), `--prominence_cutoff` which sets the prominence cutoff of acceptable peaks in peak finding process, `--rel_height` which sets the relative height at which the peak width is measured, `--kstodate` which manually sets the range of *K*<sub>S</sub> to be dated in heuristic search and needs to be co-set with option `--manualset`, `--xlim` and `--ylim` determining the x and y axis limit of GMM *K*<sub>S</sub> distribution, `--ci` setting the confidence level of log-normal distribution to date (default 95), `--hdr` setting the highest density region (HDR) applied in the segment-guided anchor pair *K*<sub>S</sub> distribution (default 95), `--heuristic` determining whether to initiate heuristic method of defining CI for dating, `--kscutoff` setting the *K*<sub>S</sub> saturation cutoff in dating (default 5).
+
+Four result subfloders will be produced, namely `AnchorKs_FindPeak`, `AnchorKs_GMM`, `SegmentGuideKs_GMM` and `SegmentKs_FindPeak`. The `AnchorKs_FindPeak` subfloder contains results of the detected peaks by the `signal` module of `SciPy` library and the assumed highest mass part (referred to as HighMass hereafter) of each peak, which can be used for further WGD dating. The `AnchorKs_GMM` shows the GMM results upon the original anchor *K*<sub>S</sub> distribution by the `mixture` module of `scikit-learn` library and two subfloders, `LogGMM_CI` containing the results of 95% CI of each component, `HighMass_CI` containing the HighMass of each component, which can be used for further WGD dating. The `SegmentGuideKs_GMM` subfolder presents results of segment *K*<sub>S</sub> GMM which are mapped back to the residing anchor pairs and the associated 95% HDR and HighMass of each segment cluster in subfloders of `HDR_CI` and `HighMass_CI`. The `SegmentKs_FindPeak` subfolder is similar to `AnchorKs_FindPeak` but with segment *K*<sub>S</sub> instead. The *K*<sub>S</sub> in `Multiplicon` can also be calculated in place of `Segment` using the option `--guide` as such the result title, label, file and folder names will be changed accordingly.
+
+**A suggested starting run can use command simply as below**
+
+```
+wgd peak ksdata -ap apdata -sm smdata -le ledata -mp mpdata --heuristic
+```
+
+### wgd focus
+
+**The concatenation-based/coalescence-based phylogenetic inference**
+```
+wgd focus families sequence1 sequence2 sequence3 (--concatenation) (--coalescence) (-tree 'fasttree') (-ts '-fastest') (-n 4) (--to_stop) (--cds) (-o wgd_focus) (-t working_tmp)
+```
+
+The program `wgd focus` implemented two basic phylogenetic inference methods, i.e., concatenation-based and coalescence-based methods. To initiate these analysis, users need to set the flag option `--concatenation` or `--coalescence`. The concatenation-based method includes a few major steps, i.e., the multiple sequence alignment (MSA) of each gene family, the concatenation of all gene families and then the gene tree (also species tree in this case) inference. The coalescence-based method will instead perform the MSA of each gene family and the gene tree inference based on each MSA, and then infer the species tree based on these individual gene trees. The tree-inference program and the associated parameters can be set just as above by `-tree` or `--tree_method` and `-ts` or `--treeset`. Please also make sure the chosen tree-inference program is installed in the environment path. The program `astral-pro` is required to be installed in the environment path if the coalescence-based method is chosen. The parallel threads here are to accelerate the sequence alignment and gene tree inference for each gene family too and thus suggested to be set as much as the number of gene families.
+
+**A suggested starting run of this analysis is with the simple command below.**
+
+```
+wgd focus families sequence1 sequence2 sequence3 --concatenation
+wgd focus families sequence1 sequence2 sequence3 --coalescence
+```
+
+**The functional annotation of gene families**
+```
+wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed eddata --dmnb dbdata
+```
+
+The program `wgd focus` also added some wrapping functions for functional annotation of gene families on the hood of databases and softwares for instance `EggNOG` and `EggNOG-mapper`. For the annotation using `EggNOG-mapper`, users need to provide the path to the eggNOG annotation database via the option `-ed`, the path to the diamond-compatible database via the option `--dmnd_db` and the option `--annotation` set as "eggnog". The manner how PFAM annotation will be performed can be controlled via the option `pfam`, either "none", "realign" or "denovo", the detailed explanation can be found at the wiki of [EggNOG-mapper](https://github.com/eggnogdb/eggnog-mapper/wiki). Please pre-install the `EggNOG-mapper` python package if using this function. For the annotation using `hmmscan`, what is implemented in `wgd v2` is a simple bundle function to perform `hmmscan` analysis for a given hmm profile and set of gene families such that users need to set the option `--annotation` as "hmmpfam" and provide the hmmprofile via the option `--hmm`. For the annotation using `interproscan`, users need to provide the path to the interproscan installation folder where there is a `interproscan.sh` file via the option `--exepath` and set the the option `--annotation` as "interproscan". The parallel threads here are to parallelize the analysis for each gene family and thus suggested to be set as much as the number of gene families.
+
+**A suggested starting run of this analysis can be with the command below.**
+
+```
+wgd focus families sequence1 sequence2 sequence3 --annotation eggnog -ed eddata --dmnb dbdata
+wgd focus families sequence1 sequence2 sequence3 --annotation hmmpfam --hmm hmmdata
+wgd focus families sequence1 sequence2 sequence3 --annotation interproscan --exepath $PATH
+```
+
+**The phylogenetic dating of WGDs**
+```
+wgd focus families sequence1 sequence2 sequence3 -d mcmctree -sp spdata (--protcocdating) (--partition) (--aamodel lg) (-ds 'burnin = 2000') (-ds 'sampfreq = 1000') (-ds 'nsample = 20000')  (-n 4) (--to_stop) (--cds) (-o wgd_focus) (-t working_tmp)
+```
+
+The absolute dating of WGDs is a specific pipeline implemented in `wgd v2` using the method of phylogenetic dating. The families used in this step can be produced from `wgd dmd` and `wgd peak`. Note that here we only discuss how to date WGDs with genome assembly, instead of transcriptome assembly (which will be discussed in a separate section hereunder). The assumption we made here is that not all anchor pairs (collinear duplicates) are suitable for phylogenetic dating, for instance those fastly or slowly evolving gene duplicates, because they're prone to give biased dating estimation. So as to retrieve the "reliable" anchor pairs, we implemented some methods of identifying crediable anchor pairs based on their Ks values and/or residing collinear segments. For a genome with clear signals of putative WGDs, such as the *Aquilegia coerulea* in the example, a heuristic method that applies the principle of how [ksrates](https://github.com/VIB-PSB/ksrates) find the initial peaks and their parameters was implemented to find the 95% confidence level of the assumed lognormal distribution of the anchor pair *K*<sub>S</sub> age distribution to filter anchor pairs with too high or low *K*<sub>S</sub> ages, the examplar command of which is showed in the `wgd peak` section of [Illustration](https://github.com/heche-psb/wgd?tab=readme-ov-file#illustration). If this heuristic method failed to give reasonable results, which is usually due to the effect of multiple adjacent WGDs that blurs the peak-finding process, users can turn to the collinear segments-guided anchor pair clustering implemented in `wgd v2`, in which a collinear segment-wise GMM clustering will be first conducted based on the "so-called" segment *K*<sub>S</sub> age represented by the median *K*<sub>S</sub> age of all the residing syntelogs (note that the gene duplicate pairs adopted in this step is from the file `multiplicon_pairs.txt` which contains the full set of syntelogs), instead of the smaller gene set of anchor pairs. The distinction between anchor pairs and syntelogs is that the latter refers to multiple sets of genes derived from the same ancestral genomic region while the former implies the latter but requires additionally the conserved gene order, both of which are, within a genome, assumed to be originated from the duplication of a common ancestral genomic region and as such deemed evidence for WGD. Then the syntelogs will be mapped back according to the clustering results of their affiliated segments. Since the Gaussian shape of the segment cluster doesn't necessarily imitate the shape of the residing syntelogs, so as to retrieve the "reliable" gene sets for phylogenetic dating, we adpoted the (95%) highest density region (HDR) of the syntelog *K*<sub>S</sub> age distribution for the phylogenetic dating, the calculation of the (95%) HDR in the function [calculateHPD](https://github.com/heche-psb/wgd/blob/phylodating/wgd/peak.py#L1757) seeks the shortest *K*<sub>S</sub> range (a,b) which satisfies the requirement of spanning more than (95%) of all the *K*<sub>S</sub> values. On the premise of identified anchor pairs (note that the syntelogs are also referred as anchor pairs hereafter), we implemented in the program `wgd dmd` the so-called anchor-aware local MRBHs or orthogroups, in which the original local MRBHs are further merged with anchor pairs such that each orthogroup contains the anchor pair and the orthologues. With this orthogroup, users then need one starting tree file (as shown in the [Illustration](https://github.com/heche-psb/wgd/tree/phylodating?tab=readme-ov-file#illustration) part) indicating the tree topology and fossil calibration information for the final phylogenetic dating using the program `wgd focus`. Users can set the flag option `--protcocdating` to only conduct the dating of the concatenation protein MSA or the flag option `--protdating` to only conduct the dating of the protein MSAs, noted that these two options only work for the `mcmctree` option so far. The flag option `--partition` can be set to perform `mcmctree` analysis using the partitioned data (i.e., 1st, 2nd and 3rd position of codon) instead of using the codon as a whole. The option `--aamodel` can be set to determine the amino acid model applied in `mcmctree` analysis. The option `-ds` can be used to set parameters for the molecular dating program. The parallel threads here are to parallelize the analysis for each gene family and thus suggested to be set as much as the number of gene families.
+
+**A suggested starting run can be with the command below.**
+
+```
+wgd focus families sequence1 sequence2 sequence3 -d mcmctree -sp spdata
+wgd focus families sequence1 sequence2 sequence3 -d r8s -sp spdata --nsites nsiteinfo
+wgd focus families sequence1 sequence2 sequence3 -d beast --fossil fossilinfo --rootheight rootheightinfo --chainset chainsetinfo --beastlgjar $PATH
+```
+
 ## Illustration
 
 We illustrate our program on an exemplary WGD inference and dating upon species *Aquilegia coerulea*.
@@ -640,26 +641,6 @@ Note that the opacity of anchor dots and all homolog dots can be set by the opti
 A further associated Syndepth plot shows that there are more than 50 duplicated segments longer than 10000 bp and 30 genes (so as to drop fragmentary segments), which dominates the whole collinear ratio category.
 
 ![](data/syn_results/Syndepth.svg)
-
-More exquisite plots including both intra-specific and inter-specific comparisons using the orthogroups (composed of *Aquilegia coerulea*, *Protea cynaroides*, *Acorus americanus* and *Vitis vinifera*, see further for the context) inferred hereinafter can be also produced using `wgd syn`. Note that different genome assemblies might have different features and attributes which can be accommodated via the option `--additionalgffinfo` for each genome assembly whose order needs to follow the order of gff3 files, for instance 'mNRA;Name' for `Aquilegia_coerulea.gff3`, 'mNRA;ID' for `Protea_cynaroides.gff3`, 'mNRA;Name' for `Acorus_americanus.gff3` and 'mNRA;Name' for `Vitis_vinifera.gff3`.
-
-```
-wgd syn wgd_ortho/Orthogroups.sp.tsv -ks wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv Aquilegia_coerulea.gff3 --additionalgffinfo 'mNRA;Name' Protea_cynaroides.gff3 --additionalgffinfo 'mNRA;ID' Acorus_americanus.gff3 --additionalgffinfo 'mNRA;Name' Vitis_vinifera.gff3 --additionalgffinfo 'mNRA;Name' -o wgd_ortho_syn
-```
-
-Upon the acquisition of the collinear results using `wgd syn`, the same collinear plots can be also produced by `wgd viz` using the command below.
-```
-wgd viz --plotsyn -sm wgd_ortho_syn/iadhore-out/segments.txt -ap wgd_ortho_syn/iadhore-out/anchorpoints.txt -mt wgd_ortho_syn/iadhore-out/multiplicons.txt -gt wgd_ortho_syn/gene-table.csv -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -o wgd_ortho_viz
-```
-
-![](data/ortho_syn_results/Aquilegia_coerulea_Vitis_vinifera_multiplicons_level.png)
-The above `dupStack` plot shows the distribution of duplicated segments of *Aquilegia coerulea* compared to itself (in green) and compared to *Vitis vinifera* (in blue) over the chromosomes of *A. coerulea*.
-![](data/ortho_syn_results/Overallspecies_Ks.dot_unit_gene.png)
-The above *K*<sub>S</sub> dotplot in unit of gene shows the overall distribution of collinearity acorss the four species involved.
-![](data/ortho_syn_results/Overallspecies.dot_unit_gene.png)
-The above dotplot is without the annotation of *K*<sub>S</sub> ages compared to the last one.
-![](data/ortho_syn_results/Syndepth.svg)
-The above Syndepth plot shows the collinear ratio acorss all species pairs (intra-specific comparison in green while inter-specific comparison in blue).
 
 We can fit an ELMM mixture model upon the whole paranome *K*<sub>S</sub> age distribution to see more accurately the significance and location of potential WGDs, using the command line below.
 
@@ -830,6 +811,28 @@ wgd ksd data/kstree_data/fam.tsv data/kstree_data/Acorus_tatarinowii data/kstree
 ![](data/kstree_results/kstree.svg)
 
 Above we used three alternative topologies to infer the *K*<sub>S</sub> tree which led to different branch length estimation. Note that the families we used were only two global MRBH families for the purpose of illustration. To acquire an accurate profile of the substitution rate variation, orthologues at the whole genome scale should be used.
+
+In addition, more exquisite collinear plots including both intra-specific and inter-specific comparisons using the orthogroups (composed of *Aquilegia coerulea*, *Protea cynaroides*, *Acorus americanus* and *Vitis vinifera*) inferred can be also produced using `wgd syn`. Note that different genome assemblies might have different features and attributes which can be accommodated via the option `--additionalgffinfo` for each genome assembly whose order needs to follow the order of gff3 files, for instance 'mNRA;Name' for `Aquilegia_coerulea.gff3`, 'mNRA;ID' for `Protea_cynaroides.gff3`, 'mNRA;Name' for `Acorus_americanus.gff3` and 'mNRA;Name' for `Vitis_vinifera.gff3`.
+
+```
+wgd dmd -oo -oi Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho
+wgd ksd wgd_ortho/Orthogroups.sp.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho_ks
+wgd syn wgd_ortho/Orthogroups.sp.tsv -ks wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv Aquilegia_coerulea.gff3 --additionalgffinfo 'mNRA;Name' Protea_cynaroides.gff3 --additionalgffinfo 'mNRA;ID' Acorus_americanus.gff3 --additionalgffinfo 'mNRA;Name' Vitis_vinifera.gff3 --additionalgffinfo 'mNRA;Name' -o wgd_ortho_syn
+```
+
+Upon the acquisition of the collinear results using `wgd syn`, the same collinear plots can be also produced by `wgd viz` using the command below.
+```
+wgd viz --plotsyn -sm wgd_ortho_syn/iadhore-out/segments.txt -ap wgd_ortho_syn/iadhore-out/anchorpoints.txt -mt wgd_ortho_syn/iadhore-out/multiplicons.txt -gt wgd_ortho_syn/gene-table.csv -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -o wgd_ortho_viz
+```
+
+![](data/ortho_syn_results/Aquilegia_coerulea_Vitis_vinifera_multiplicons_level.png)
+The above `dupStack` plot shows the distribution of duplicated segments of *Aquilegia coerulea* compared to itself (in green) and compared to *Vitis vinifera* (in blue) over the chromosomes of *A. coerulea*.
+![](data/ortho_syn_results/Overallspecies_Ks.dot_unit_gene.png)
+The above *K*<sub>S</sub> dotplot in unit of gene shows the overall distribution of collinearity acorss the four species involved.
+![](data/ortho_syn_results/Overallspecies.dot_unit_gene.png)
+The above dotplot is without the annotation of *K*<sub>S</sub> ages compared to the last one.
+![](data/ortho_syn_results/Syndepth.svg)
+The above Syndepth plot shows the collinear ratio acorss all species pairs (intra-specific comparison in green while inter-specific comparison in blue).
 
 ## Citation
  
