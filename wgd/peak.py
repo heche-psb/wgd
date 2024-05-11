@@ -1332,7 +1332,7 @@ def find_apeak(df,anchor,sp,outdir,peak_threshold=0.1,na=False,rel_height=0.4,ci
         else: get95CIap(lower95CI,upper95CI,anchor,gs_ks,outdir,na,sp,ci,user=user,kscutoff=kscutoff)
     else:
         if len(init_means)==0 or len(init_stdevs) ==0: lower95CI,upper95CI = None,None
-        else: lower95CI,upper95CI = noplot_95CI_lognorm_hist(init_means, init_stdevs, ci=ci)
+        else: lower95CI,upper95CI = noplot_95CI_lognorm_hist(init_means, init_stdevs, good_prominences, ci=ci)
         return lower95CI,upper95CI
 
 def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False,kscutoff=5):
@@ -1482,14 +1482,15 @@ def plot_95CI_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = No
     plt.close()
     return np.exp(mean)-std*2,np.exp(mean)+std*2
 
-def noplot_95CI_lognorm_hist(init_means, init_stdevs, ci=95):
+def noplot_95CI_lognorm_hist(init_means, init_stdevs, good_prominences, ci=95):
     ci_l = (1-ci/100)/2
     ci_u = 1-(1-ci/100)/2
     CI_95s = []
-    for mean,std,i in zip(init_means, init_stdevs,range(len(init_means))):
+    best = np.argmax(good_prominences)
+    for mean,std,i in zip(init_means, init_stdevs, range(len(init_means))):
         CI_95 = stats.lognorm.ppf([ci_l, ci_u], scale=np.exp(mean), s=std)
         CI_95s.append(CI_95) # There is supposed to be only one peak detected provided the GMM component
-    return CI_95s[0][0],CI_95s[0][1]
+    return CI_95s[best][0],CI_95s[best][1]
 
 def plot_95CI_lognorm_hist(init_means, init_stdevs, ks_or, w, outdir, na, sp, guide = None, ci=95, keeptmp=False):
     if guide != None: fname = os.path.join(outdir, "{}Ks_PeakCI_{}.pdf".format(guide,sp))
