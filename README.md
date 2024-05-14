@@ -220,7 +220,7 @@ wgd ksd wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea -o wgd_ksd
 wgd syn -f mRNA -a Name wgd_dmd/Aquilegia_coerulea.tsv Aquilegia_coerulea.gff3 -ks wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -o wgd_syn
 wgd dmd --globalmrbh Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh
 wgd ksd wgd_globalmrbh/global_MRBH.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_globalmrbh_ks
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
 ```
 ```
 # what will be in the wgd_viz_mixed_Ks result directory
@@ -889,7 +889,7 @@ wgd ksd wgd_globalmrbh/global_MRBH.tsv Aquilegia_coerulea Protea_cynaroides Acor
 With the calculated orthologous *K*<sub>S</sub> distribution, we can use the command below to conduct the rate correction and/or mixture modeling analysis.
 
 ```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight
 ```
 
 or using the command below, which combines the two steps above in one. Note that we suggest of taking two separate steps in which `wgd ksd` undertakes the calculation of orthologous *K*<sub>S</sub> distribution while `wgd viz` carries out the rate correction and GMM analysis such that it's easier to debug.
@@ -915,7 +915,7 @@ Besides the above ksrates-like *K*<sub>S</sub> plot, a more classic *K*<sub>S</s
 Using the command below, the direction of rate correction and degree of rate variation can be observed more directly.
 
 ```
-wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight --plotkde --classic
+wgd viz -d wgd_globalmrbh_ks/global_MRBH.tsv.ks.tsv -fa Aquilegia_coerulea -epk wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -ap wgd_syn/iadhore-out/anchorpoints.txt -sp speciestree.nw -o wgd_viz_mixed_Ks --plotelmm --plotapgmm --reweight --plotkde --classic
 ```
 
 ![](data/Aquilegia_coerulea_GlobalmrbhKs_Elmm_Apgmm_Corrected.ksd.svg)
@@ -951,7 +951,7 @@ Users can decide to only conduct the orthogroup analysis while skipping other an
 
 ```
 wgd ksd wgd_ortho/Orthogroups.sp.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho_ks
-wgd viz -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -epk wgd_ksd/Aquilegia_coerulea.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -plotelmm --plotapgmm -o wgd_ortho_ks_rate_correction
+wgd viz -d wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv -epk wgd_ksd/Aquilegia_coerulea.tsv.ks.tsv -sp speciestree.nw --reweight -ap wgd_syn/iadhore-out/anchorpoints.txt -plotelmm --plotapgmm -o wgd_ortho_ks_rate_correction
 ```
 
 ![](data/Mixed.ks.Aquilegia_coerulea.node.weighted_Ortho_Ks.png)
