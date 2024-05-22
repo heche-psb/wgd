@@ -981,7 +981,7 @@ As shown above, we assumed a lognormal distribution at the peak location detecte
 ((((Potamogeton_acutifolius,(Spirodela_intermedia,Amorphophallus_konjac)),(Acanthochlamys_bracteata,(Dioscorea_alata,Dioscorea_rotundata))'>0.5600<1.2863')'>0.8360<1.2863',(Acorus_americanus,Acorus_tatarinowii))'>0.8360<1.2863',((((Tetracentron_sinense,Trochodendron_aralioides),(Buxus_austroyunnanensis,Buxus_sinica))'>1.1080<1.2863',(Nelumbo_nucifera,(Telopea_speciosissima,Protea_cynaroides)))'>1.1080<1.2863',(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2))'>1.1080<1.2863')'>1.2720<2.4720';
 ```
 
-As presented above, the focus species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below.
+As presented above, the focal species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below. Note that here we assume other species in the starting tree do not share the WGD to be dated such that the topology of starting tree is correct, otherwise we need to further discern the `ap1` and `ap2` for other species as well, and then group all `ap1` in one branch and all `ap2` in another branch. In that sense, holding the focal species as the only one who shared the WGD to be dated in the starting tree is a simplified but correct practice.
 
 ```
 wgd dmd -f Aquilegia_coerulea -ap wgd_peak/AnchorKs_FindPeak/Aquilegia_coerulea.tsv.ks.tsv_95%CI_AP_for_dating_weighted_format.tsv -o wgd_dmd_ortho Potamogeton_acutifolius Spirodela_intermedia Amorphophallus_konjac Acanthochlamys_bracteata Dioscorea_alata Dioscorea_rotundata Acorus_americanus Acorus_tatarinowii Tetracentron_sinense Trochodendron_aralioides Buxus_austroyunnanensis Buxus_sinica Nelumbo_nucifera Telopea_speciosissima Protea_cynaroides Aquilegia_coerulea
@@ -1006,7 +1006,7 @@ Here we only implemented the concatenation analysis using protein sequence by ad
          INFO     Done                                                cli.py:242
 ```
 
-To visualize the date, we also provided a python script to plot the WGD dates in the `wgd` folder. Users need to extract the raw dates from the `mcmc.txt` for the WGD node first and save it as file ![](dates.txt) (or whatever preferred name). An example command is as below.
+To visualize the date, we also provided a python script to plot the WGD dates in the `wgd` folder. Users need to extract the raw dates from the `mcmc.txt` for the WGD node first and save it as file [dates.txt](https://github.com/heche-psb/wgd/blob/phylodating/data/dates.txt) (or whatever preferred name). An example command is as below.
 
 ```
 python $PATH/postplot.py postdis dates.txt --percentile 90 --title "WGD date" --hpd -o "Ranunculales_WGD_date.svg"
