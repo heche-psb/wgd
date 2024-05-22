@@ -947,7 +947,7 @@ Pcy_Procy01g08510 Protea_cynaroides
 Aam_Acora.04G142900.1 Acorus_americanus
 ```
 
-An alternative way to calculate the orthologous *K*<sub>S</sub> is to directly use the orthogroups instead of global MRBH family. That way we don't use the pre-inferred paranome *K*<sub>S</sub> but the paralogous gene pairs inside each orthogroup instead. To achieve that, we first need to infer orthogroups using the command below.
+An alternative way to calculate the orthologous *K*<sub>S</sub> is to directly use the orthogroups instead of global MRBH family. That way we don't use the strictly 1-vs-1 orthologues as global MRBH but all the orthologous gene pairs inside each orthogroup instead. To achieve that, we first need to infer orthogroups using the command below.
 
 ```
 wgd dmd Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera --orthoinfer -o wgd_ortho (--onlyortho) 
