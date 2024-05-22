@@ -1006,11 +1006,13 @@ Here we only implemented the concatenation analysis using protein sequence by ad
          INFO     Done                                                cli.py:242
 ```
 
-To visualize the date, we also provided a python script to plot the WGD dates in the `wgd` folder. Users need to extract the raw dates from the `mcmc.txt` for the WGD node first and save it as file `dates.txt` (or whatever preferred name). An example command is as below.
+To visualize the date, we also provided a python script to plot the WGD dates in the `wgd` folder. Users need to extract the raw dates from the `mcmc.txt` for the WGD node first and save it as file ![](dates.txt) (or whatever preferred name). An example command is as below.
 
 ```
 python $PATH/postplot.py postdis dates.txt --percentile 90 --title "WGD date" --hpd -o "Ranunculales_WGD_date.svg"
 ```
+
+Users can freely set the percentile for CI (either in HPD with `--hpd` or in Equal-Tailed CI without `--hpd`) and the title and output file name via `--title` and `-o`.
 
 ![](data/Ranunculales_WGD_date.svg)
 
