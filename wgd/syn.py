@@ -178,13 +178,14 @@ def write_config_adhore(
         o.write('number_of_threads= {}\n'.format(number_of_threads))
     return os.path.abspath(output_path)
 
-def run_adhore(config_file):
+def run_adhore(config_file,pathiadhore=None):
     """
     Run I-ADHoRe for a given config file
 
     :param config_file: path to I-ADHoRe configuration file
     """
-    completed = sp.run(['i-adhore', config_file], stderr=sp.PIPE, stdout=sp.PIPE)
+    if pathiadhore is not None: completed = sp.run([pathiadhore, config_file], stderr=sp.PIPE, stdout=sp.PIPE)
+    else: completed = sp.run(['i-adhore', config_file], stderr=sp.PIPE, stdout=sp.PIPE)
     logging.warning(completed.stderr.decode('utf-8'))
     logging.info(completed.stdout.decode('utf-8'))
     return

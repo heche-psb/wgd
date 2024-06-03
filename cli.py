@@ -649,6 +649,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     help="maximum family size to include in analysis.")
 @click.option('--ks_range', '-r', nargs=2, default=(0, 5), show_default=True,
     type=float, help='Ks range in the colored dotplot')
+@click.option('--pathiadhore', default=None, show_default=True, help='path to i-adhore executable')
 @click.option('--iadhore_options', default="",
     help="other options for I-ADHoRe, as a comma separated string, "
          "e.g. gap_size=30,q_value=0.75,prob_cutoff=0.05")
@@ -668,7 +669,7 @@ def syn(**kwargs):
     """
     _syn(**kwargs)
 
-def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
+def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, attribute,
         minlen, maxsize, ks_range, iadhore_options, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, gistrb, nthreads, ancestor=None):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -705,7 +706,7 @@ def _syn(families, gff_files, ks_distribution, outdir, feature, attribute,
     ordered_genes_perchrom_allsp, gene_orders = get_chrom_gene(table,outdir)
     table.to_csv(os.path.join(outdir, "gene-table.csv"))
     logging.info("Running I-ADHoRe")
-    run_adhore(conf)
+    run_adhore(conf,pathiadhore=pathiadhore)
 
     # general post-processing
     logging.info("Processing I-ADHoRe output")

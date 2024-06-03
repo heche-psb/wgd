@@ -475,6 +475,7 @@ wgd syn families gffs (option)
 -ml, --minlen, the minimum length of a scaffold to be included in dotplot, default -1, if -1 was set, the 10% of the longest scaffold would be set
 -ms, --maxsize, the maximum family size to be included, default 200
 -r, --ks_range, the Ks range in colored dotplot, default (0, 5)
+--pathiadhore, the path to the i-adhore executable, which can be simply igored if the i-adhore can already be properly called, default None
 --iadhore_options, the parameter setting in iadhore, default as a string of length zero
 -mg, --minseglen, the minimum length of segments to include in ratio if <= 1, default 10000
 -kr, --keepredun, flag option, whether to keep redundant multiplicons, if the flag was set, the redundant multiplicons would be kept
