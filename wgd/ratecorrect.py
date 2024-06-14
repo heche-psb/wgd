@@ -17,6 +17,7 @@ import matplotlib.patches as patches
 from scipy import interpolate,signal
 from joblib import Parallel, delayed
 from tqdm import trange
+from wgd.utils import formatv2
 
 _labels = {"dS" : "$K_\mathrm{S}$","dN" : "$K_\mathrm{A}$", "dN/dS": "$\omega$"}
 
@@ -381,6 +382,7 @@ def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,
     if len(df_spair) == 0 and extraPara is None: logging.error("No paralogous Ks data was found")
     if extraPara is not None:
         df_spair = pd.read_csv(extraPara,header=0,index_col=0,sep='\t')
+        df_spair = formatv2(df_spair)
         df_spair = apply_filters(df_spair, [("dS", 0., 5.)])
     if reweight:
         w = reweighted(df_spair)
