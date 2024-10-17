@@ -1781,8 +1781,8 @@ def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = N
         for i in range(3,end):
             pair = dfo.iloc[i,0].split()
             if len(pair) < 6:
-                logging.error("Unexpected hmmscan result in {}\n{}".format(out,pair))
-                exit(0)
+                logging.warning("Unexpected hmmscan result in {}\n{}".format(out,pair))
+                continue
             if bhmm:
                 f,g,score = pair[0],pair[2],float(pair[5])
                 ctf_v = ctf.loc[f,1]
