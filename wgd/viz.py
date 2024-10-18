@@ -2760,8 +2760,8 @@ def filter_mingenumber(segs,mingenenum,outdir,N,start):
 def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     rm_indice = []
     gene_start_info = {sp:{} for sp in scaf_info.keys()}
-    genetable['gene'] = genetable['gene'].astype(str)
     work1 = genetable.reset_index().loc[:,['gene','species','start']]
+    work1['gene'] = work1['gene'].astype(str)
     work2 = work1.groupby('species')
     for i,j,k in map(lambda x:(x[0],x[1]['gene'],x[1]['start']) ,work2):
         for gene,start in zip(j,k): gene_start_info[i][gene] = start
