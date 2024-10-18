@@ -196,6 +196,7 @@ def get_anchors(out_path,userdf=None):
     if len(anchors) == 0:
         return None, None
     orig_anchors = anchors.copy()
+    anchors["gene_x"], anchors["gene_y"]= anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
     df = anchors[["pair", "multiplicon"]].drop_duplicates("pair").set_index("pair")
     #anchors["pair_reverse"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[1], x[0]])), axis=1)
