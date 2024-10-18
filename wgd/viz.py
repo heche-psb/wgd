@@ -2765,6 +2765,7 @@ def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     work2 = work1.groupby('species')
     for i,j,k in map(lambda x:(x[0],x[1]['gene'],x[1]['start']) ,work2):
         for gene,start in zip(j,k): gene_start_info[i][gene] = start
+    segs['first'],segs['last'],segs['list'] = segs['first'].astype(str),segs['last'].astype(str),segs['list'].astype(str)
     for indice,sp,f,l,sf_la in zip(segs.index,segs['genome'],segs['first'],segs['last'],segs['list']):
         seg_len = abs(gene_start_info[sp][f] - gene_start_info[sp][l])
         if minseglen <= 1:
