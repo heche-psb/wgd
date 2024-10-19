@@ -573,6 +573,7 @@ def read_gene_families(fname):
     """
     df = pd.read_csv(fname, sep="\t", index_col=0).fillna("")
     for col in df.columns:
+        df[col] = df[col].astype(str)
         df[col] = df[col].apply(lambda x: x.split(", "))
     return df
 
