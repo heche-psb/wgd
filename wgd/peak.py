@@ -1417,6 +1417,7 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False,ksc
         fname = os.path.join(outdir, "{}_Manual_CI_MP_for_dating.tsv".format(sp_m))
         ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
         anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["gene_x"],anchors["gene_y"] = anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
         anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
         ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
         ap_format.index.name = 'id'
@@ -1430,6 +1431,7 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False,ksc
         else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
         ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
         anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["gene_x"],anchors["gene_y"] = anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
         anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
         ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
         ap_format.index.name = 'id'
@@ -1446,6 +1448,7 @@ def get95CIap_MP(lower,upper,anchor,gs_ks,outdir,sp,ci,guide,mpKs,user=False,ksc
             else: fname = os.path.join(outdir, "{}_{}%CI_MP_for_dating.tsv".format(sp_m,ci))
             ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
             anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+            anchors["gene_x"],anchors["gene_y"] = anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
             anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
             ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair','Median_Ks'])
             ap_format.index.name = 'id'
