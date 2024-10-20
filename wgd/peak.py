@@ -1554,6 +1554,7 @@ def plot_Elbow_loss(Losses,outdir,n1=None,n2=None,method='Medoids',regime=None):
 
 def get_anchors(anchor):
     anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+    anchors["gene_x"],anchors["gene_y"] = anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
     anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
     df = anchors[["pair", "basecluster",'multiplicon']].drop_duplicates("pair").set_index("pair")
     return df
