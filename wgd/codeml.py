@@ -110,7 +110,7 @@ def _run_codeml_tree(exe, control_file, out_file, prefix, kstree_dir, katree_dir
     #_write_basic(w,os.path.join(wtree_dir,'{}.w.tree'.format(prefix)))
 
 
-def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
+def _run_codeml(exe, control_file, out_file, preserve=False, times=1, pairid=None):
     """
     Run codeml assuming all necessary files are written and we are in the
     directory with those files. Set `preserve` to true to keep intermediary
@@ -142,6 +142,8 @@ def _run_codeml(exe, control_file, out_file, preserve=False, times=1):
         return None
     logging.debug('Best MLE: ln(L) = {}'.format(max_likelihood))
     #os.remove(control_file)
+    if pairid is not None:
+        max_results.to_csv(pairid,header=True,index=False,sep=',')
     if not preserve:
         os.remove(out_file)
     return max_results
@@ -304,13 +306,14 @@ class Codeml:
         for i in range(len(self.aln)-1):
             for j in range(i+1, len(self.aln)):
                 pair = MultipleSeqAlignment([self.aln[i], self.aln[j]])
+                pair_id = "__".join(sorted([self.aln[i].id, self.aln[j].id]))+".ks.csv"
                 stripped_pair = _strip_gaps(pair)
                 if stripped_pair.get_alignment_length() == 0:
                     no_results.append([p.id for p in pair])
                 else:
                     self.write_ctrl() 
                     _write_aln_codeml(stripped_pair, self.aln_file)
-                    tmp_result = _run_codeml(self.exe, self.control_file,self.out_file, **kwargs)
+                    tmp_result = _run_codeml(self.exe, self.control_file,self.out_file,pairid=pair_id, **kwargs)
                     if tmp_result is None:
                         no_results.append([p.id for p in pair])
                     else:
