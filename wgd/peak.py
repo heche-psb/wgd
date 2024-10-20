@@ -1362,6 +1362,7 @@ def get95CIap(lower,upper,anchor,gs_ks,outdir,na,sp,ci,user=False,kscutoff=5):
             else: fname = os.path.join(outdir, "{}_{}%CI_AP_for_dating_weighted.tsv".format(sp_m,ci))
         ap_95CI.to_csv(fname,header=True,index=True,sep='\t')
         anchors = pd.read_csv(anchor, sep="\t", index_col=0)
+        anchors["gene_x"],anchors["gene_y"] = anchors["gene_x"].astype(str),anchors["gene_y"].astype(str)
         anchors["pair"] = anchors[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
         ap_format = anchors.merge(ap_95CI.reset_index(),on='pair').drop(columns=['gene1', 'gene2','dS','pair'])
         ap_format.index.name = 'id'
