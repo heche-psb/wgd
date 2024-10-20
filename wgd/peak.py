@@ -1594,6 +1594,7 @@ def add_seg(df,listelement,multipliconpairs,segment,mul=False):
     mp = pd.read_csv(multipliconpairs, sep="\t", index_col=0)
     if len(mp.columns) == 5: mp = mp.drop(columns=['gene_y']).rename(columns = {'gene_x':'gene_y'}).rename(columns = {'Unnamed: 2':'gene_x'})
     mp = mp.loc[:,['multiplicon','gene_x','gene_y']]
+    mp['gene_x'],mp['gene_y'] = mp['gene_x'].astype(str),mp['gene_y'].astype(str)
     mp.loc[:,['pair']] = ["__".join(sorted([x,y])) for x,y in zip(mp['gene_x'],mp['gene_y'])]
     #mp = mp.drop_duplicates(subset=['pair']) # at this step half of the data will be filtered out
     mp.loc[:,['id']] = [i for i in range(mp.shape[0])]
