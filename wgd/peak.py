@@ -1603,6 +1603,7 @@ def add_seg(df,listelement,multipliconpairs,segment,mul=False):
     df_le = pd.read_csv(listelement,header=0,index_col=0,sep='\t').merge(df_seg,on='segment').rename(columns = {'multiplicon':'multiplicon_x'}).loc[:,['segment','multiplicon_x','gene']]
     #mp_segment_pools = {mt:list(set(df_seg[df_seg['multiplicon']==mt]['segment'])) for mt in df_seg['multiplicon']}
     #segment_gene_pools = {sg:list(set(df_le[df_le['segment']==sg]['gene'])) for sg in df_le['segment']}
+    df_le["gene"] = df_le["gene"].astype(str)
     df_mp_le = mp.merge(df_le,left_on='gene_x',right_on='gene')
     df_mp_le = df_mp_le[df_mp_le['multiplicon_x'] == df_mp_le['multiplicon']]
     df_mp_le = df_mp_le.rename(columns = {'segment':'segment_x'})
