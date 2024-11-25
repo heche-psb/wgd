@@ -40,8 +40,6 @@ In the premise of phylogenetically located WGDs, the absolute age (in geological
 The easiest way to install `wgd v2` is using `PYPI`. Note that if you want to get the latest update, we suggest installing from the source, since the update on `PYPI` will be delayed compared to here of source. Nonetheless, to install a stable version that has been well tested, we recommend version `2.0.38` by now. We suggest of adding the installation of `numpy` version 1.19.0 before `wgd` because `pip` can not resolve the requirements very well that the installation order of different dependencies might lead to incompatibility. `Python` version 3.6.5 or 3.8.0 (or nearby versions) are well tested to be compatible. We strongly recommend creating a virtual environment no matter you install from source, `PYPI` or `bioconda`, which can be achieved by the command below.
 
 ```
-git clone https://github.com/heche-psb/wgd
-cd wgd
 virtualenv -p=python3 ENV (or python3/python -m venv ENV)
 source ENV/bin/activate
 pip install numpy==1.19.0
