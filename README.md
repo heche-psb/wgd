@@ -12,7 +12,7 @@
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
 
-[**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.org/)**, VIB-UGent Center for Plant Systems Biology**
+[**Bioinformatics & Evolutionary Genomics Group**](https://www.vandepeerlab.be/)**, VIB-UGent Center for Plant Systems Biology**
 
 [**Introduction**](#introduction) | 
 [**Installation**](#installation) |
