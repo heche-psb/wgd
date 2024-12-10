@@ -8,7 +8,7 @@
 [![Latest PyPI version](https://img.shields.io/pypi/v/wgd.svg)](https://pypi.python.org/pypi/wgd)
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/wgd/README.html)
 [![Anaconda.org](https://anaconda.org/bioconda/wgd/badges/version.svg)](https://anaconda.org/bioconda/wgd/badges#)
-[![Downloads](https://pepy.tech/badge/wgd)](https://pepy.tech/project/wgd)
+[![Downloads](https://anaconda.org/bioconda/wgd/badges/downloads.svg)](https://anaconda.org/bioconda/wgd)
 
 **Hengchi Chen, Arthur Zwaenepoel, Yves Van de Peer**
 
