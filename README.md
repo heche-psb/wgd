@@ -1002,6 +1002,35 @@ Error: check #seqs and tree: perhaps too many '('?.
 
 **A redundant "(" was added on the left of "((((Tetracentron_sinense" and a redundant ")" was added on the right of "Protea_cynaroides)))'>1.1080<1.2863'", which will elicit the above error in `mcmctree`**
 
+**Or if you encounter this following error in `mcmctree`**
+
+```
+*** Locus 1 ***
+ns = 30         ls = 1058111
+Reading sequences, sequential format..
+Reading seq #13: Dunaliella_salina
+Error in sequence data file: ? at 227486 seq 13.
+Make sure to separate the sequence from its name by 2 or more spaces.
+```
+
+Please double check your 227486th sequence of Dunaliella_salina. A likely solution can be as below.
+
+```
+>>>from Bio import AlignIO
+>>>aln = AlignIO.read(alnf,'fasta')
+>>>alnf_paml = alnf + '.paml'
+>>>with open (alnf_paml,'w') as f:
+>>>	f.write(' {0} {1}\n'.format(len(aln),aln.get_alignment_length()))
+>>>	for i in aln:
+>>>		if i.id == 'Dunaliella_salina':
+>>>			seq_ = str(i.seq)
+>>>			str_ = seq_[:227485] + '-' + seq_[227486:]
+>>>			i.seq = str_
+>>>		f.write('{0}          {1}\n'.format(i.id,i.seq))
+```
+
+**'alnf' is your alignment datafile in fasta format, which has an exceptional '?' amino acid at 227486th position causing the error. The above command turns the '?' into a '-' to tackle this issue and gives output in `paml` format.**
+
 As presented above, the focal species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below. Note that here we assume other species in the starting tree do not share the WGD to be dated such that the topology of starting tree is correct, otherwise we need to further discern the `ap1` and `ap2` for other species as well, and then group all `ap1` in one branch and all `ap2` in another branch. In that sense, holding the focal species as the only one who shared the WGD to be dated in the starting tree is a simplified but correct practice.
 
 ```
