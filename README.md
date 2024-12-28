@@ -981,6 +981,27 @@ As shown above, we assumed a lognormal distribution at the peak location detecte
 ((((Potamogeton_acutifolius,(Spirodela_intermedia,Amorphophallus_konjac)),(Acanthochlamys_bracteata,(Dioscorea_alata,Dioscorea_rotundata))'>0.5600<1.2863')'>0.8360<1.2863',(Acorus_americanus,Acorus_tatarinowii))'>0.8360<1.2863',((((Tetracentron_sinense,Trochodendron_aralioides),(Buxus_austroyunnanensis,Buxus_sinica))'>1.1080<1.2863',(Nelumbo_nucifera,(Telopea_speciosissima,Protea_cynaroides)))'>1.1080<1.2863',(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2))'>1.1080<1.2863')'>1.2720<2.4720';
 ```
 
+**Note that if you encounter the following error in `mcmctree` **
+
+```
+MCMCTREE in paml version 4.9j, February 2020
+
+Reading options from mcmctree.ctrl..
+finetune is deprecated now.
+Reading master tree.
+
+Error: check #seqs and tree: perhaps too many '('?.
+```
+
+**Please double check the parenthesis, especially the redundant parenthesis, a problematic example is as follows**
+
+```
+17 1
+((((Potamogeton_acutifolius,(Spirodela_intermedia,Amorphophallus_konjac)),(Acanthochlamys_bracteata,(Dioscorea_alata,Dioscorea_rotundata))'>0.5600<1.2863')'>0.8360<1.2863',(Acorus_americanus,Acorus_tatarinowii))'>0.8360<1.2863',(((((Tetracentron_sinense,Trochodendron_aralioides),(Buxus_austroyunnanensis,Buxus_sinica))'>1.1080<1.2863',(Nelumbo_nucifera,(Telopea_speciosissima,Protea_cynaroides)))'>1.1080<1.2863'),(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2))'>1.1080<1.2863')'>1.2720<2.4720';
+```
+
+**A redundant "(" was added on the left of "((((Tetracentron_sinense" and a redundant ")" was added on the right of "Protea_cynaroides)))'>1.1080<1.2863'", which will elicit the above error in `mcmctree`**
+
 As presented above, the focal species that is about to be dated needs to be replaced with `(Aquilegia_coerulea_ap1,Aquilegia_coerulea_ap2)`. With this starting tree and predownloaded cds files of all the species, we can build the orthogroup used in the final molecular dating using the command as below. Note that here we assume other species in the starting tree do not share the WGD to be dated such that the topology of starting tree is correct, otherwise we need to further discern the `ap1` and `ap2` for other species as well, and then group all `ap1` in one branch and all `ap2` in another branch. In that sense, holding the focal species as the only one who shared the WGD to be dated in the starting tree is a simplified but correct practice.
 
 ```
