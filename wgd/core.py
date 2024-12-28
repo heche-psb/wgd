@@ -584,7 +584,7 @@ def read_MultiRBH_gene_families(fname):
     """
     seqid_table = []
     df = pd.read_csv(fname,header=0,index_col=0,sep='\t')
-    yids = lambda i: ', '.join(list(df.loc[i,:].dropna())).split(', ')
+    yids = lambda i: ', '.join(list(df.loc[i,:].dropna().astype(str))).split(', ')
     seqid_table = [yids(i) for i in df.index]
     #with open (fname,'r') as orthotable:
     #    next(orthotable)
@@ -1212,7 +1212,7 @@ def GetG2SMap(families, outdir):
     yids = lambda i: ', '.join(list(i)).split(', ')
     for i in df.columns:
         Slist.append(i)
-        ids = yids(df[i].dropna())
+        ids = yids(df[i].dropna().astype(str))
         with open(G2SMap, "a") as f:
             for j in ids: f.write(j + " "+ i + "\n")
     return G2SMap, Slist
