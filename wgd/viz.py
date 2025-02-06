@@ -1399,7 +1399,7 @@ def syntenic_depth_plot(segprofile,start):
     #fig.suptitle('Collinear ratio', x=0.5, y=1.02, ha='center', va='top')
     #plt.figtext(0.5, 0.02, 'Number of segments', ha='center', va='top')
     plt.figtext(-0.01, 0.5, 'Collinear ratio', ha='left', va='center', rotation='vertical')
-    plt.figtext(0.5, 0.01, 'Number of segments', ha='center', va='top')
+    plt.figtext(0.5, 0.01, 'Number of collinear blocks', ha='center', va='top')
     sns.despine(trim=False, offset=3)
     plt.tight_layout()
     return fig
