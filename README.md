@@ -1080,12 +1080,12 @@ wgd ksd data/kstree_data/fam.tsv data/kstree_data/Acorus_tatarinowii data/kstree
 
 Above we used three alternative topologies to infer the *K*<sub>S</sub> tree which led to different branch length estimation. Note that the families we used were only two global MRBH families for the purpose of illustration. To acquire an accurate profile of the substitution rate variation, orthologues at the whole genome scale should be used.
 
-In addition, more exquisite collinear plots including both intra-specific and inter-specific comparisons using the orthogroups (composed of *Aquilegia coerulea*, *Protea cynaroides*, *Acorus americanus* and *Vitis vinifera*) inferred can be also produced using `wgd syn`. Note that different genome assemblies might have different features and attributes which can be accommodated via the option `--additionalgffinfo` for each genome assembly whose order needs to follow the order of gff3 files, for instance 'mNRA;Name' for `Aquilegia_coerulea.gff3`, 'mNRA;ID' for `Protea_cynaroides.gff3`, 'mNRA;Name' for `Acorus_americanus.gff3` and 'mNRA;Name' for `Vitis_vinifera.gff3`.
+In addition, more exquisite collinear plots including both intra-specific and inter-specific comparisons using the orthogroups (composed of *Aquilegia coerulea*, *Protea cynaroides*, *Acorus americanus* and *Vitis vinifera*) inferred can be also produced using `wgd syn`. Note that different genome assemblies might have different features and attributes which can be accommodated via the option `--additionalgffinfo` for each genome assembly whose order needs to follow the order of gff3 files, for instance 'mRNA;Name' for `Aquilegia_coerulea.gff3`, 'mRNA;ID' for `Protea_cynaroides.gff3`, 'mRNA;Name' for `Acorus_americanus.gff3` and 'mRNA;Name' for `Vitis_vinifera.gff3`.
 
 ```
 wgd dmd -oo -oi Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho
 wgd ksd wgd_ortho/Orthogroups.sp.tsv Aquilegia_coerulea Protea_cynaroides Acorus_americanus Vitis_vinifera -o wgd_ortho_ks
-wgd syn wgd_ortho/Orthogroups.sp.tsv -ks wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv Aquilegia_coerulea.gff3 --additionalgffinfo 'mNRA;Name' Protea_cynaroides.gff3 --additionalgffinfo 'mNRA;ID' Acorus_americanus.gff3 --additionalgffinfo 'mNRA;Name' Vitis_vinifera.gff3 --additionalgffinfo 'mNRA;Name' -o wgd_ortho_syn
+wgd syn wgd_ortho/Orthogroups.sp.tsv -ks wgd_ortho_ks/Orthogroups.sp.tsv.ks.tsv Aquilegia_coerulea.gff3 --additionalgffinfo 'mRNA;Name' Protea_cynaroides.gff3 --additionalgffinfo 'mRNA;ID' Acorus_americanus.gff3 --additionalgffinfo 'mRNA;Name' Vitis_vinifera.gff3 --additionalgffinfo 'mRNA;Name' -o wgd_ortho_syn
 ```
 
 Upon the acquisition of the collinear results using `wgd syn`, the same collinear plots can be also produced by `wgd viz` using the command below.
