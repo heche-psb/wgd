@@ -3243,8 +3243,10 @@ class KsDistributionBuilder:
 
     def get_distribution(self):
         if self.n_threads < len(self.families): logging.info("{} threads are used for {} gene families\nNote that adding threads can significantly accelerate the Ks estimation process".format(int(self.n_threads),int(len(self.families))))
-        Parallel(n_jobs=self.n_threads,backend='multiprocessing')(
-            delayed(_get_ks)(family) for family in self.families)
+        with ProcessPoolExecutor(max_workers=self.n_threads) as executor:
+            executor.map(_get_ks, self.families)
+        #Parallel(n_jobs=self.n_threads,backend='multiprocessing')(
+        #    delayed(_get_ks)(family) for family in self.families)
         df = pd.concat([pd.read_csv(x.out, index_col=None) 
             for x in self.families], sort=True)
         self.df = add_original_ids(df, self.seqs)
