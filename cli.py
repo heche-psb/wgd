@@ -23,8 +23,8 @@ warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
     default='info', help="Verbosity level, default = info.")
 def cli(verbosity):
     """
-    wgd v2 - Copyright (C) 2024-2025 Hengchi Chen\n
-    Contact: heche@psb.vib-ugent.be
+    wgd v2 - Copyright (C) 2026-2027 Hengchi Chen\n
+    Contact: hengchi.chen@uni-goettingen.de
     """
     logging.basicConfig(
         format='%(message)s',
@@ -575,13 +575,14 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--bootstrap', '-bs', type=int, default=200, show_default=True, help='Number of bootstrap replicates of ortholog Ks distribution in mixed plot')
 @click.option('--gistrb', '-gr', is_flag=True, help='whether to use gist_rainbow as color map of dotplot')
 @click.option('--nthreads', '-n', default=1, show_default=True,help="number of threads to use")
+@click.option('--chrorder', '-co', type=click.Choice(['alphabetnumber', 'length']), default='alphabetnumber', show_default=True, help='The order of presenting chromosomes/scaffolds')
 def viz(**kwargs):
     """
     Visualization of Ks distribution or synteny
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads,chrorder):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir,endtime
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -605,10 +606,14 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
         segs,table,df_multi,removed_scfa = filter_by_minlength(table,segs,minlen,df_multi,keepredun,outdir,minseglen)
         segs_gene_unit, gene_order_dict_allsp = transformunit(segs,ordered_genes_perchrom_allsp,outdir)
         segs = filter_mingenumber(segs_gene_unit,mingenenum,outdir,len(gene_order_dict_allsp),start)
-        dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha,showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb)
+        if chrorder == 'alphabetnumber':
+            logging.info("The presenting chromosome/scaffold order follows alphabet and numerical order (e.g., chr1, chr2 ..). Use --chrorder option if you want to change to order by their length")
+        else:
+            logging.info("The presenting chromosome/scaffold order follows the order of their lengths, which may not strictly be like chr1, chr2, .. Use --chrorder option if you want to change to order by alphabet and numerical order")
+        dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha,showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb, alnumchrorder=chrorder)
         if len(ordered_genes_perchrom_allsp)>1: dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=df_anchor,ksdf=df,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha,showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb)
         #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df)
-        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb)
+        figs = all_dotplots(table, segs, df_multi, minseglen, anchors=df_anchor, maxsize=maxsize, minlen=minlen, outdir=outdir, Ks = df, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=ticklabelsize, gistrb=gistrb,alnumchrorder=chrorder)
         for k, v in figs.items():
             v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
             v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))
@@ -665,6 +670,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
 @click.option('--ticklabelsize', '-tls', type=float, default=10, show_default=True, help='label size of tick')
 @click.option('--gistrb', '-gr', is_flag=True, help='whether to use gist_rainbow as color map of dotplot')
 @click.option('--nthreads', '-n', default=4, show_default=True,help="number of threads to use")
+@click.option('--chrorder', '-co', type=click.Choice(['alphabetnumber', 'length']), default='alphabetnumber', show_default=True, help='The order of presenting chromosomes/scaffolds')
 def syn(**kwargs):
     """
     Co-linearity and anchor inference using I-ADHoRe.
@@ -672,7 +678,7 @@ def syn(**kwargs):
     _syn(**kwargs)
 
 def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, attribute,
-        minlen, maxsize, ks_range, iadhore_options, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, gistrb, nthreads, ancestor=None):
+        minlen, maxsize, ks_range, iadhore_options, minseglen, keepredun, mingenenum, dotsize, apalpha, hoalpha, additionalgffinfo, showrealtick, ticklabelsize, gistrb, nthreads, chrorder, ancestor=None):
     """
     Co-linearity and anchor inference using I-ADHoRe.
     """
@@ -733,12 +739,16 @@ def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, att
         ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
         ksdb_df = formatv2(ksdb_df)
         df_ks = apply_filters(ksdb_df, [("dS", 0., 5.)])
-    dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = ticklabelsize, gistrb=gistrb)
+    if chrorder == 'alphabetnumber':
+        logging.info("The presenting chromosome/scaffold order follows alphabet and numerical order (e.g., chr1, chr2 ..). Use --chrorder option if you want to change to order by their length")
+    else:
+        logging.info("The presenting chromosome/scaffold order follows the order of their lengths, which may not strictly be like chr1, chr2, .. Use --chrorder option if you want to change to order by alphabet and numerical order")
+    dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = ticklabelsize, gistrb=gistrb, alnumchrorder=chrorder)
     if len(gff_files)>1: dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=anchors,ksdf=df_ks,maxsize=maxsize,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = ticklabelsize, gistrb=gistrb)
     #dotplotunitgene(ordered_genes_perchrom_allsp,segs_gene_unit,removed_scfa,outdir,mingenenum,table_orig,ordered_mp,ksdf=df_ks)
     # dotplot
     #logging.info("Generating dot plots")
-    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor, Ks = df_ks, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, las=ticklabelsize, gistrb=gistrb) 
+    figs = all_dotplots(table, segs, multi, minseglen, anchors=anchors, maxsize=maxsize, minlen=minlen, outdir=outdir, ancestor=ancestor, Ks = df_ks, dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, las=ticklabelsize, gistrb=gistrb, chrorder=chrorder) 
     for k, v in figs.items():
         v.savefig(os.path.join(outdir, "{}.dot.svg".format(k)))
         v.savefig(os.path.join(outdir, "{}.dot.pdf".format(k)))

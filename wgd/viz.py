@@ -1417,10 +1417,13 @@ def dupratios(col1, col2, by="first"):
     kys = sorted(d, key=keyfun)
     return kys, [d[k] for k in kys]
 
-def sankey_plot_self(sp, df, minlen,outdir, seg, multi):
+def sankey_plot_self(sp, df, minlen,outdir, seg, multi, alnumchrorder = True):
     lens = df.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
-    df1 = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if alnumchrorder:
+        df1 = pd.DataFrame(lens).sort_index()
+    else:
+        df1 = pd.DataFrame(lens).sort_values("len", ascending=False)
     if minlen < 0: minlen = df1.len.max() * 0.1
     df1 = df1.loc[df1.len > minlen]
     seg = seg.loc[seg['genome']==sp].copy()
@@ -1550,10 +1553,13 @@ def filter_by_dfy(seg,dfy,minlen,spy):
     seg = seg.drop(rm_indices)
     return seg
 
-def sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg):
+def sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg, alnumchrorder = True):
     lens = dfx.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
-    df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if alnumchrorder:
+        df1x = pd.DataFrame(lens).sort_index()
+    else:
+        df1x = pd.DataFrame(lens).sort_values("len", ascending=False)
     seg.loc[:,"segment"] = seg.index
     #seg = filter_by_dfy(seg,dfy,minlen,spy) #This filter step makes singon segments on level plot
     seg_unfilterded = seg.loc[seg['genome']==spx].copy()
@@ -2122,7 +2128,7 @@ def getpairks(pair,ksdf):
     Ks_dict = {pair:ks for pair,ks in zip(ksdf.index,ksdf['dS'])}
     return Ks_dict.get(pair,None)
 
-def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
+def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False, alnumchrorder = True):
     dfs = {sp:ordered_genes_perchrom_allsp[sp].copy().drop(removed_scfa[sp],axis=1).set_index('Coordinates') for sp in sp_list}
     leng_info = {sp:{} for sp in sp_list}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2132,10 +2138,14 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
     sorted_labels, sorted_lengs = [],[]
     tick_strip = []
     for sp in sp_list:
-        sorted_leng = [i[1] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
+        if alnumchrorder:
+            sorted_leng = [i[1] for i in sorted(leng_info[sp].items(),key=lambda x: x[0],reverse=False)]
+            sorted_label = [sp[:3]+'_'+str(i[0]) for i in sorted(leng_info[sp].items(),key=lambda x: x[0],reverse=False)]
+        else:
+            sorted_leng = [i[1] for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
+            sorted_label = [sp[:3]+'_'+str(i[0]) for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
         tick_strip.append(sum(sorted_leng))
         sorted_lengs = sorted_lengs + sorted_leng
-        sorted_label = [sp[:3]+'_'+str(i[0]) for i in sorted(leng_info[sp].items(),key=lambda x: x[1],reverse=True)]
         sorted_labels = sorted_labels + sorted_label
     tick = list(np.cumsum(sorted_lengs))
     tick_strip = list(np.cumsum(tick_strip))
@@ -2218,7 +2228,7 @@ def plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,
     ax.tick_params(axis='both', which='major', labelsize=las)
     return ax
 
-def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
+def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8,apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False, alnumchrorder = True):
     dfx,dfy = dfx.set_index('Coordinates'),dfy.set_index('Coordinates')
     leng_info_x,leng_info_y = {},{}
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
@@ -2230,10 +2240,16 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
             gene_list[sp][gene] = li
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
     for scfa in dfy.columns: leng_info_y[scfa] = len(dfy[scfa].dropna())
-    sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
-    sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
-    sorted_labels_y = [i[0] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
-    sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+    if alnumchrorder:
+        sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[0],reverse=False)]
+        sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[0],reverse=False)]
+        sorted_labels_y = [i[0] for i in sorted(leng_info_y.items(),key=lambda x: x[0],reverse=False)]
+        sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[0],reverse=False)]
+    else:
+        sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+        sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[1],reverse=True)]
+        sorted_labels_y = [i[0] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
+        sorted_leng_y = [i[1] for i in sorted(leng_info_y.items(),key=lambda x: x[1],reverse=True)]
     xtick,ytick = list(np.cumsum(sorted_leng_x)),list(np.cumsum(sorted_leng_y))
     xtick_addable, ytick_addable = [0]+xtick[:-1], [0]+ytick[:-1]
     xtick_addable_dict = {scfa:scfastart for scfa,scfastart in zip(sorted_labels_x,xtick_addable)}
@@ -2507,31 +2523,32 @@ def dotplotunitgene(ordered_genes_perchrom_allsp,segs,removed_scfa,outdir,mingen
         fname = os.path.join(outdir, "{}.line_unit_gene.svg".format(prefix))
         fig.savefig(fname)
 
-def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False, las=5, gistrb=False):
+def plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick= False, las=5, gistrb=False, alnumchrorder = True):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
     dfx = ordered_genes_perchrom_allsp[spx].copy().drop(removed_scfa[spx],axis=1)
     dfy = ordered_genes_perchrom_allsp[spy].copy().drop(removed_scfa[spy],axis=1)
-    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las, gistrb=gistrb)
+    ax = plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las=las, gistrb=gistrb, alnumchrorder=alnumchrorder)
     fig.tight_layout()
     return fig, ax
 
-def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
+def plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=None,ksdf=None,maxsize=200,showks=False,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False, alnumchrorder = True):
     fig, ax = plt.subplots(1, 1, figsize=(10,10))
-    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
+    ax = plotdp_igoverall(removed_scfa,ax,ordered_genes_perchrom_allsp,sp_list,table,gene_orders,anchor=anchor,ksdf=ksdf,maxsize=maxsize,showks=showks,dotsize=dotsize, apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb, alnumchrorder = alnumchrorder)
     fig.tight_layout()
     return fig, ax
 
-def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False):
+def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick=False, las = 5, gistrb = False, alnumchrorder = 'alphabetnumber'):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
     logging.info("Making dotplot (in unit of genes)")
+    chrorder = True if alnumchrorder == 'alphabetnumber' else False
     for i in range(len(sp_list)):
         for j in range(i,len(sp_list)):
             spx,spy = sp_list[i],sp_list[j]
             logging.info("{0} vs. {1}".format(spx,spy))
-            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
+            fig, ax = plotdotplotingene(spx,spy,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb, alnumchrorder=chrorder)
             figs[spx + "-vs-" + spy] = fig
             plt.close()
             if not (ksdf is None):
@@ -2547,13 +2564,14 @@ def dotplotingene(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_or
         fig.savefig(fname)
     plt.close()
 
-def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False, las = 5, gistrb = False):
+def dotplotingeneoverall(ordered_genes_perchrom_allsp,removed_scfa,outdir,table,gene_orders,anchor=None,ksdf=None,maxsize=200,dotsize=0.8, apalpha=1, hoalpha=0.1, showrealtick = False, las = 5, gistrb = False, alnumchrorder = 'alphabetnumber'):
     sp_list = list(ordered_genes_perchrom_allsp.keys())
     gene_list = {gene:li for gene,li in zip(table.index,table['scaffold'])}
     gene_genome = {gene:sp for gene,sp in zip(table.index,table['species'])}
     figs = {}
     logging.info("Making overall dotplot (in unit of genes)")
-    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb)
+    chrorder = True if alnumchrorder == 'alphabetnumber' else False
+    fig, ax = plotdotplotingeneoverall(sp_list,table,removed_scfa,ordered_genes_perchrom_allsp,gene_orders,anchor=anchor,ksdf=ksdf,dotsize=dotsize,apalpha=apalpha, hoalpha=hoalpha, showrealtick=showrealtick, las = las, gistrb = gistrb, alnumchrorder = chrorder)
     figs["Overallspecies"] = fig
     plt.close()
     if not (ksdf is None):
@@ -2773,13 +2791,14 @@ def Filter_miniseglen(segs,scaf_info,minseglen,genetable):
     segs = segs.drop(rm_indice)
     return segs
 
-def get_dots(dfx, dfy, seg, multi, minseglen, minlen=-1, maxsize=200, outdir = '', dupStack = False):
+def get_dots(dfx, dfy, seg, multi, minseglen, minlen=-1, maxsize=200, outdir = '', dupStack = False, chrorder = 'alphabetnumber'):
     spx=dfx.loc[:,'species'][0]
     spy=dfy.loc[:,'species'][0]
-    if dupStack: sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg)
+    alnumchrorder_ = True if chrorder == 'alphabetnumber' else False
+    if dupStack: sankey_plot(spx, dfx, spy, dfy, minseglen, minlen, outdir, seg, alnumchrorder=alnumchrorder_)
     else:
-        dfx,scaffxtick = filter_data_dotplot(dfx, minlen)
-        dfy,scaffytick = filter_data_dotplot(dfy, minlen)
+        dfx,scaffxtick = filter_data_dotplot(dfx, minlen,alnumchrorder=alnumchrorder_)
+        dfy,scaffytick = filter_data_dotplot(dfy, minlen,alnumchrorder=alnumchrorder_)
         dx = {k: list(v.index) for k, v in dfx.groupby("family")}
         dy = {k: list(v.index) for k, v in dfy.groupby("family")}
         xs = []
@@ -2812,7 +2831,7 @@ def get_dots(dfx, dfy, seg, multi, minseglen, minlen=-1, maxsize=200, outdir = '
         yl = list(dfy.drop_duplicates(subset=['scaffstart']).loc[:,'scaffstart'])
         return df, xl, yl, scaffxlabels, scaffylabels, scaffxtick, scaffytick 
 
-def getscafflength(n,gdf,outdir='',maxsize='',minlen='',ancestor=''):
+def getscafflength(n,gdf,outdir='',maxsize='',minlen='',ancestor='',**kargs):
     Lens = []
     for i in range(n):
         sp, df = gdf[i]
@@ -2824,14 +2843,20 @@ def getscafflength(n,gdf,outdir='',maxsize='',minlen='',ancestor=''):
     Df = pd.concat(Lens,ignore_index=False)
     Df.to_csv("{}".format(os.path.join(outdir,'scaffold_length.tsv')),sep='\t',header=True,index=True)
 
-def filter_data_dotplot(df, minlen):
+def filter_data_dotplot(df, minlen, alnumchrorder=True):
     lens = df.groupby("scaffold")["start"].agg(max)
     lens.name = "len"
-    lens = pd.DataFrame(lens).sort_values("len", ascending=False)
+    if alnumchrorder:
+        lens = pd.DataFrame(lens).sort_index()
+    else:
+        lens = pd.DataFrame(lens).sort_values("len", ascending=False)
     scaffstart = [0] + list(np.cumsum(lens.len))[0:-1]
     scafftick = list(np.cumsum(lens.len))
     lens["scaffstart"] = scaffstart
-    df = df.join(lens, on="scaffold").sort_values("len", ascending=False).dropna()
+    if alnumchrorder:
+        df = df.join(lens, on="scaffold").sort_values("scaffold").dropna()
+    else:
+        df = df.join(lens, on="scaffold").sort_values("len", ascending=False).dropna()
     # df now contains scaffold lengths
     #if minlen < 0:  # find a reasonable threshold, 5% of longest scaffold?
     #    minlen = df.len.max() * 0.1

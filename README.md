@@ -25,7 +25,7 @@
 
 </div>
 
-`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first gave an introduction over the scope and mechanism of `wgd v2` and then the practical information pertaining to the installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested in more theoretical details, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. The key improved features of `wgd v2` are demonstrated in our latest manuscript on [Bioinformatics](https://doi.org/10.1093/bioinformatics/btae272). If you use `wgd v2` in your research, please cite us as suggested in [Citation](#citation) section.
+`wgd v2` is a python package upgraded from the original `wgd` package aiming for the inference and timing of ancient whole-genome duplication (WGD) events. For the propose of illustrating the principle and usage of `wgd v2`, we compiled this documentation. Below we first gave an introduction over the scope and mechanism of `wgd v2` and then the practical information pertaining to the installation and usage. An examplar workflow is provided in the tutorial section on how to seek evidence for a putative WGD event and perform proper timing with a freshly obtained genome assembly in hand. For those who are interested in more theoretical details, we recommend turning to our paper and book chapter for more detailed description and insightful discussions. The key improved features of `wgd v2` are demonstrated in our latest manuscript on [Bioinformatics](https://doi.org/10.1093/bioinformatics/btae272). If you use `wgd v2` in your research, please cite us as suggested in [Citation](#citation) section. `wgd v2` also underpins our recent [*Cell* paper](https://doi.org/10.1016/j.cell.2026.04.008)
 
 ## Introduction
 
@@ -486,6 +486,7 @@ wgd syn families gffs (option)
 -tls, --ticklabelsize, the label size of tick, default 5
 -gr, --gistrb, flag option, whether to use gist_rainbow as color map of dotplot
 -n, --nthreads, the number of threads to use in synteny inference, default 4
+-co, --chrorder, the order of presenting chromosomes/scaffolds, default alphabetnumber
 ```
 
 The program `wgd viz` can realize the visualization of *K*<sub>S</sub> age distribution and synteny.
@@ -535,6 +536,7 @@ wgd viz (option)
 -bs, --bootstrap, the number of bootstrap replicates of ortholog Ks distribution in mixed plot
 -gr, --gistrb, flag option, whether to use gist_rainbow as color map of dotplot
 -n, --nthreads, the number of threads to use in bootstrap sampling, default 1
+-co, --chrorder, the order of presenting chromosomes/scaffolds, default alphabetnumber
 ```
 
 ## Usage
