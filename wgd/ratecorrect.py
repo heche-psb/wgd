@@ -776,7 +776,7 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True,nthreads=4):
             ax_fp.spines['right'].set_visible(False)
             ax_spair_fp[spair] = ax_fp
             fig_fp.text(0.5, 0.01, _labels["dS"],va='center',ha='center')
-            fig_fp.text(0.01, 0.5, 'Number of retained duplicates',rotation='vertical',va='center',ha='center')
+            fig_fp.text(0.01, 0.5, 'Number of gene pairs',rotation='vertical',va='center',ha='center')
         fig_sig,ax_sig = plt.subplots()
         ax_sig.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='k', alpha=0.5, rwidth=0.8)
         for kde_x,kde_y in zip(kde_xs,kde_ys): ax_sig.plot(kde_x, kde_y*scaling, color='gray',alpha=2/10, ls = '-')
@@ -790,14 +790,14 @@ def plotspair_cov(df,spairs,fs_pairs,focusp,reweight,bt=200,na=True,nthreads=4):
         ax_sig.spines['top'].set_visible(False)
         ax_sig.spines['right'].set_visible(False)
         fig_sig.text(0.5, 0.01, _labels["dS"],va='center',ha='center')
-        fig_sig.text(0.01, 0.5, 'Number of retained duplicates',rotation='vertical',va='center',ha='center')
+        fig_sig.text(0.01, 0.5, 'Number of gene pairs',rotation='vertical',va='center',ha='center')
         fig_sigs[spair] = fig_sig
         ax_sigs[spair] = ax_sig
         ax_spair[spair] = ax
         maxim_spair[spair] = maxim*scaling
         ks_spair[spair] = mode
     fig.text(0.5, 0.01, _labels["dS"],va='center',ha='center')
-    fig.text(0.01, 0.5, 'Number of retained duplicates',rotation='vertical',va='center',ha='center')
+    fig.text(0.01, 0.5, 'Number of gene pairs',rotation='vertical',va='center',ha='center')
     return fig,spairs_means_stds_samples,ax_spair,maxim_spair,ks_spair,ax_spair_fp,fig_fp,fig_sigs,ax_sigs
 
 def gettrios_overall(focusp,Ingroup_spnames,Outgroup_spnames,Ingroup_clade):
