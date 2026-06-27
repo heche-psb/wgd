@@ -1737,7 +1737,7 @@ def scanrefer(refer_fp,hmmf,outdir,eval):
 
 def cleanpresvioushmmpress(hmmf):
     allfiles = [hmmf+i for i in [".h3f",".h3i",".h3m",".h3p"]]
-    if all[os.path.exists(f) for f in allfiles]:
+    if all(os.path.exists(f) for f in allfiles):
         return True
     for f in allfiles:
         if os.path.exists(f):
