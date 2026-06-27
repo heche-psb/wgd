@@ -1725,8 +1725,9 @@ def reference_hmmscan(df,s,hmmf,outdir,eval):
     return cutoff_per_f
 
 def scanrefer(refer_fp,hmmf,outdir,eval):
-    cmd = ['hmmpress'] + [hmmf]
-    sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+    if not cleanpresvioushmmpress(hmmf):
+        cmd = ['hmmpress'] + [hmmf]
+        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     #pf = os.path.join(outdir,os.path.basename(refer_fp).strip('.pep'))
     pf = os.path.join(outdir,os.path.basename(refer_fp)[:-4])
     cmd = ['hmmscan','-o', '{}.txt'.format(pf), '--tblout', '{}.tbl'.format(pf), '--domtblout', '{}.dom'.format(pf), '--pfamtblout', '{}.pfam'.format(pf), '--noali', '-E', '{}'.format(eval), hmmf, refer_fp]
@@ -1734,10 +1735,20 @@ def scanrefer(refer_fp,hmmf,outdir,eval):
     out = '{}.tbl'.format(pf)
     return out
 
+def cleanpresvioushmmpress(hmmf):
+    allfiles = [hmmf+i for i in [".h3f",".h3i",".h3m",".h3p"]]
+    if all[os.path.exists(f) for f in allfiles]:
+        return True
+    for f in allfiles:
+        if os.path.exists(f):
+            os.remove(f)
+    return False
+
 def hmmerscan(outdir,querys,hmmf,eval,nthreads,skipress=False):
     if not skipress:
-        cmd = ['hmmpress'] + [hmmf]
-        sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
+        if not cleanpresvioushmmpress(hmmf):
+            cmd = ['hmmpress'] + [hmmf]
+            sp.run(cmd, stdout=sp.PIPE,stderr=sp.PIPE)
     cmds = []
     outs = []
     #yprefix = lambda i: os.path.join(outdir,os.path.basename(i).strip('.pep'))
