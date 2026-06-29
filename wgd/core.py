@@ -1778,7 +1778,9 @@ def buildbfam(fname,outdict):
     return df
 
 def modifydf(df,outs,outdir,fam2assign,sogtest = False, bhmm = False, cutoff = None, use_cf = None):
-    if cutoff != None: ctf = pd.read_csv(cutoff, header = None,index_col = 0,sep='\t')
+    if cutoff != None:
+        ctf = pd.read_csv(cutoff, header = None,index_col = 0,sep='\t')
+        ctf.index = ctf.index.astype(str)
     if not bhmm: fname = os.path.join(outdir,os.path.basename(fam2assign)+'.assigned')
     #yb = lambda i:os.path.basename(i).strip('.tbl')
     yb = lambda i:os.path.basename(i)[:-4]
