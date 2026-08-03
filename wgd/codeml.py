@@ -100,7 +100,7 @@ def _run_codeml_tree(exe, control_file, out_file, prefix, kstree_dir, katree_dir
     #Noresults = False
     for i in range(times):
         #logging.debug("Codeml iteration {0} for {1}".format(str(i+1), control_file))
-        sp.run([exe, control_file], stdout=sp.PIPE)
+        sp.run([exe, control_file], stdin=sp.DEVNULL, stdout=sp.PIPE, stderr=sp.PIPE)
         #sp.run(['rm', '2ML.dN', '2ML.dS', '2ML.t', '2NG.dN', '2NG.dS','2NG.t', 'rst', 'rst1', 'rub'], stdout=sp.PIPE, stderr=sp.PIPE)
         if not os.path.isfile(out_file):
             raise FileNotFoundError('Codeml output file not found')

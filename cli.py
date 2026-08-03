@@ -487,6 +487,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
     spgenemap = {}
     for i in seqs: spgenemap.update(i.spgenemap())
     if not (speciestree is None) and kstree:
+        logging.info("Calculating Ks tree based on the given tree")
         getconcataln(seqs, families, nthreads, outdir, speciestree, spgenemap, onlyconcatkstree, tree_options, option="--auto",tree_method=tree_method)
         if tmpdir is None: [x.remove_tmp(prompt=False) for x in seqs]
         exit()

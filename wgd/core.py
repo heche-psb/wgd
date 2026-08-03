@@ -526,7 +526,7 @@ class SequenceData:
             if ok != "y":
                 return
         out = sp.run(["rm", "-r", self.tmp_path], stdout=sp.PIPE, stderr=sp.PIPE)
-        logging.debug(out.stderr.decode())
+        #logging.debug(out.stderr.decode())
 
 class SequenceSimilarityGraph:
     #Only the column 0,1,10 are in use
@@ -1134,6 +1134,7 @@ def getconcataln(seqs, families, nthreads, outdir, sptree, spgenemap, onlyconcat
     caln = AlignIO.read(concatf,'fasta')
     caln_tmppath = _mkdir(os.path.join(outdir,"dStree_tmp"))
     if not onlyconcatkstree:
+        logging.info("Calculate for both individual and concatenated MSA")
         treefs = Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(caln2tree)(calnfs[i],tree_method,tree_options) for i in range(len(fams)))
         treefs = [i for i in treefs]
         calns = [AlignIO.read(i,'fasta') for i in calnfs]
@@ -1145,6 +1146,7 @@ def getconcataln(seqs, families, nthreads, outdir, sptree, spgenemap, onlyconcat
         treefs.append(sptree)
         Parallel(n_jobs=nthreads,backend='multiprocessing')(delayed(getalnks)(calns[i],caln_tmppaths[i],treefs[i],kstree_dir,katree_dir,wtree_dir,fam_ids[i]) for i in range(len(calns)))
     else:
+        logging.info("Calculate only for concatenated MSA")
         getalnks(caln,_mkdir(os.path.join(caln_tmppath,"Concatenated")),sptree,kstree_dir,katree_dir,wtree_dir,"Concatenated")
     out = sp.run(["rm", "-r", caln_tmppath], stdout=sp.PIPE, stderr=sp.PIPE)
     out = sp.run(["rm", "-r", concatf], stdout=sp.PIPE, stderr=sp.PIPE)
