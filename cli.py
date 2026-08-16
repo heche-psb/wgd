@@ -739,7 +739,7 @@ def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, att
     if ks_distribution!=None:
         ksdb_df = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
         ksdb_df = formatv2(ksdb_df)
-        df_ks = apply_filters(ksdb_df, [("dS", 0., 5.)])
+        df_ks = apply_filters(ksdb_df, [("dS", ks_range[0], ks_range[1])])
     if chrorder == 'alphabetnumber':
         logging.info("The presenting chromosome/scaffold order follows alphabet and numerical order (e.g., chr1, chr2 ..). Use --chrorder option if you want to change to order by their length")
     else:
@@ -765,8 +765,8 @@ def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, att
         ksd = formatv2(ksd)
         anchor_ks = get_anchor_ksd(ksd, anchors)
         anchor_ks.to_csv(os.path.join(outdir, "{}.anchors.ks.tsv".format(prefix)),sep='\t')
-        a = apply_filters(ksd,       [("dS", 0, 5.)])
-        b = apply_filters(anchor_ks, [("dS", 0, 5.)])
+        a = apply_filters(ksd,       [("dS", ks_range[0], ks_range[1])])
+        b = apply_filters(anchor_ks, [("dS", ks_range[0], ks_range[1])])
         logging.info("Generating anchor Ks distribution")
         fig = default_plot(a, b, title=prefix, bins=50, ylabel=ylabel)
         fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)),dpi=300, bbox_inches='tight')
