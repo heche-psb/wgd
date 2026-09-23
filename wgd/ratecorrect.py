@@ -297,8 +297,8 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     num_comp = len(init_means) + 1
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
-    #if convergence: logging.info('The EM algorithm has reached convergence')
-    #else: logging.info("The EM algorithm hasn't reached convergence")
+    if convergence: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
     bic_dict['Model1'] = bic
     logging.info('BIC of Model1: {:.2f}'.format(bic))
