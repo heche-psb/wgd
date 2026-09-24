@@ -71,11 +71,11 @@ def plot_aic_bic(aic, bic, n1, n2, out_file):
     fig.savefig(out_file)
     plt.close()
 
-def addapgmm(ax,X,W,components,outdir,Hs):
+def addapgmm(ax,X,W,components,outdir,Hs,n_iter=200,n_init=200,seed=2352890):
     kde_x = np.linspace(0,5,num=5000)
     X_log = np.log(np.array(X)).reshape(-1, 1)
     aic_bic_fplot = os.path.join(outdir,"AIC_BIC.pdf")
-    models, aic, bic, besta, bestb, N = fit_gmm(aic_bic_fplot, X_log, 2352890, components[0], components[1], em_iter=200, n_init=200)
+    models, aic, bic, besta, bestb, N = fit_gmm(aic_bic_fplot, X_log, seed, components[0], components[1], em_iter=n_iter, n_init=n_init)
     means,covariances,weights = besta.means_,besta.covariances_,besta.weights_
     CHF = get_totalH(Hs)
     scaling = CHF*0.1
@@ -105,7 +105,7 @@ def info_components(m,i,info_table):
         logging.info("Component {0} has mean {1:.3f} ,std {2:.3f} ,weight {3:.3f}, precision {4:.3f}".format(j+1,mean,std,weight,precision))
     info_table['{}component'.format(i)] = {'mean':means,'covariance':covariances,'weight':weights,'precision':precisions,'stds':stds}
 
-def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
+def fit_gmm(out_file,X, seed, n1, n2, em_iter=200, n_init=200):
     """
     Compute Gaussian mixtures for different numbers of components
     """
@@ -118,6 +118,8 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
         models[i-n1] = mixture.GaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         info_components(models[i-n1],i,info_table)
     aic = [m.aic(X) for m in models]
     bic = [m.bic(X) for m in models]
@@ -223,7 +225,7 @@ def bic_info(modelist, bic_list):
             elif 6<=ABS<=10: logging.info("Such outperformance is strongly evidenced for {}".format(m))
             else: logging.info("Such outperformance is very strongly evidenced for {}".format(m))
 
-def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
+def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, seed=2352890):
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
     df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     ks_or = np.array(df['dS'])
@@ -303,7 +305,9 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     bic_dict['Model1'] = bic
     logging.info('BIC of Model1: {:.2f}'.format(bic))
     bic_from_same_num_comp,start_parameters,final_parameters = [],[],[]
+    rng = np.random.default_rng(seed)
     logging.info("Performing EM algorithm from initializated data plus a random lognormal component (Model2)")
+    convergence_initializations = []
     for i in range(num_EM_initializations):
         if len(init_means) > 4:
             updated_means,updated_stdevs = init_means[:4]+[init_means[-1]],init_stdevs[:4]+init_stdevs[-1]
@@ -311,15 +315,18 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
         else:
             updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
             reduced_gaussians = False
-        updated_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)), 1))
-        updated_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)), 1))
+        updated_means.append(round(rng.choice(np.arange(-0.5, 1, 0.1)), 1))
+        updated_stdevs.append(round(rng(np.arange(0.3, 0.9, 0.1)), 1))
         num_comp = len(updated_means) + 1
         updated_weights = [1/num_comp] * num_comp
         start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
         bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,updated_means, updated_stdevs, init_lambd, updated_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
         bic_from_same_num_comp.append(bic)
         final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+        convergence_initializations += [convergence]
     updated_means, updated_stdevs, init_lambd, updated_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+    if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_init_parameters['Model2'] = [updated_means, updated_stdevs, init_lambd, updated_weights]
     final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
     all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
@@ -332,19 +339,23 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
         logging.info("Performing EM algorithm from random initialization with {0} components (Model{1})".format(num_comp,model_id))
         bic_from_same_num_comp = []
         start_parameters, final_parameters = [], []
+        convergence_initializations = []
         for i in range(num_EM_initializations):
             init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
-            init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
+            init_lambd = round(rng(np.arange(0.2, 1, 0.1)), 2)
             for j in range(num_comp-2):
-                init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.01)),1))
-                init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.01)),1))
+                init_means.append(round(rng(np.arange(-0.5, 1, 0.01)),1))
+                init_stdevs.append(round(rng(np.arange(0.3, 0.9, 0.01)),1))
             init_means.append(np.log(5))
             init_stdevs.append(0.3)
             start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
             bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5)
+            convergence_initializations += [convergence]
             bic_from_same_num_comp.append(bic)
             final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
         init_means, init_stdevs, init_lambd, init_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+        if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+        else: logging.info("The EM algorithm hasn't reached convergence")
         all_models_init_parameters["Model{}".format(model_id)] = [init_means, init_stdevs, init_lambd, init_weights]
         final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
         all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
@@ -375,7 +386,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     ax.plot(x_points_strictly_positive, scaling*total_pdf, "k-", lw=1.5, label=f'Exp-lognormal mixture model')
     return ax
 
-def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,na=True,pt=0.1,rh=0.4,components=(1,4),apgmm=True):
+def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,na=True,pt=0.1,rh=0.4,components=(1,4),apgmm=True,n_iter=200,n_init=200,seed=2352890):
     spair = focusp+"__"+focusp
     fig,ax = plt.subplots()
     df_spair = df[df['spair']==spair].copy()
@@ -402,7 +413,7 @@ def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,
             df_spair = df_spair.drop_duplicates(subset=['family','node'])
             df_spair = df_spair.drop(['dS'], axis=1).rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
             df_spair['weightoutlierexcluded'] = 1
-        ax = addelmm(ax,df_spair,max_EM_iterations=mEM,num_EM_initializations=nEM,peak_threshold=pt,rel_height=rh,na=na)
+        ax = addelmm(ax,df_spair,max_EM_iterations=mEM,num_EM_initializations=nEM,peak_threshold=pt,rel_height=rh,na=na,seed=seed)
     if AP is not None:
         df_ap = pd.read_csv(AP,header=0,index_col=0,sep='\t')
         df_ap.loc[:,"pair"] = df_ap[["gene_x", "gene_y"]].apply(lambda x: "__".join(sorted([x[0], x[1]])), axis=1)
@@ -417,7 +428,7 @@ def plotmixed(focusp,df,reweight,extraPara=None,AP=None,elmm=True,mEM=20,nEM=20,
             y = x[np.isfinite(x)]
             w = w[np.isfinite(x)]
         Hs, Bins, patches = ax.hist(y, bins = np.linspace(0, 50, num=51,dtype=int)/10, weights=w, color='g', rwidth=0.8,label='Anchor pairs')
-        if apgmm: ax = addapgmm(ax,y,w,components,os.getcwd(),Hs)
+        if apgmm: ax = addapgmm(ax,y,w,components,os.getcwd(),Hs,n_iter=n_iter,n_init=n_init,seed=seed)
     ax.set_title(focusp)
     ax.set_xlabel(_labels["dS"])
     ax.set_ylabel('Number of retained duplicates')
@@ -886,7 +897,7 @@ def writecortable(corrected_ks_spair,corrected_ks_spair_std,spairs_means_stds_sa
     df = pd.DataFrame.from_dict(dic)
     df.to_csv(fname,header=True,index=False,sep='\t')
 
-def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True,BT=200,nthreads=4):
+def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=True,elmm=True,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=True,BT=200,nthreads=4,n_iter=200,n_init=200,seed=2352890):
     odir = _mkdir(outdir)
     tree = Phylo.read(speciestree, "newick")
     logging.info("Reading species tree and categorizing sister&outgroup species")
@@ -934,7 +945,7 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
         plt.close()
     os.chdir("../../")
     logging.info("Plotting the final mixed Ks distribution")
-    fig,ax = plotmixed(focusp,df,reweight,extraPara=extraparanomeks,AP=anchorpoints,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm)
+    fig,ax = plotmixed(focusp,df,reweight,extraPara=extraparanomeks,AP=anchorpoints,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,n_iter=n_iter,n_init=n_init,seed=seed)
     addcorrectline_mixed(ax,corrected_ks_spair,corrected_ks_spair_std,ks_spair,Outgroup_spair_ordered,focusp)
     #fig.tight_layout()
     os.chdir(odir)
@@ -943,8 +954,9 @@ def getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanom
     plt.close()
     os.chdir("../")
 
-def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False,BT=200,nthreads=4):
+def ratediffplot(df,outdir,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,na=True,elmm=False,mEM=200,nEM=200,pt=0.1,rh=0.4,components=(1,4),apgmm=False,BT=200,nthreads=4,n_iter=200,n_init=200,seed=2352890):
+    random.seed(seed)
     df['sp1'] = df['g1'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['sp2'] = df['g2'].apply(lambda x:"_".join(x.split('_')[:-1]))
     df['spair'] = ["__".join(sorted([sp1,sp2])) for sp1,sp2 in zip(df['sp1'],df['sp2'])]
-    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,BT=BT,nthreads=nthreads)
+    getspairplot_cov_cor(df,focusp,speciestree,onlyrootout,reweight,extraparanomeks,anchorpoints,outdir,na=na,elmm=elmm,mEM=mEM,nEM=nEM,pt=pt,rh=rh,components=components,apgmm=apgmm,BT=BT,nthreads=nthreads,n_iter=n_iter,n_init=n_init,seed=seed)

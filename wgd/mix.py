@@ -111,7 +111,7 @@ def reflected_kde(df, min_ks, max_ks, bandwidth, bins, out_file):
     fig.savefig(out_file, bbox_inches='tight')
 
 
-def fit_gmm(X, n1, n2, max_iter=100, n_init=1, **kwargs):
+def fit_gmm(X, n1, n2, max_iter=100, n_init=1, seed=2352890, **kwargs):
     """
     Compute Gaussian mixtures for different numbers of components
 
@@ -130,8 +130,12 @@ def fit_gmm(X, n1, n2, max_iter=100, n_init=1, **kwargs):
         logging.info("Fitting GMM with {} components".format(N[i]))
         models[i] = mixture.GaussianMixture(
                 n_components=N[i], covariance_type='full', max_iter=max_iter,
-                n_init=n_init, **kwargs
+                n_init=n_init, random_state = seed, **kwargs
         ).fit(X)
+        if models[i].converged_:
+            logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         logging.info("Component mean, variance, weight: ")
         log_components(models[i])
 
@@ -151,7 +155,7 @@ def log_components(m):
         )
 
 
-def fit_bgmm(X, n1, n2, gamma=1e-3, max_iter=100, n_init=1, **kwargs):
+def fit_bgmm(X, n1, n2, gamma=1e-3, max_iter=100, n_init=1, seed=2352890, **kwargs):
     """
     Compute Bayesian Gaussian mixture
 
@@ -172,9 +176,13 @@ def fit_bgmm(X, n1, n2, gamma=1e-3, max_iter=100, n_init=1, **kwargs):
         logging.info("Fitting BGMM with {} components".format(N[i]))
         models[i] = mixture.BayesianGaussianMixture(
                 weight_concentration_prior=gamma, n_init=n_init,
-                n_components=N[i], covariance_type='full', max_iter=max_iter,
+                n_components=N[i], covariance_type='full', max_iter=max_iter, random_state = seed
                 **kwargs
         ).fit(X)
+        if models[i].converged_:
+            logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         log_components(models[i])
 
     return models

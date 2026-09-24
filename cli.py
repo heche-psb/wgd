@@ -33,6 +33,7 @@ def cli(verbosity):
         level=verbosity.upper())
     logging.info("This is wgd v{}".format(__version__))
     memory_reporter_initial()
+    logging.info("Command: %s", " ".join(sys.argv))
     pass
 
 
@@ -355,12 +356,13 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
     from wgd.core import _mkdir,endtime
     from wgd.utils import formatv2
     start = timer()
+    logging.info("Seed is {}".format(seed))
     outpath = _mkdir(outdir)
     ksdf = pd.read_csv(ks_distribution,header=0,index_col=0,sep='\t')
     ksdf = formatv2(ksdf)
     if len(ksdf.columns) <4:
         logging.info("Begin to analyze peak of WGD dates")
-        draw_kde_CI(kdemethod, outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4)
+        draw_kde_CI(kdemethod, outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4,seed=seed)
         endtime(start)
     ksdf_filtered = alnfilter(ksdf,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
     if family != None:
@@ -402,8 +404,8 @@ def _peak(ks_distribution, anchorpoints, outdir, alignfilter, ksrange, bin_width
         fig.savefig(fname + "_Ks.pdf")
         plt.close()
         #ksdf_predict_filter = alnfilter(ksdf_predict,weights_outliers_included,alignfilter[0],alignfilter[1],alignfilter[2],ksrange[0],ksrange[1])
-        #draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width)
-    #mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted)
+        #draw_components_kde_bootstrap(kdemethod,outdir,int(n),ksdf_predict_filter,weighted,boots,bin_width,seed=seed)
+    #mean_modes, std_modes, mean_medians, std_medians = bootstrap_kde(kdemethod,outdir, train_in, ksrange[0], ksrange[1], boots, bin_width, ksdf_filtered, weight_col, weighted = weighted, seed=seed)
     endtime(start)
 
 # Ks distribution construction
@@ -544,6 +546,7 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--onlyrootout', '-or', is_flag=True, help='only consider the outgroup at root')
 @click.option('--em_iterations', '-iter', type=int, default=200, show_default=True, help='maximum EM iterations')
 @click.option('--em_initializations', '-init', type=int, default=200, show_default=True, help='maximum EM initializations')
+@click.option('--seed',type=int, default=2352890, show_default=True, help="random seed given to initialize parameters")
 @click.option('--prominence_cutoff', '-prct', type=float, default=0.1, show_default=True, help='prominence cutoff of acceptable peaks')
 @click.option('--rel_height', '-rh', type=float, default=0.4, show_default=True, help='relative height at which the peak width is measured')
 @click.option('--segments', '-sm', default=None,show_default=True,help='segments.txt file')
@@ -557,6 +560,8 @@ def _ksd(families, sequences, outdir, tmpdir, nthreads, to_stop, cds, pairwise,
 @click.option('--keepredun', '-kr', is_flag=True, help='keep redundant multiplicons')
 @click.option('--extraparanomeks', '-epk', default=None, help='extra paranome ks data')
 @click.option('--plotapgmm', '-pag', is_flag=True, help='plot mixture modeling of anchor pairs')
+@click.option('--n_iter', '-nt',type=int, default=200, show_default=True, help="number of iterations to perform in the GMM analysis")
+@click.option('--n_init', '-ni',type=int, default=200, show_default=True, help="number of initializations to perform in the GMM analysis")
 @click.option('--plotelmm', '-pem', is_flag=True, help='plot elmm mixture modeling')
 @click.option('--components', '-n', nargs=2, default=(1, 4), show_default=True, help="range of number of components to fit")
 @click.option('--plotsyn', '-psy', is_flag=True, help='plot synteny')
@@ -583,7 +588,7 @@ def viz(**kwargs):
     """
     _viz(**kwargs)
 
-def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads,chrorder):
+def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializations,seed,prominence_cutoff,segments,minlen,maxsize,anchorpoints,multiplicon,genetable,rel_height,speciestree,onlyrootout,minseglen,keepredun,extraparanomeks,plotapgmm,n_iter,n_init,plotelmm,components,mingenenum,plotsyn,dotsize,apalpha,hoalpha,showrealtick,ticklabelsize,xlim,ylim,adjustortho,adjustfactor,okalpha,focus2all,classic,nodeaveraged,toparrow,bootstrap,gistrb,nthreads,chrorder):
     from wgd.viz import elmm_plot, apply_filters, multi_sp_plot, default_plot,all_dotplots,filter_by_minlength,dotplotunitgene,dotplotingene,filter_mingenumber,dotplotingeneoverall
     from wgd.core import _mkdir,endtime
     from wgd.syn import get_anchors,get_multi,get_segments_profile,get_chrom_gene,get_mp_geneorder,transformunit
@@ -626,7 +631,7 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     ylabel = "Duplications" if spair == () else "Homologous pairs"
     if adjustortho: ylabel = "Homologous pairs (adjusted)"
     if len(spair)!= 0 or not (focus2all is None):
-        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap,nthreads=nthreads)
+        multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=False,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height, na=nodeaveraged,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=classic,toparrow=toparrow,BT=bootstrap,nthreads=nthreads,n_iter=n_iter,n_init=n_init,seed=seed)
         #multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title=prefix,ylabel=ylabel,viz=True,plotkde=plotkde,reweight=reweight,sptree=speciestree,ap = anchorpoints, extraparanomeks=extraparanomeks,plotapgmm=plotapgmm,plotelmm=plotelmm,components=components,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,adjustortho=adjustortho,adfactor=adjustfactor,okalpha=okalpha,focus2all=focus2all,clean=plot2)
     fig = default_plot(df, title=prefix, bins=50, ylabel=ylabel,user_xlim=xlim,user_ylim=ylim)
     fig.savefig(os.path.join(outdir, "{}.ksd.svg".format(prefix)))
@@ -634,9 +639,9 @@ def _viz(datafile,spair,outdir,gsmap,plotkde,reweight,em_iterations,em_initializ
     plt.close()
     if spair == () and focus2all is None:
         logging.info('Exponential-Lognormal mixture modeling on node-weighted Ks distribution')
-        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,seed=seed)
         logging.info('Exponential-Lognormal mixture modeling on node-averaged Ks distribution')
-        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim)
+        elmm_plot(df,prefix,outdir,max_EM_iterations=em_iterations,num_EM_initializations=em_initializations,peak_threshold=prominence_cutoff,na=True,rel_height=rel_height,user_xlim=xlim,user_ylim=ylim,seed=seed)
     endtime(start)
 
 @cli.command(context_settings={'help_option_names': ['-h', '--help']})
@@ -785,13 +790,14 @@ def _syn(families, gff_files, ks_distribution, pathiadhore, outdir, feature, att
 @click.option('--gamma', '-g', default=1e-3, show_default=True, help='gamma parameter for bgmm models')
 @click.option('--n_init', '-ni', default=200, show_default=True, help='number of k-means initializations')
 @click.option('--max_iter', '-mi', default=200, show_default=True, help='maximum number of iterations')
+@click.option('--seed',type=int, default=2352890, show_default=True, help="random seed given to initialize parameters")
 def mix(**kwargs):
     """
     Mixture modeling of Ks distributions.
     Basic function
     """
     _mix(**kwargs)
-def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, gamma, n_init, max_iter):
+def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, gamma, n_init, max_iter, seed):
     """
     Mixture modeling tools.
 
@@ -817,6 +823,7 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
     from wgd.mix import fit_bgmm,plot_all_models_bgmm 
     from wgd.core import endtime
     start = timer()
+    logging.info("Seed is {}".format(seed))
     # make output dir if needed
     if not os.path.exists(outdir):
         logging.info("Making directory {}".format(outdir))
@@ -836,7 +843,7 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
         logging.info("Method is GMM, interpret best model with caution!")
         models, bic, aic, best = fit_gmm(
                 X, components[0], components[1], max_iter=max_iter,
-                n_init=n_init
+                n_init=n_init, seed=seed
         )
         inspect_aic(aic)
         inspect_bic(bic)
@@ -853,7 +860,7 @@ def _mix(ks_distribution, filters, ks_range, method, components, bins, outdir, g
         logging.info(" .. gamma    = {}".format(gamma))
         models = fit_bgmm(
                 X, components[0], components[1], gamma=gamma,
-                max_iter=max_iter, n_init=n_init
+                max_iter=max_iter, n_init=n_init, seed=seed
         )
         logging.info("Plotting mixtures")
         plot_all_models_bgmm(models, X, ks_range[0], ks_range[1], bins=bins,

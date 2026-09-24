@@ -131,13 +131,14 @@ def plot_aic_bic(aic, bic, n1, n2, out_file):
     fig.savefig(out_file)
     plt.close()
 
-def significance_test_cluster(X,n1,n2,labels):
+def significance_test_cluster(X,n1,n2,labels,seed=2352890):
+    rng = np.random.default_rng(seed)
     n_permutations = 100
     for indice,i in enumerate(range(n1, n2 + 1)):
         obs = metrics.silhouette_score(X,labels[indice])
         perm_scores = []
         for j in range(n_permutations):
-            perm_labels = np.random.permutation(labels[indice])
+            perm_labels = rng.permutation(labels[indice])
             perm_scores.append(metrics.silhouette_score(X, perm_labels))
         p_value = np.mean(np.array(perm_scores) >= obs)
         logging.info("Components {} model: Observed Silhouette Coefficient {:.2f} and P-value {:.3f}".format(i,obs,p_value))
@@ -761,6 +762,8 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
         models[i-n1] = mixture.GaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         info_components(models[i-n1],i,info_table)
     aic = [m.aic(X) for m in models]
     bic = [m.bic(X) for m in models]
@@ -785,6 +788,8 @@ def fit_bgmm(X, seed, gamma, n1, n2, em_iter=100, n_init=1):
         models[i-n1] = mixture.BayesianGaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed, weight_concentration_prior=gamma).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         info_components(models[i-n1],i,info_table)
     return models, N
 
@@ -806,7 +811,8 @@ def kde_mode(kde_x, kde_y):
     mode = kde_x[maxy_iloc]
     return mode, max(kde_y)
 
-def bootstrap_kde(kdemethod,outdir,train_in, ks_lower, ks_upper, boots, bin_width, ksdf_filtered, weight_col, weighted = False):
+def bootstrap_kde(kdemethod,outdir,train_in, ks_lower, ks_upper, boots, bin_width, ksdf_filtered, weight_col, weighted = False, seed=2352890):
+    random.seed(seed)
     train_nonan = train_in[~np.isnan(train_in)]
     modes = []
     medians = []
@@ -884,7 +890,8 @@ def Ten_multi(num):
     left=num%10
     return num-left
 
-def draw_kde_CI(kdemethod,outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4,**kwargs):
+def draw_kde_CI(kdemethod,outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=4,seed=2352890,**kwargs):
+    random.seed(seed)
     train_in = ksdf['PM']
     maxm = float(train_in.max())
     minm = float(train_in.min())
@@ -932,7 +939,8 @@ def draw_kde_CI(kdemethod,outdir,ksdf,boots,bw_method,date_lower = 0,date_upper=
     plt.savefig(fname,format ='pdf', bbox_inches='tight')
     plt.close()
 
-def draw_components_kde_bootstrap(kdemethod,outdir,num,ksdf_predict,weighted,boots,bin_width):
+def draw_components_kde_bootstrap(kdemethod,outdir,num,ksdf_predict,weighted,boots,bin_width,seed=2352890):
+    random.seed(seed)
     parent = os.getcwd()
     os.chdir(outdir)
     dir_tmp = _mkdir('{}-components_model'.format(num))
@@ -1783,10 +1791,10 @@ def fit_apgmm_guide(hdr,guide,anchor,df_nofilter,dfor,seed,components,em_iter,n_
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,guide+'_Ks','GMM')
-        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],seed=seed)
     else:
         plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,guide+'_Ks','GMM')
-        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models],seed=seed)
     Losses = []
     y = lambda x:x[0].lower()+x[1:]
     for n, m in zip(N,models):
@@ -1844,10 +1852,10 @@ def fit_apgmm_ap(hdr,anchor,df,seed,components,em_iter,n_init,outdir,method,gamm
     if method == 'bgmm': models, N = fit_bgmm(X_log, seed, gamma, components[0], components[1], em_iter=em_iter, n_init=n_init)
     if components[0] == 1 and components[1] > 1:
         plot_silhouette_score(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],outdir,'Original_AnchorKs','GMM')
-        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:])
+        #significance_test_cluster(X_log,components[0]+1,components[1],[m.predict(X_log) for m in models][1:],seed=seed)
     else:
         plot_silhouette_score(X_log,components[0],components[1],[m.predict(X_log) for m in models],outdir,'Original_AnchorKs','GMM')
-        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models])
+        #significance_test_cluster(X_log,components[0],components[1],[m.predict(X_log) for m in models],seed=seed)
     Losses = []
     for n, m in zip(N,models):
         labels = m.predict(X_log)
@@ -2001,7 +2009,7 @@ def fit_kmedoids(guide,anchor, boots, kdemethod, bin_width, weighted, df_nofilte
         Losses.append(loss)
     if n_kmedoids > 0:
         plot_silhouette_score(X_log,2,n_kmedoids+1,labels_plot[1:],outdir,guide+'_Ks','KMedoids')
-        significance_test_cluster(X_log,2,n_kmedoids+1,labels_plot[1:])
+        significance_test_cluster(X_log,2,n_kmedoids+1,labels_plot[1:],seed=seed)
     plot_Elbow_loss(Losses,outdir,regime=guide)
     #loss = Elbow_lossf(X_log,cluster_centers,labels)
     #df_labels = pd.DataFrame(labels,columns=['KMedoids_Cluster'])

@@ -303,7 +303,7 @@ def kde_mode(kde_x, kde_y):
 def reweighted(df_per):
     return 1 / df_per.groupby(["family", "node"])["dS"].transform('count')
 
-def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
+def fit_gmm(out_file,X, seed, n1, n2, em_iter=200, n_init=200):
     """
     Compute Gaussian mixtures for different numbers of components
     """
@@ -316,6 +316,8 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
         models[i-n1] = mixture.GaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         info_components(models[i-n1],i,info_table)
     aic = [m.aic(X) for m in models]
     bic = [m.bic(X) for m in models]
@@ -328,7 +330,7 @@ def fit_gmm(out_file,X, seed, n1, n2, em_iter=100, n_init=1):
     plot_aic_bic(aic, bic, n1, n2, out_file)
     return models, aic, bic, besta, bestb, N
 
-def fit_bgmm(X, seed, gamma, n1, n2, em_iter=100, n_init=1):
+def fit_bgmm(X, seed, gamma, n1, n2, em_iter=200, n_init=200):
     """
     Variational Bayesian estimation of a Gaussian mixture
     """
@@ -340,6 +342,8 @@ def fit_bgmm(X, seed, gamma, n1, n2, em_iter=100, n_init=1):
         models[i-n1] = mixture.BayesianGaussianMixture(n_components = i, covariance_type='full', max_iter = em_iter, n_init = n_init, random_state = seed, weight_concentration_prior=gamma).fit(X)
         if models[i-n1].converged_:
             logging.info("Convergence reached")
+        else:
+            logging.info("Convergence not reached")
         info_components(models[i-n1],i,info_table)
     return models, N
 
@@ -414,11 +418,11 @@ def plot_aic_bic(aic, bic, n1, n2, out_file):
     fig.savefig(out_file)
     plt.close()
 
-def addapgmm(ax,X,W,components,outdir,Hs):
+def addapgmm(ax,X,W,components,outdir,Hs,n_iter=200,n_init=200,seed=2352890):
     kde_x = np.linspace(0,5,num=5000)
     X_log = np.log(np.array(X)).reshape(-1, 1)
     aic_bic_fplot = os.path.join(outdir,"AIC_BIC.pdf")
-    models, aic, bic, besta, bestb, N = fit_gmm(aic_bic_fplot, X_log, 2352890, components[0], components[1], em_iter=200, n_init=200)
+    models, aic, bic, besta, bestb, N = fit_gmm(aic_bic_fplot, X_log, seed, components[0], components[1], em_iter=n_iter, n_init=n_init)
     means,covariances,weights = besta.means_,besta.covariances_,besta.weights_
     CHF = get_totalH(Hs)
     scaling = CHF*0.1
@@ -428,7 +432,7 @@ def addapgmm(ax,X,W,components,outdir,Hs):
         ax.plot(kde_x,scaling*weight*stats.lognorm.pdf(kde_x, scale=np.exp(mean),s=std), c=cs[num], ls='--', lw=1, alpha=0.8, label='Anchor '+'$K_\mathrm{S}$ '+'component {} (mode {:.2f})'.format(num+1,np.exp(mean - std**2)))
     return ax
 
-def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False):
+def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, seed=2352890):
     df = df.dropna(subset=['dS','weightoutlierexcluded'])
     df = df.loc[(df['dS']>0) & (df['dS']<5),:]
     ks_or = np.array(df['dS'])
@@ -502,13 +506,15 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
     num_comp = len(init_means) + 1
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
-    #if convergence: logging.info('The EM algorithm has reached convergence')
-    #else: logging.info("The EM algorithm hasn't reached convergence")
+    if convergence: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
     bic_dict['Model1'] = bic
     logging.info('BIC of Model1: {:.2f}'.format(bic))
     bic_from_same_num_comp,start_parameters,final_parameters = [],[],[]
+    rng = np.random.default_rng(seed)
     logging.info("Performing EM algorithm from initializated data plus a random lognormal component (Model2)")
+    convergence_initializations = []
     for i in range(num_EM_initializations):
         if len(init_means) > 4:
             updated_means,updated_stdevs = init_means[:4]+[init_means[-1]],init_stdevs[:4]+init_stdevs[-1]
@@ -516,15 +522,18 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
         else:
             updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
             reduced_gaussians = False
-        updated_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)), 1))
-        updated_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)), 1))
+        updated_means.append(round(rng.choice(np.arange(-0.5, 1, 0.1)), 1))
+        updated_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.1)), 1))
         num_comp = len(updated_means) + 1
         updated_weights = [1/num_comp] * num_comp
         start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
         bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,updated_means, updated_stdevs, init_lambd, updated_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
         bic_from_same_num_comp.append(bic)
         final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+        convergence_initializations += [convergence]
     updated_means, updated_stdevs, init_lambd, updated_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+    if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_init_parameters['Model2'] = [updated_means, updated_stdevs, init_lambd, updated_weights]
     final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
     all_models_fitted_parameters['Model2'] = [final_means, final_stdevs, final_lambd, final_weights]
@@ -537,19 +546,23 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
         logging.info("Performing EM algorithm from random initialization with {0} components (Model{1})".format(num_comp,model_id))
         bic_from_same_num_comp = []
         start_parameters, final_parameters = [], []
+        convergence_initializations = []
         for i in range(num_EM_initializations):
             init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
-            init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
+            init_lambd = round(rng.choice(np.arange(0.2, 1, 0.1)), 2)
             for j in range(num_comp-2):
-                init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.01)),1))
-                init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.01)),1))
+                init_means.append(round(rng.choice(np.arange(-0.5, 1, 0.01)),1))
+                init_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.01)),1))
             init_means.append(np.log(5))
             init_stdevs.append(0.3)
             start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
             bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5)
             bic_from_same_num_comp.append(bic)
             final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+            convergence_initializations += [convergence]
         init_means, init_stdevs, init_lambd, init_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+        if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+        else: logging.info("The EM algorithm hasn't reached convergence")
         all_models_init_parameters["Model{}".format(model_id)] = [init_means, init_stdevs, init_lambd, init_weights]
         final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
         all_models_fitted_parameters["Model{}".format(model_id)] = [final_means, final_stdevs, final_lambd, final_weights]
@@ -625,9 +638,10 @@ def addrectangle(ax,mode,orig_mode,order,outspname,cr):
     ax.text(0.5*(left+right), 0.5*(bottom+top), str(order), horizontalalignment='center', verticalalignment='center', fontsize=2, color='k', transform=ax.transAxes)
     return ax
 
-def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False, toparrow=False, BT = 200, nthreads = 4):
+def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False,plotkde=False,reweight=True,sptree=None,ksd=False,ap=None,extraparanomeks=None,plotapgmm=False,components=(1,4),plotelmm=False,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,rel_height=0.4, na = False, user_ylim=(None,None), user_xlim=(None,None), adjustortho = False, adfactor = 0.5, okalpha = 0.5, focus2all=None, clean=False, ksrateslike=False, toparrow=False, BT = 200, nthreads = 4, n_iter=200,n_init=200, seed=2352890):
+    logging.info("Seed is {}".format(seed))
     if not clean:
-        ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm,BT=BT)
+        ratediffplot(df,outdir,focus2all,sptree,onlyrootout,reweight,extraparanomeks,ap,na=na,elmm=plotelmm,mEM=max_EM_iterations,nEM=num_EM_initializations,pt=peak_threshold,rh=rel_height,components=components,apgmm=plotapgmm,BT=BT,n_iter=n_iter,n_init=n_init,seed=seed)
         return
     if na:
         #df = df.drop_duplicates(subset=['family','node'])
@@ -703,7 +717,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
                 df_para = df_para.drop_duplicates(subset=['family','node'])
                 df_para = df_para.drop(['dS'], axis=1).rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
                 df_para['weightoutlierexcluded'] = 1
-            ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
+            ax = addelmm(ax,df_para,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na,seed=seed)
             drawtime = drawtime + 1
     Hs_maxs,y_lim_beforekdes = [],[]
     if adjustortho: Sca = getSca(ax,df_perspair,paralog_pair,na,reweight)
@@ -748,7 +762,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
             if plotelmm and drawtime < 1:
                 drawtime = drawtime + 1
                 logging.info("ELMM analysis on paralogous Ks of {}".format(pair.split("__")[0]))
-                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na)
+                ax = addelmm(ax,df_per,max_EM_iterations=max_EM_iterations,num_EM_initializations=num_EM_initializations,peak_threshold=peak_threshold,rel_height=rel_height,na=na,seed=seed)
                 continue
             #if plotkde:
             #    kde = stats.gaussian_kde(y,weights=w,bw_method='scott')
@@ -821,7 +835,7 @@ def multi_sp_plot(df,spair,gsmap,outdir,onlyrootout,title='',ylabel='',viz=False
         Hs_maxs.append(max(Hs))
         y_lim_beforekde = ax.get_ylim()[1]
         y_lim_beforekdes.append(y_lim_beforekde)
-        if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs)
+        if plotapgmm: ax = addapgmm(ax,y,w,components,outdir,Hs,n_iter=n_iter,n_init=n_init,seed=seed)
     ax.set_xlabel(_labels["dS"])
     #safe_max = max([max(y_lim_beforekdes),max(Hs_maxs)])
     #safe_max = max(Hs_maxs)
@@ -869,7 +883,8 @@ def reflect_logks(ks,w):
     ks_refed,w_refed = np.hstack([ks,np.array(right)]),np.hstack([w,np.array(right_w)])
     return ks_refed,cutoff,w_refed
 
-def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False,rel_height=0.4,user_xlim=None,user_ylim=None):
+def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak_threshold=0.1,na=False,rel_height=0.4,user_xlim=None,user_ylim=None,seed=2352890):
+    logging.info("Seed is {}".format(seed))
     if na:
         df = df.drop_duplicates(subset=['family','node'])
         df = df.loc[:,['node_averaged_dS_outlierexcluded']].copy().rename(columns={'node_averaged_dS_outlierexcluded':'dS'})
@@ -951,15 +966,17 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
     logging.info("Performing EM algorithm from initializated data (Model1)")
     bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5, reduced_gaussians_flag=reduced_gaussians)
     #for m,s in zip(new_means,new_stdevs): logging.info('The optimized means and stds is {:.2f} {:.2f}'.format(np.exp(m),s))
-    #if convergence: logging.info('The EM algorithm has reached convergence')
-    #else: logging.info("The EM algorithm hasn't reached convergence")
+    if convergence: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_fitted_parameters['Model1'] = [new_means, new_stdevs, new_lambd, new_weights]
     bic_dict['Model1'] = bic
     logging.info('BIC of Model1: {:.2f}'.format(bic))
     plot_fitted_model(axes[0,0], axes[0,1],new_means, new_stdevs, new_lambd, new_weights)
+    rng = np.random.default_rng(seed)
     logging.info("Performing EM algorithm from initializated data plus a random lognormal component (Model2)")
     axes[1,0].set_title("Model 2")
     bic_from_same_num_comp,start_parameters,final_parameters = [],[],[]
+    convergence_initializations = []
     for i in range(num_EM_initializations):
         if len(init_means) > 4:
             updated_means,updated_stdevs = init_means[:4]+[init_means[-1]],init_stdevs[:4]+init_stdevs[-1]
@@ -967,8 +984,8 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         else:
             updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
             reduced_gaussians = False
-        updated_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)), 1))
-        updated_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)), 1))
+        updated_means.append(round(rng.choice(np.arange(-0.5, 1, 0.1)), 1))
+        updated_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.1)), 1))
         num_comp = len(updated_means) + 1
         updated_weights = [1/num_comp] * num_comp
         start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
@@ -977,7 +994,10 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         #else: logging.info("The EM algorithm hasn't reached convergence at iteration {}".format(i+1))
         bic_from_same_num_comp.append(bic)
         final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+        convergence_initializations += [convergence]
     updated_means, updated_stdevs, init_lambd, updated_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+    if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+    else: logging.info("The EM algorithm hasn't reached convergence")
     all_models_init_parameters['Model2'] = [updated_means, updated_stdevs, init_lambd, updated_weights]
     plot_init_model(axes[1,0], axes[1,1],updated_means, updated_stdevs, init_lambd, updated_weights)
     final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
@@ -993,7 +1013,7 @@ def elmm_plot(df,sp,outdir,max_EM_iterations=200,num_EM_initializations=200,peak
         fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_weighted.pdf".format(sp)),bbox_inches="tight")
         fig.savefig(os.path.join(outdir, "elmm_{}_models_data_driven_weighted.svg".format(sp)),bbox_inches="tight")
     plt.close()
-    elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na=na)
+    elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na=na,seed=seed)
     logging.info("Models are evaluated according to BIC scores")
     model_bic = [(k,v) for k,v in bic_dict.items()]
     modelist, bic_list = [k for k,v in model_bic],[v for k,v in model_bic]
@@ -1060,12 +1080,13 @@ def plot_bic(model,bic,outdir,sp,na=False):
         fig.savefig(os.path.join(outdir, "elmm_BIC_{}_weighted.pdf".format(sp)))
     plt.close()
 
-def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na):
+def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_iterations,outdir,sp,all_models_init_parameters,all_models_fitted_parameters,bic_dict,na,seed=2352890):
     min_num_comp,max_num_comp = 2,5
     fig, axes = plt.subplots(nrows=((5-2+1)), ncols=2, figsize=(20, 8*(5-2+1)), sharey="row")
     fig.suptitle("Exponential-Lognormal mixture model on {} ".format(sp)+"$K_\mathregular{S}$ " + "paranome\n\nInitialized randomly",fontsize='x-large')
     num_comp_list = np.arange(min_num_comp, max_num_comp + 1)
     axes_ids,model_ids = num_comp_list-min_num_comp,num_comp_list+1
+    rng = np.random.default_rng(seed)
     for num_comp, ax_id, model_id in zip(num_comp_list, axes_ids, model_ids):
         logging.info("Performing EM algorithm from random initialization with {0} components (Model{1})".format(num_comp,model_id))
         ax0, ax1 = axes[ax_id][0], axes[ax_id][1]
@@ -1079,23 +1100,25 @@ def elmm_random(ks_or,w,ks,num_EM_initializations,deconvoluted_data,max_EM_itera
         if model_id == model_ids[-1]: ax1.set_xlabel("ln $K_\mathregular{S}$")
         bic_from_same_num_comp = []
         start_parameters, final_parameters = [], []
+        convergence_initializations = []
         for i in range(num_EM_initializations):
             init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
-            init_lambd = round(np.random.choice(np.arange(0.2, 1, 0.1)), 2)
+            init_lambd = round(rng.choice(np.arange(0.2, 1, 0.1)), 2)
             for j in range(num_comp-2):
-                #init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.1)),1))
-                init_means.append(round(np.random.choice(np.arange(-0.5, 1, 0.01)),1))
-                #init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.1)),1))
-                init_stdevs.append(round(np.random.choice(np.arange(0.3, 0.9, 0.01)),1))
+                #init_means.append(round(rng.choice(np.arange(-0.5, 1, 0.1)),1))
+                init_means.append(round(rng.choice(np.arange(-0.5, 1, 0.01)),1))
+                #init_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.1)),1))
+                init_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.01)),1))
             init_means.append(np.log(5))
             init_stdevs.append(0.3)
             start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
             bic, new_means, new_stdevs, new_lambd, new_weights, convergence = EM_step(num_comp,deconvoluted_data,init_means, init_stdevs, init_lambd, init_weights,max_EM_iterations=max_EM_iterations,max_num_comp = 5)
-            #if convergence: logging.info('The EM algorithm has reached convergence')
-            #else: logging.info("The EM algorithm hasn't reached convergence")
             bic_from_same_num_comp.append(bic)
             final_parameters.append([new_means, new_stdevs, new_lambd, new_weights])
+            convergence_initializations += [convergence]
         init_means, init_stdevs, init_lambd, init_weights = start_parameters[np.argmin(bic_from_same_num_comp)]
+        if convergence_initializations[np.argmin(bic_from_same_num_comp)]: logging.info('The EM algorithm has reached convergence')
+        else: logging.info("The EM algorithm hasn't reached convergence")
         all_models_init_parameters["Model{}".format(model_id)] = [init_means, init_stdevs, init_lambd, init_weights]
         plot_init_model(ax0, ax1, init_means, init_stdevs, init_lambd, init_weights)
         final_means, final_stdevs, final_lambd, final_weights = final_parameters[np.argmin(bic_from_same_num_comp)]
