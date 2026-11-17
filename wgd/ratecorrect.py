@@ -316,7 +316,7 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
             updated_means,updated_stdevs = init_means.copy(), init_stdevs.copy()
             reduced_gaussians = False
         updated_means.append(round(rng.choice(np.arange(-0.5, 1, 0.1)), 1))
-        updated_stdevs.append(round(rng(np.arange(0.3, 0.9, 0.1)), 1))
+        updated_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.1)), 1))
         num_comp = len(updated_means) + 1
         updated_weights = [1/num_comp] * num_comp
         start_parameters.append([updated_means, updated_stdevs, init_lambd, updated_weights])
