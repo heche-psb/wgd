@@ -342,10 +342,10 @@ def addelmm(ax,df,max_EM_iterations=200,num_EM_initializations=200,peak_threshol
         convergence_initializations = []
         for i in range(num_EM_initializations):
             init_means, init_stdevs, init_weights = [], [], [1/num_comp] * num_comp
-            init_lambd = round(rng(np.arange(0.2, 1, 0.1)), 2)
+            init_lambd = round(rng.choice(np.arange(0.2, 1, 0.1)), 2)
             for j in range(num_comp-2):
-                init_means.append(round(rng(np.arange(-0.5, 1, 0.01)),1))
-                init_stdevs.append(round(rng(np.arange(0.3, 0.9, 0.01)),1))
+                init_means.append(round(rng.choice(np.arange(-0.5, 1, 0.01)),1))
+                init_stdevs.append(round(rng.choice(np.arange(0.3, 0.9, 0.01)),1))
             init_means.append(np.log(5))
             init_stdevs.append(0.3)
             start_parameters.append([init_means, init_stdevs, init_lambd, init_weights])
