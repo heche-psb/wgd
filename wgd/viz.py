@@ -2263,6 +2263,8 @@ def plotdp_ig(ax,dfx,dfy,spx,spy,table,gene_orders,anchor=None,ksdf=None,maxsize
             gene_list[sp][gene] = li
     for scfa in dfx.columns: leng_info_x[scfa] = len(dfx[scfa].dropna())
     for scfa in dfy.columns: leng_info_y[scfa] = len(dfy[scfa].dropna())
+    leng_info_x = {k: v for k, v in leng_info_x.items() if not pd.isna(k)}
+    leng_info_y = {k: v for k, v in leng_info_y.items() if not pd.isna(k)}
     if alnumchrorder:
         sorted_labels_x = [i[0] for i in sorted(leng_info_x.items(),key=lambda x: x[0],reverse=False)]
         sorted_leng_x = [i[1] for i in sorted(leng_info_x.items(),key=lambda x: x[0],reverse=False)]
